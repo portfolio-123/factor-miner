@@ -90,11 +90,22 @@ def update_continue_button() -> None:
     Also handles invalidation of future steps if step 1 data changes
     """
 
-    has_dataset = bool(state.dataset_input.value and state.dataset_input.value.strip())
-    has_formulas = bool(state.formulas_input.value and state.formulas_input.value.strip())
-    has_api_key = bool(state.api_key_input.value and state.api_key_input.value.strip())
-
-    state.continue_button.disabled = not (has_dataset and has_formulas and has_api_key)
+    # Check required fields based on mode
+    if state.is_internal_app:
+        # Internal mode: require factor list UID and API key
+        has_factor_list = bool(
+            state.factor_list_uid_input and
+            state.factor_list_uid_input.value and
+            state.factor_list_uid_input.value.strip()
+        )
+        has_api_key = bool(state.api_key_input.value and state.api_key_input.value.strip())
+        state.continue_button.disabled = not (has_factor_list and has_api_key)
+    else:
+        # External mode: require dataset, formulas, and API key
+        has_dataset = bool(state.dataset_input.value and state.dataset_input.value.strip())
+        has_formulas = bool(state.formulas_input.value and state.formulas_input.value.strip())
+        has_api_key = bool(state.api_key_input.value and state.api_key_input.value.strip())
+        state.continue_button.disabled = not (has_dataset and has_formulas and has_api_key)
 
     # only invalidate if on step 1, not suppressed, and actual changes detected
     if (
@@ -112,9 +123,16 @@ def update_continue_button() -> None:
             except Exception:
                 return (p or "").strip()
 
-        # current values
-        curr_dataset = (state.dataset_input.value or "").strip()
-        curr_formulas = (state.formulas_input.value or "").strip()
+        # current values (conditional on mode)
+        if state.is_internal_app:
+            curr_dataset = ""
+            curr_formulas = ""
+            curr_factor_list = (state.factor_list_uid_input.value or "").strip() if state.factor_list_uid_input else ""
+        else:
+            curr_dataset = (state.dataset_input.value or "").strip()
+            curr_formulas = (state.formulas_input.value or "").strip()
+            curr_factor_list = ""
+
         curr_benchmark = (state.benchmark_input.value or "").strip() if state.benchmark_input else ""
         curr_api_id = (state.api_id_input.value or "").strip() if state.api_id_input else ""
         curr_api_key = (state.api_key_input.value or "").strip() if state.api_key_input else ""
@@ -165,15 +183,25 @@ def update_continue_button() -> None:
 def setup_event_handlers() -> None:
     """Setup observers for form inputs."""
 
-    state.dataset_input.observe(
-        lambda change: update_continue_button(),
-        names='value'
-    )
+    # External mode: observe dataset and formulas inputs
+    if state.dataset_input:
+        state.dataset_input.observe(
+            lambda change: update_continue_button(),
+            names='value'
+        )
 
-    state.formulas_input.observe(
-        lambda change: update_continue_button(),
-        names='value'
-    )
+    if state.formulas_input:
+        state.formulas_input.observe(
+            lambda change: update_continue_button(),
+            names='value'
+        )
+
+    # Internal mode: observe factor list UID input
+    if state.factor_list_uid_input:
+        state.factor_list_uid_input.observe(
+            lambda change: update_continue_button(),
+            names='value'
+        )
 
     state.api_key_input.observe(
         lambda change: [
@@ -190,7 +218,7 @@ def setup_event_handlers() -> None:
     state.min_alpha_input.observe(lambda change: update_continue_button(), names='value')
 
     state.top_x_input.observe(lambda change: update_continue_button(), names='value')
-    
+
     state.bottom_x_input.observe(lambda change: update_continue_button(), names='value')
 
 

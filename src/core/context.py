@@ -17,11 +17,16 @@ class AppState:
         if self.completed_steps is None:
             self.completed_steps = set()
 
+    # internal app config
+    is_internal_app: bool = False
+    factor_list_uid: Optional[str] = None
+
     # data state
     benchmark_data: Optional[pd.DataFrame] = None
     raw_data: Optional[pd.DataFrame] = None
     price_column: Optional[str] = None
     benchmark_ticker: Optional[str] = None
+    api_id: Optional[str] = None
     api_key: Optional[str] = None
 
     file_type: Optional[str] = None  # 'csv' or 'parquet'
@@ -45,7 +50,9 @@ class AppState:
     # step 1 widgets
     dataset_input: Optional[widgets.Text] = None
     formulas_input: Optional[widgets.Text] = None
+    factor_list_uid_input: Optional[widgets.Text] = None
     benchmark_input: Optional[widgets.Text] = None
+    api_id_input: Optional[widgets.Text] = None
     api_key_input: Optional[widgets.Text] = None
     min_alpha_input: Optional[widgets.FloatText] = None
     top_x_input: Optional[widgets.FloatText] = None

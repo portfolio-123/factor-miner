@@ -86,19 +86,46 @@ def build_step1(revisit: bool = False) -> widgets.VBox:
         state.step1_container.layout.display = 'flex'
         return state.step1_container
 
-    dataset_input, dataset_row = file_path_input('Dataset', placeholder='data/sp500.parquet')
-    formulas_input, formulas_row = file_path_input('Formulas', placeholder='formulas.csv')
+    # Conditional UI based on INTERNAL_APP mode
+    if state.is_internal_app:
+        factor_list_uid_input = text_input(
+            'Factor List UID',
+            placeholder='Enter Factor List UID'
+        )
+
+        # auto-populate from url parameter if available
+        if state.factor_list_uid:
+            factor_list_uid_input.value = state.factor_list_uid
+
+        state.dataset_input = None
+        state.formulas_input = None
+        state.factor_list_uid_input = factor_list_uid_input
+
+        data_sources_widgets = [factor_list_uid_input]
+    else:
+        # External app mode: original dataset and formulas inputs
+        dataset_input, dataset_row = file_path_input('Dataset', placeholder='data/sp500.parquet')
+        formulas_input, formulas_row = file_path_input('Formulas', placeholder='formulas.csv')
+
+        state.dataset_input = dataset_input
+        state.formulas_input = formulas_input
+
+        data_sources_widgets = [dataset_row, formulas_row]
 
     benchmark_input = text_input('Benchmark', placeholder='SPY:USA')
+
+    # auto-populate benchmark from url parameter if available
+    if state.benchmark_ticker:
+        benchmark_input.value = state.benchmark_ticker
     api_id_input = text_input('API ID', placeholder='Enter API ID')
     api_key_input = text_input('API Key', placeholder='Enter API Key')
 
     # restore values you had when you submitted step 1
     if revisit:
         if state.dataset_input and state.dataset_input.value:
-            dataset_input.value = state.dataset_input.value
+            state.dataset_input.value = state.dataset_input.value
         if state.formulas_input and state.formulas_input.value:
-            formulas_input.value = state.formulas_input.value
+            state.formulas_input.value = state.formulas_input.value
         if state.benchmark_input and state.benchmark_input.value:
             benchmark_input.value = state.benchmark_input.value
         if state.api_id_input and state.api_id_input.value:
@@ -143,8 +170,6 @@ def build_step1(revisit: bool = False) -> widgets.VBox:
     continue_button.disabled = True
 
     # store all widgets in state to access them in event handlers
-    state.dataset_input = dataset_input
-    state.formulas_input = formulas_input
     state.benchmark_input = benchmark_input
     state.api_id_input = api_id_input
     state.api_key_input = api_key_input
@@ -175,12 +200,15 @@ def build_step1(revisit: bool = False) -> widgets.VBox:
         </div>'''
     )
 
-    # build form
-    form_fields = widgets.VBox([
-        section_header('Data Sources'),
-        dataset_row,
-        formulas_row,
-        price_note,
+    # build form with conditional data sources
+    form_children = [section_header('Data Sources')]
+    form_children.extend(data_sources_widgets)
+
+    # only show price note for external app mode (when showing dataset input)
+    if not state.is_internal_app:
+        form_children.append(price_note)
+
+    form_children.extend([
         section_header('Configuration'),
         benchmark_input,
         section_header('Authentication'),
@@ -193,6 +221,8 @@ def build_step1(revisit: bool = False) -> widgets.VBox:
         form_error,
         button_container
     ])
+
+    form_fields = widgets.VBox(form_children)
 
 
     step1_container = centered_container([widgets.VBox([
