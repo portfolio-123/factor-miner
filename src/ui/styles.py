@@ -1,6 +1,7 @@
 def get_app_css() -> str:
     return """
 <style>
+
 .horizontal-radio .widget-radio-box {
     display: flex !important;
     flex-direction: row !important;
@@ -9,6 +10,10 @@ def get_app_css() -> str:
     height: auto !important;
     padding: 0 !important;
 }
+.widget-box {
+    overflow: visible !important;
+}
+
 .horizontal-radio label {
     margin-right: 20px !important;
     margin-top: 0 !important;
