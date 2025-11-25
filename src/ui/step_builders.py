@@ -99,28 +99,46 @@ def build_step1(revisit: bool = False) -> widgets.VBox:
 
         # Show verification status for auto-located files
         if state.files_verified:
-            verification_html = widgets.HTML(
-                value=f'''<div style="color: #28a745; font-size: 12px; margin: 5px 0;">
-                    Files found: <strong>{state.auto_dataset_path.name}</strong>, <strong>{state.auto_formulas_path.name}</strong>
-                </div>'''
-            )
+            # Build filename with detected extension
+            dataset_ext = state.auto_dataset_file_type or 'csv'
+            dataset_name = state.auto_dataset_path.stem
+            dataset_display = f"{dataset_name}.{dataset_ext}"
+            formulas_display = state.auto_formulas_path.name
+
+            dataset_input, dataset_row = file_path_input('Dataset', placeholder='')
+            dataset_input.value = dataset_display
+            dataset_input.disabled = True
+
+            formulas_input, formulas_row = file_path_input('Formulas', placeholder='')
+            formulas_input.value = formulas_display
+            formulas_input.disabled = True
+
+            state.dataset_input = None
+            state.formulas_input = None
+            state.factor_list_uid_input = factor_list_uid_input
+
+            data_sources_widgets = [factor_list_uid_input, dataset_row, formulas_row]
         elif state.files_verification_error:
-            verification_html = widgets.HTML(
+            error_html = widgets.HTML(
                 value=f'''<div style="color: #dc3545; font-size: 12px; margin: 5px 0;">
                     <strong>{state.files_verification_error}</strong>
                 </div>'''
             )
+            state.dataset_input = None
+            state.formulas_input = None
+            state.factor_list_uid_input = factor_list_uid_input
+
+            data_sources_widgets = [factor_list_uid_input, error_html]
         else:
             # No fl_id provided in URL
-            verification_html = widgets.HTML(
+            no_fl_html = widgets.HTML(
                 value='<div style="color: #666; font-size: 12px; margin: 5px 0;"><strong>No fl_id provided in URL</strong></div>'
             )
+            state.dataset_input = None
+            state.formulas_input = None
+            state.factor_list_uid_input = factor_list_uid_input
 
-        state.dataset_input = None
-        state.formulas_input = None
-        state.factor_list_uid_input = factor_list_uid_input
-
-        data_sources_widgets = [factor_list_uid_input, verification_html]
+            data_sources_widgets = [factor_list_uid_input, no_fl_html]
     else:
         # External app mode: original dataset and formulas inputs
         dataset_input, dataset_row = file_path_input('Dataset', placeholder='data/sp500.parquet')

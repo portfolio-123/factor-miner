@@ -24,6 +24,7 @@ class AppState:
     # auto-located file paths (internal app mode)
     auto_dataset_path: Optional[Path] = None
     auto_formulas_path: Optional[Path] = None
+    auto_dataset_file_type: Optional[str] = None  # 'csv' or 'parquet', detected via magic bytes
     files_verified: bool = False
     files_verification_error: Optional[str] = None
 
