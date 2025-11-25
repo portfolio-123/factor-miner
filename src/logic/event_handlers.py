@@ -286,8 +286,12 @@ def handle_continue_click() -> None:
         log_debug(f"Formulas file: {formulas_file}")
 
         # get_data_reader() returns a csv or parquet reader based on the file type
+        # In internal app mode, use pre-detected file type (from magic bytes)
         try:
-            dataset_reader = get_data_reader(dataset_file)
+            if state.is_internal_app and state.auto_dataset_file_type:
+                dataset_reader = get_data_reader(dataset_file, file_type=state.auto_dataset_file_type)
+            else:
+                dataset_reader = get_data_reader(dataset_file)
         except ValueError as e:
             log_debug(f"ERROR: {str(e)}")
             show_error(str(e), state.form_error)
@@ -295,8 +299,11 @@ def handle_continue_click() -> None:
             update_continue_button()
             return
 
-        # detect file type based on the filename extension
-        state.file_type = 'parquet' if dataset_file.suffix.lower() == '.parquet' else 'csv'
+        # Set file type: use pre-detected type in internal mode, otherwise from extension
+        if state.is_internal_app and state.auto_dataset_file_type:
+            state.file_type = state.auto_dataset_file_type
+        else:
+            state.file_type = 'parquet' if dataset_file.suffix.lower() == '.parquet' else 'csv'
         log_debug(f"Detected file type: {state.file_type}")
 
         # validate required columns are present

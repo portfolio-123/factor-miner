@@ -153,13 +153,20 @@ class ParquetDataReader:
             return []
 
 
-def get_data_reader(file_path: Union[str, Path]):
+def get_data_reader(file_path: Union[str, Path], file_type: Optional[str] = None):
     path = Path(file_path)
-    suffix = path.suffix.lower()
 
-    if suffix == '.csv':
+    # Use explicit file_type if provided, otherwise detect from extension
+    if file_type is None:
+        suffix = path.suffix.lower()
+        if suffix == '.csv':
+            file_type = 'csv'
+        elif suffix == '.parquet':
+            file_type = 'parquet'
+
+    if file_type == 'csv':
         return CSVDataReader(path)
-    elif suffix == '.parquet':
+    elif file_type == 'parquet':
         return ParquetDataReader(path)
     else:
         raise ValueError(f"Unsupported file type: {path}")
