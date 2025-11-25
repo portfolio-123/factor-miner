@@ -90,18 +90,37 @@ def build_step1(revisit: bool = False) -> widgets.VBox:
     if state.is_internal_app:
         factor_list_uid_input = text_input(
             'Factor List UID',
-            placeholder='Enter Factor List UID'
         )
+        factor_list_uid_input.disabled = True  # readonly since it comes from URL
 
         # auto-populate from url parameter if available
         if state.factor_list_uid:
             factor_list_uid_input.value = state.factor_list_uid
 
+        # Show verification status for auto-located files
+        if state.files_verified:
+            verification_html = widgets.HTML(
+                value=f'''<div style="color: #28a745; font-size: 12px; margin: 5px 0;">
+                    Files found: <strong>{state.auto_dataset_path.name}</strong>, <strong>{state.auto_formulas_path.name}</strong>
+                </div>'''
+            )
+        elif state.files_verification_error:
+            verification_html = widgets.HTML(
+                value=f'''<div style="color: #dc3545; font-size: 12px; margin: 5px 0;">
+                    <strong>{state.files_verification_error}</strong>
+                </div>'''
+            )
+        else:
+            # No fl_id provided in URL
+            verification_html = widgets.HTML(
+                value='<div style="color: #666; font-size: 12px; margin: 5px 0;"><strong>No fl_id provided in URL</strong></div>'
+            )
+
         state.dataset_input = None
         state.formulas_input = None
         state.factor_list_uid_input = factor_list_uid_input
 
-        data_sources_widgets = [factor_list_uid_input]
+        data_sources_widgets = [factor_list_uid_input, verification_html]
     else:
         # External app mode: original dataset and formulas inputs
         dataset_input, dataset_row = file_path_input('Dataset', placeholder='data/sp500.parquet')

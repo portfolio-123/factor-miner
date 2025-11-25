@@ -92,14 +92,9 @@ def update_continue_button() -> None:
 
     # Check required fields based on mode
     if state.is_internal_app:
-        # Internal mode: require factor list UID and API key
-        has_factor_list = bool(
-            state.factor_list_uid_input and
-            state.factor_list_uid_input.value and
-            state.factor_list_uid_input.value.strip()
-        )
+        # Internal mode: require files to be verified and API key
         has_api_key = bool(state.api_key_input.value and state.api_key_input.value.strip())
-        state.continue_button.disabled = not (has_factor_list and has_api_key)
+        state.continue_button.disabled = not (state.files_verified and has_api_key)
     else:
         # External mode: require dataset, formulas, and API key
         has_dataset = bool(state.dataset_input.value and state.dataset_input.value.strip())
@@ -244,33 +239,48 @@ def handle_continue_click() -> None:
         log_debug("API Key configured")
         log_debug(f"Analysis Parameters - Min Alpha: {state.min_alpha}%, Top X: {state.top_x_pct}%, Bottom X: {state.bottom_x_pct}%")
 
-        dataset_path = state.dataset_input.value.strip()
-        formulas_path = state.formulas_input.value.strip()
+        # Internal app mode: use auto-located files
+        if state.is_internal_app:
+            if not state.files_verified:
+                error_msg = state.files_verification_error or "Files not verified"
+                log_debug(f"ERROR: {error_msg}")
+                show_error(error_msg, state.form_error)
+                state.continue_button.description = 'Continue'
+                update_continue_button()
+                return
 
-        # validate file paths (support both absolute and relative)
-        dataset_file = Path(dataset_path)
-        if not dataset_file.is_absolute():
-            dataset_file = dataset_file.resolve()
+            dataset_file = state.auto_dataset_path
+            formulas_file = state.auto_formulas_path
+            log_debug(f"Using auto-located files for fl_id: {state.factor_list_uid}")
+        else:
+            # External app mode: get paths from text inputs
+            dataset_path = state.dataset_input.value.strip()
+            formulas_path = state.formulas_input.value.strip()
 
-        if not dataset_file.exists():
-            error_msg = f"Dataset file not found: {dataset_path}"
-            log_debug(f"ERROR: {error_msg}")
-            show_error(error_msg, state.form_error)
-            state.continue_button.description = 'Continue'
-            update_continue_button()
-            return
+            # validate file paths (support both absolute and relative)
+            dataset_file = Path(dataset_path)
+            if not dataset_file.is_absolute():
+                dataset_file = dataset_file.resolve()
 
-        formulas_file = Path(formulas_path)
-        if not formulas_file.is_absolute():
-            formulas_file = formulas_file.resolve()
+            if not dataset_file.exists():
+                error_msg = f"Dataset file not found: {dataset_path}"
+                log_debug(f"ERROR: {error_msg}")
+                show_error(error_msg, state.form_error)
+                state.continue_button.description = 'Continue'
+                update_continue_button()
+                return
 
-        if not formulas_file.exists():
-            error_msg = f"Formulas file not found: {formulas_path}"
-            log_debug(f"ERROR: {error_msg}")
-            show_error(error_msg, state.form_error)
-            state.continue_button.description = 'Continue'
-            update_continue_button()
-            return
+            formulas_file = Path(formulas_path)
+            if not formulas_file.is_absolute():
+                formulas_file = formulas_file.resolve()
+
+            if not formulas_file.exists():
+                error_msg = f"Formulas file not found: {formulas_path}"
+                log_debug(f"ERROR: {error_msg}")
+                show_error(error_msg, state.form_error)
+                state.continue_button.description = 'Continue'
+                update_continue_button()
+                return
 
         log_debug(f"Dataset file: {dataset_file}")
         log_debug(f"Formulas file: {formulas_file}")

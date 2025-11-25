@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Optional, Tuple
 from src.core.context import state
 import os
 from urllib.parse import parse_qs
@@ -63,3 +64,25 @@ def format_number(value: float, decimals: int = 4) -> str:
     if pd.isna(value):
         return 'N/A'
     return f"{value:.{decimals}f}"
+
+
+def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path], Optional[str]]:
+    base_dir = os.getenv('FACTOR_LIST_DIR')
+    if not base_dir:
+        return None, None, "FACTOR_LIST_DIR environment variable not set"
+
+    base_path = Path(base_dir)
+    if not base_path.exists():
+        return None, None, f"FACTOR_LIST_DIR does not exist: {base_dir}"
+
+    # Dataset file:
+    dataset_path = base_path / fl_id
+    if not dataset_path.exists():
+        return None, None, f"Dataset file not found: {dataset_path}"
+
+    # Formulas file:
+    formulas_path = base_path / f"{fl_id}_meta.csv"
+    if not formulas_path.exists():
+        return None, None, f"Formulas file not found: {formulas_path}"
+
+    return dataset_path, formulas_path, None
