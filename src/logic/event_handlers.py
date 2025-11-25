@@ -328,7 +328,11 @@ def handle_continue_click() -> None:
             raw_data = dataset_reader.read_full()
 
         try:
-            formulas_reader = get_data_reader(formulas_file)
+            # In internal app mode, formulas files are always CSV (no extension)
+            if state.is_internal_app:
+                formulas_reader = get_data_reader(formulas_file, file_type='csv')
+            else:
+                formulas_reader = get_data_reader(formulas_file)
         except ValueError as e:
             log_debug(f"ERROR: {str(e)}")
             show_error(str(e), state.form_error)
