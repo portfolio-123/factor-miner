@@ -135,6 +135,10 @@ def _process_continue() -> bool:
             raw_data = None  # will be loaded on-demand in step 2
             metadata = dataset_reader.get_metadata()
             add_debug_log(f"Parquet validated: {metadata['num_rows']:,} rows, {metadata['num_columns']} columns")
+            if state.is_internal_app:
+                custom_metadata = dataset_reader.get_custom_metadata()
+                if custom_metadata:
+                    add_debug_log(f"Parquet custom metadata: {json.dumps(custom_metadata, indent=4)}")
         else:
             raw_data = dataset_reader.read_full()
             add_debug_log(f"CSV loaded: {len(raw_data):,} rows")

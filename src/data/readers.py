@@ -151,6 +151,20 @@ class ParquetDataReader:
         except Exception:
             return []
 
+    def get_custom_metadata(self) -> Optional[Dict[str, str]]:
+        """Get custom key-value metadata from parquet file schema."""
+        try:
+            parquet_file = pq.ParquetFile(str(self.file_path))
+            schema_metadata = parquet_file.schema_arrow.metadata
+            if schema_metadata is None:
+                return None
+            return {
+                k.decode('utf-8'): v.decode('utf-8')
+                for k, v in schema_metadata.items()
+            }
+        except Exception:
+            return None
+
 
 def get_data_reader(file_path: Union[str, Path], file_type: Optional[str] = None):
     path = Path(file_path)
