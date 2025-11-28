@@ -1,0 +1,99 @@
+import streamlit as st
+import os
+from dotenv import load_dotenv
+
+from src.core.context import get_state, update_state, add_debug_log
+from src.core.utils import get_url_params, locate_factor_list_files
+from src.ui.components import header_with_navigation
+from src.ui.steps import render_step1, render_step2, render_step3
+from src.ui.styles import apply_custom_styles
+
+load_dotenv()
+
+st.set_page_config(
+    page_title="Factor Evaluator - Portfolio123",
+    page_icon="assets/favicon.png",
+    layout="wide",
+)
+
+def initialize_app() -> None:
+    if 'initialized' in st.session_state:
+        return
+
+    add_debug_log("Initializing application...")
+
+    # check env variable to see if it's internal or external app
+    is_internal_app = os.getenv('INTERNAL_APP', 'false').lower() == 'true'
+    update_state(is_internal_app=is_internal_app)
+
+    if is_internal_app:
+        add_debug_log("Running in internal app mode")
+
+        # Get URL parameters
+        fl_id, benchmark = get_url_params('fl_id', 'benchmark')
+
+        if fl_id:
+            add_debug_log(f"Factor list ID from URL: {fl_id}")
+            update_state(factor_list_uid=fl_id)
+
+            # Locate files
+            dataset_path, formulas_path, error, file_type = locate_factor_list_files(fl_id)
+
+            if error:
+                add_debug_log(f"File verification error: {error}")
+                update_state(
+                    files_verified=False,
+                    files_verification_error=error
+                )
+            else:
+                add_debug_log(f"Files verified - Dataset: {dataset_path}, Formulas: {formulas_path}")
+                update_state(
+                    auto_dataset_path=dataset_path,
+                    auto_formulas_path=formulas_path,
+                    auto_dataset_file_type=file_type,
+                    files_verified=True,
+                    files_verification_error=None
+                )
+
+        if benchmark:
+            add_debug_log(f"Benchmark from URL: {benchmark}")
+            update_state(benchmark_ticker=benchmark)
+    else:
+        add_debug_log("Running in external app mode")
+
+    st.session_state.initialized = True
+    add_debug_log("Application initialized")
+
+
+def main() -> None:
+    apply_custom_styles()
+
+    initialize_app()
+
+    state = get_state()
+
+    # Header with brand and step navigation
+    selected_step = header_with_navigation()
+
+    # Handle navigation
+    if selected_step != state.current_step:
+        available_steps = [1]
+        if 1 in state.completed_steps:
+            available_steps.append(2)
+        if 2 in state.completed_steps:
+            available_steps.append(3)
+
+        if selected_step in available_steps:
+            update_state(current_step=selected_step)
+            st.rerun()
+
+    if state.current_step == 1:
+        render_step1()
+    elif state.current_step == 2:
+        render_step2()
+    elif state.current_step == 3:
+        render_step3()
+
+
+if __name__ == "__main__":
+    main()
