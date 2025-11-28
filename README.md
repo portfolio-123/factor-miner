@@ -38,15 +38,7 @@ INTERNAL_APP=false
 
 #### 5. Run the Application
 
-**macOS/Linux:**
-```bash
 streamlit run app.py
-```
-
-**Windows (Command Prompt/PowerShell):**
-```cmd
-streamlit run app.py
-```
 
 The app will open in http://localhost:8501/
 
