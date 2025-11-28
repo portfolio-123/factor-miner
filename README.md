@@ -37,11 +37,18 @@ INTERNAL_APP=false
 ```
 
 #### 5. Run the Application
+
+**macOS/Linux:**
 ```bash
-voila app.ipynb
+streamlit run app.py
 ```
 
-The app will open in http://localhost:8866/
+**Windows (Command Prompt/PowerShell):**
+```cmd
+streamlit run app.py
+```
+
+The app will open in http://localhost:8501/
 
 ### Troubleshooting
 
