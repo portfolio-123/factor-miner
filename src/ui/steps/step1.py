@@ -327,8 +327,7 @@ def render() -> None:
             )
 
         st.caption(
-            "**Note:** Your dataset must contain a column named 'Last Close' for price data."
-            "We support both CSV and Parquet file formats."
+            "**Note:** Your dataset must contain a column named 'Last Close' for price data. We support both CSV and Parquet file formats."
         )
 
     section_header("Configuration")
