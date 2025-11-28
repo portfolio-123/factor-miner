@@ -1,21 +1,18 @@
+import streamlit as st
 import pandas as pd
-import ipywidgets as widgets
 from pathlib import Path
-from typing import Optional
-from dataclasses import dataclass
+from typing import Optional, List
+from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
 class AppState:
     """Central state management for the application."""
     current_step: int = 1
-    completed_steps: set = None
+    completed_steps: set = field(default_factory=set)
 
     PRICE_COLUMN: str = "Last Close"
-
-    def __post_init__(self):
-        if self.completed_steps is None:
-            self.completed_steps = set()
 
     # internal app config
     is_internal_app: bool = False
@@ -38,6 +35,11 @@ class AppState:
 
     file_type: Optional[str] = None  # 'csv' or 'parquet'
     dataset_path: Optional[Path] = None
+    formulas_path: Optional[Path] = None
+    formulas_data: Optional[pd.DataFrame] = None
+    # original user-entered paths (for form restoration when going back to step 1)
+    dataset_path_input: Optional[str] = None
+    formulas_path_input: Optional[str] = None
 
     # calculation parameters
     min_alpha: float = 0.5
@@ -50,42 +52,33 @@ class AppState:
     all_metrics: Optional[pd.DataFrame] = None
     all_corr_matrix: Optional[pd.DataFrame] = None
 
-    # debug widgets
-    debug_output: Optional[widgets.Output] = None
-    debug_toggle_button: Optional[widgets.Button] = None
-
-    # step 1 widgets
-    dataset_input: Optional[widgets.Text] = None
-    formulas_input: Optional[widgets.Text] = None
-    factor_list_uid_input: Optional[widgets.Text] = None
-    benchmark_input: Optional[widgets.Text] = None
-    api_id_input: Optional[widgets.Text] = None
-    api_key_input: Optional[widgets.Text] = None
-    min_alpha_input: Optional[widgets.FloatText] = None
-    top_x_input: Optional[widgets.FloatText] = None
-    bottom_x_input: Optional[widgets.FloatText] = None
-    form_error: Optional[widgets.HTML] = None
-    continue_button: Optional[widgets.Button] = None
-
-    # step 2 widgets
-    analyze_button: Optional[widgets.Button] = None
-
-    # step 3 widgets
-    correlation_slider: Optional[widgets.FloatSlider] = None
-    n_features_input: Optional[widgets.IntText] = None
-    results_container: Optional[widgets.VBox] = None
-
-    step1_container: Optional[widgets.VBox] = None
-    step2_container: Optional[widgets.VBox] = None
-    step3_container: Optional[widgets.VBox] = None
-
-    # header components to avoid re-rendering
-    header_container: Optional[widgets.HBox] = None
-    step_indicator_widget: Optional[widgets.HBox] = None
-
-    # control flags
-    suppress_invalidation: bool = False
+    # debug logs
+    debug_logs: List[str] = field(default_factory=list)
 
 
-# global state instance
-state = AppState()
+def get_state() -> AppState:
+    if 'app_state' not in st.session_state:
+        st.session_state.app_state = AppState()
+    return st.session_state.app_state
+
+
+def update_state(**kwargs) -> None:
+    state = get_state()
+    for key, value in kwargs.items():
+        if hasattr(state, key):
+            setattr(state, key, value)
+
+
+def add_debug_log(message: str) -> None:
+    state = get_state()
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    state.debug_logs.append(f"[{timestamp}] {message}")
+    # keep only the last 100 logs
+    if len(state.debug_logs) > 100:
+        state.debug_logs = state.debug_logs[-100:]
+
+
+def clear_debug_logs() -> None:
+    state = get_state()
+    state.debug_logs = []
+    add_debug_log("Logs cleared")

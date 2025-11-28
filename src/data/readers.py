@@ -1,5 +1,4 @@
 import pandas as pd
-import io
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, Union
 import pyarrow.parquet as pq

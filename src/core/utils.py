@@ -1,26 +1,9 @@
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, Tuple
-from src.core.context import state
 import os
-from urllib.parse import parse_qs
-
-def log_debug(message: str) -> None:
-
-    if state.debug_output is not None:
-        with state.debug_output:
-            timestamp = datetime.now().strftime('%H:%M:%S')
-            print(f"[{timestamp}] {message}")
-
-
-def get_url_param(key: str, default: Optional[str] = None) -> Optional[str]:
-    query_string = os.getenv('QUERY_STRING', '')
-    if not query_string:
-        return default
-
-    params = parse_qs(query_string)
-    values = params.get(key, [default])
-    return values[0] if values else default
+import streamlit as st
+from streamlit_local_storage import LocalStorage
 
 
 def get_url_params(*keys: str) -> tuple:
@@ -35,12 +18,11 @@ def get_url_params(*keys: str) -> tuple:
     Example:
         fl_id, benchmark = get_url_params('fl_id', 'benchmark')
     """
-    query_string = os.getenv('QUERY_STRING', '')
-    if not query_string:
+    try:
+        params = st.query_params
+        return tuple(params.get(key, None) for key in keys)
+    except Exception:
         return (None,) * len(keys)
-
-    params = parse_qs(query_string)
-    return tuple(params.get(key, [None])[0] for key in keys)
 
 
 def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
@@ -52,21 +34,8 @@ def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
         return 'N/A'
 
 
-def format_percentage(value: float, decimals: int = 2) -> str:
-    import pandas as pd
-    if pd.isna(value):
-        return 'N/A'
-    return f"{value * 100:.{decimals}f}%"
-
-
-def format_number(value: float, decimals: int = 4) -> str:
-    import pandas as pd
-    if pd.isna(value):
-        return 'N/A'
-    return f"{value:.{decimals}f}"
-
-
 def detect_file_type(file_path: Path) -> str:
+    """Detect file type by reading magic bytes."""
     try:
         with open(file_path, 'rb') as f:
             magic = f.read(4)
@@ -78,6 +47,14 @@ def detect_file_type(file_path: Path) -> str:
 
 
 def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path], Optional[str], Optional[str]]:
+    """Locate dataset and formulas files for internal app mode.
+
+    Args:
+        fl_id: Factor list ID from URL parameter
+
+    Returns:
+        Tuple of (dataset_path, formulas_path, error_message, file_type)
+    """
     base_dir = os.getenv('FACTOR_LIST_DIR')
     if not base_dir:
         return None, None, "FACTOR_LIST_DIR environment variable not set", None
@@ -99,3 +76,10 @@ def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path]
     file_type = detect_file_type(dataset_path)
 
     return dataset_path, formulas_path, None, file_type
+
+
+def get_local_storage():
+    """Get or create LocalStorage instance (lazy initialization)."""
+    if 'local_storage' not in st.session_state:
+        st.session_state.local_storage = LocalStorage()
+    return st.session_state.local_storage

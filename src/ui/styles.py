@@ -1,110 +1,186 @@
-def get_app_css() -> str:
-    return """
-<style>
+"""CSS styles for the Streamlit application."""
 
-.horizontal-radio .widget-radio-box {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    overflow: visible !important;
-    height: auto !important;
-    padding: 0 !important;
-}
-.widget-box {
-    overflow: visible !important;
-}
+import streamlit as st
 
-.horizontal-radio label {
-    margin-right: 20px !important;
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    flex-direction: row !important;
-    height: auto !important;
-}
-.horizontal-radio label input[type="radio"] {
-    margin-right: 5px !important;
-    margin-left: 0 !important;
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    order: -1 !important;
-}
-.horizontal-radio {
-    padding: 0 !important;
-    overflow: visible !important;
-    min-height: 0 !important;
-}
 
-.section-header {
-    font-size: 14px;
-    font-weight: 600;
-    color: #2196F3;
-    margin: 10px 0 8px 0;
-    padding-bottom: 5px;
-    border-bottom: 2px solid #2196F3;
-}
+def apply_custom_styles() -> None:
+    """Apply custom CSS styles to the Streamlit app."""
+    st.markdown("""
+    <style>
+    /* Reduce main content padding */
+    .stMainBlockContainer,
+    .block-container,
+    [data-testid="stMainBlockContainer"] {
+        padding: 1rem 2rem 2rem 2rem !important;
+        max-width: 1000px !important;
+        margin: 0 auto !important;
+    }
 
-.brand-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: #333;
-    margin: 0;
-    line-height: 1.2;
-}
+    /* Button styling - consistent for all buttons */
+    .stButton > button {
+        border-radius: 6px;
+        font-weight: 500;
+    }
 
-.brand-subtitle {
-    font-size: 16px;
-    font-weight: 400;
-    color: #666;
-    margin: 2px 0 0 0;
-}
+    .stButton > button[kind="primary"] {
+        background-color: #2196F3;
+    }
+    .stButton > button[kind="primary"]:disabled {
+        color: white;
+    }
 
-.data-preview {
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 15px;
-    margin: 10px 0;
-    font-family: monospace;
-    font-size: 12px;
-    max-height: 400px;
-    overflow: auto;
-}
+    .stButton > button[kind="primary"]:hover {
+        background-color: #1976D2;
+    }
 
-.data-preview h4 {
-    margin-top: 0;
-    color: #333;
-    font-family: sans-serif;
-}
+    /* Dataframe styling */
+    .stDataFrame {
+        border-radius: 8px;
+        overflow: hidden;
+    }
 
-.data-preview table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: white;
-}
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
 
-.data-preview th,
-.data-preview td {
-    padding: 8px;
-    text-align: left;
-    border: 1px solid #ddd;
-}
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px 8px 0 0;
+        padding: 8px 16px;
+    }
 
-.data-preview th {
-    background-color: #e8e8e8;
-    font-weight: bold;
-}
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        font-weight: 500;
+    }
 
-.error-box {
-    background-color: #ffebee;
-    border-left: 4px solid #d32f2f;
-    padding: 12px 16px;
-    margin: 10px 0;
-    border-radius: 4px;
-    color: #c62828;
-    font-size: 14px;
-}
+    /* Input field styling */
+    .stTextInput > div > div > input {
+        border-radius: 8px;
+    }
+
+    .stNumberInput > div > div > input {
+        border-radius: 8px;
+    }
+
+    /* Slider styling */
+    .stSlider [data-baseweb="slider"] [role="slider"] {
+        background-color: #2196F3 !important;
+    }
+
+    /* ===== Arrow Breadcrumb Navigation ===== */
+    /* Target the navigation column's buttons to style as connected breadcrumb */
+
+    /* Remove gaps between breadcrumb button columns */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    div[data-testid="stHorizontalBlock"] {
+        gap: 0 !important;
+    }
+
+    /* Style all nav buttons with arrow shape */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] button {
+        border-radius: 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 10px 20px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        height: 42px !important;
+        position: relative;
+        clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
+    }
+
+    /* First button - no left arrow indent */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:first-child button {
+        clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%);
+        border-radius: 4px 0 0 4px !important;
+    }
+
+    /* Last button - no right arrow point */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child button {
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%);
+        border-radius: 0 4px 4px 0 !important;
+    }
+
+    /* Primary (current step) - blue */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    button[kind="primary"] {
+        background-color: #2196F3 !important;
+        color: white !important;
+        font-weight: 600 !important;
+    }
+
+    /* Secondary (other steps) - style based on state */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    button[kind="secondary"] {
+        background-color: #E8E8E8 !important;
+        color: #424242 !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    button[kind="secondary"]:hover:not(:disabled) {
+        background-color: #BDBDBD !important;
+    }
+
+    /* Disabled buttons - locked state */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
+    button:disabled {
+        background-color: #F5F5F5 !important;
+        color: #BDBDBD !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(3) button {
+        padding: 10px 20px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        height: 42px !important;
+    }
+
+    /* ===== Loading Spinner Button ===== */
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .spinner-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background-color: #2196F3;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 500;
+        width: 100%;
+        opacity: 0.8;
+        cursor: not-allowed;
+        height: 42px;
+        box-sizing: border-box;
+    }
+
+    .spinner-button .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    /* ===== Debug Modal Styling ===== */
+    div[data-testid="stModal"] > div {
+        max-height: 95vh !important;
+        max-width: 95vw !important;
+    }
+
+    div[data-testid="stModal"] [data-testid="stVerticalBlock"] {
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+
 </style>
-"""
+    """, unsafe_allow_html=True)

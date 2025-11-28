@@ -3,8 +3,9 @@ import numpy as np
 import scipy.stats as stats
 import p123api
 from pathlib import Path
-from typing import Optional, Tuple, Callable, Union
+from typing import Optional, Tuple, Union
 from src.data.readers import ParquetDataReader
+from src.core.context import add_debug_log
 
 
 def validate_benchmark_data(df: Optional[pd.DataFrame]) -> bool:
@@ -74,7 +75,7 @@ def fetch_benchmark_data(
         api_key: Portfolio123 API key
         start_date: Start date in YYYY-MM-DD format
         end_date: End date in YYYY-MM-DD format
-        api_id: Optional API ID (defaults to '748')
+        api_id: Optional API ID
 
     Returns:
         Tuple of (DataFrame with benchmark data, error message)
@@ -188,50 +189,39 @@ def calculate_benchmark_returns(
 
 
 def calculate_future_performance(
-    raw_data: Optional[pd.DataFrame],
+    raw_data: pd.DataFrame,
     price_column: str,
-    parquet_path: Optional[Union[str, Path]] = None,
-    progress_callback: Optional[Callable[[str], None]] = None
 ) -> pd.DataFrame:
     """
     Calculate future performance for each stock (next week return).
 
     Args:
-        raw_data: DataFrame with Date, Ticker, price columns (for CSV)
+        raw_data: DataFrame with Date, Ticker, price columns
         price_column: Name of the price column
-        parquet_path: Path to parquet file
-        progress_callback: Optional function to report progress
 
     Returns:
         DataFrame with Date, Ticker, and 'Future Perf' columns
     """
 
-    progress_callback("Starting future performance calculation...")
+    add_debug_log("Starting future performance calculation...")
 
-    # Load only a couple columns, the ones we need
-    if parquet_path is not None:
-        progress_callback(f"Loading columns: Date, Ticker, {price_column}")
-
-        reader = ParquetDataReader(parquet_path)
-        df = reader.read_columns(['Date', 'Ticker', price_column])
-    else:
-        df = raw_data[['Date', 'Ticker', price_column]].copy()
+    df = raw_data[['Date', 'Ticker', price_column]].copy()
 
     df['Date'] = pd.to_datetime(df['Date'])
     df[price_column] = pd.to_numeric(df[price_column], errors='coerce')
 
-    progress_callback("Preparing data for vectorized calculation...")
+    add_debug_log("Preparing data for vectorized calculation...")
 
-    # Sort by Ticker and Date
+    # sort by Ticker and Date
     df = df.sort_values(['Ticker', 'Date']).reset_index(drop=True)
 
-    # Shift to get next week's values for each ticker
+    # shift to get next week's values for each ticker
     df['Next_Date'] = df.groupby('Ticker')['Date'].shift(-1)
     df['Next_Price'] = df.groupby('Ticker')[price_column].shift(-1)
 
-    progress_callback("Calculating weekly returns...")
+    add_debug_log("Calculating weekly returns...")
 
-    # Calculate return only where conditions are true
+    # calculate return only where conditions are true
     valid_mask = (
         (df[price_column].notna()) &
         (df[price_column] != 0) &
@@ -244,37 +234,17 @@ def calculate_future_performance(
         df.loc[valid_mask, price_column]
     )
 
-    # Clean up temporary columns
+    # clean up temporary columns
     df = df.drop(columns=['Next_Date', 'Next_Price', price_column])
 
-    progress_callback(f"Future performance calculation complete: {df['Date'].nunique()} dates processed")
+    add_debug_log(f"Future performance calculation complete: {df['Date'].nunique()} dates processed")
 
     return df
 
 
-def get_factor_columns(df: pd.DataFrame, price_column: str) -> list:
-    """
-    Identify factor columns in the dataset.
-    Excludes system columns and returns only numeric columns.
-
-    Args:
-        df: DataFrame with factors
-        price_column: Price column to exclude
-
-    Returns:
-        List of factor column names
-    """
-    excluded_columns = ['Date', 'Ticker', 'P123 ID', 'benchmark', 'Future Perf', price_column]
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    factors = [col for col in numeric_columns if col not in excluded_columns]
-
-    return factors
-
-
 def analyze_factors(
     df: Optional[pd.DataFrame],
-    progress_callback: Optional[Callable[[str], None]] = None,
-    future_perf_df: Optional[pd.DataFrame] = None,
+    future_perf_df: pd.DataFrame,
     parquet_path: Optional[Union[str, Path]] = None,
     factor_columns: Optional[list] = None,
     top_pct: float = 30.0,
@@ -285,8 +255,7 @@ def analyze_factors(
     For Parquet files, reads factors one by one to reduce memory usage.
 
     Args:
-        df: Full DataFrame (for CSV files)
-        progress_callback: Function to report progress
+        df: DataFrame with factor columns (for CSV files, without Future Perf)
         future_perf_df: Pre-calculated future performance (Date, Ticker, Future Perf)
         parquet_path: Path to parquet file (for Parquet files)
         factor_columns: List of factor columns to analyze (for Parquet files)
@@ -303,8 +272,7 @@ def analyze_factors(
         total_factors = len(factor_columns)
 
         for idx, col in enumerate(factor_columns, 1):
-            if progress_callback:
-                progress_callback(f'Analyzing factor {idx}/{total_factors}: {col}')
+            add_debug_log(f'Analyzing factor {idx}/{total_factors}: {col}')
 
             # Read only the current factor column plus Date and Ticker
             reader = ParquetDataReader(parquet_path)
@@ -340,8 +308,8 @@ def analyze_factors(
             del factor_df
             del merged_df
     else:
-        # for csv files
-        df_copy = df.copy()
+        # for csv files - merge with future performance
+        df_copy = df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
 
         df_copy['Date'] = pd.to_datetime(df_copy['Date'])
         df_copy['Future Perf'] = pd.to_numeric(df_copy['Future Perf'], errors='coerce')
@@ -354,8 +322,7 @@ def analyze_factors(
 
         for idx, col in enumerate(factors, 1):
             if col in df_copy.columns:
-                if progress_callback:
-                    progress_callback(f'Analyzing factor {idx}/{total_factors}: {col}')
+                add_debug_log(f'Analyzing factor {idx}/{total_factors}: {col}')
 
                 df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
 
