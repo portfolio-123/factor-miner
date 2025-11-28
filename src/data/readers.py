@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, Union
@@ -162,6 +163,29 @@ class ParquetDataReader:
                 k.decode('utf-8'): v.decode('utf-8')
                 for k, v in schema_metadata.items()
             }
+        except Exception:
+            return None
+
+    def get_formulas_from_metadata(self) -> Optional[pd.DataFrame]:
+        """Extract formulas DataFrame from parquet custom metadata."""
+        try:
+            metadata = self.get_custom_metadata()
+            if metadata is None or 'features' not in metadata:
+                return None
+
+            features_json = json.loads(metadata['features'])
+            df = pd.DataFrame(features_json)
+
+            # Ensure expected columns exist, add empty if missing
+            for col in ['formula', 'name', 'tag']:
+                if col not in df.columns:
+                    df[col] = ''
+
+            # Add Normalization column if not present (matches CSV format)
+            if 'Normalization' not in df.columns:
+                df['Normalization'] = 'Raw'
+
+            return df[['formula', 'name', 'tag', 'Normalization']]
         except Exception:
             return None
 

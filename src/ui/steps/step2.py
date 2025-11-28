@@ -38,7 +38,7 @@ def _run_analysis() -> bool:
 
         # read only required columns for parquet files
         if file_type == 'parquet':
-            reader = get_data_reader(state.dataset_path)
+            reader = get_data_reader(state.dataset_path, file_type=file_type)
             perf_data = reader.read_columns(['Date', 'Ticker', price_column])
             columns = reader.get_column_names()
             excluded_columns = ['Date', 'Ticker', 'P123 ID', price_column]
@@ -122,7 +122,7 @@ def render() -> None:
 
     # load preview data if needed
     if state.file_type == 'parquet':
-        reader = get_data_reader(state.dataset_path)
+        reader = get_data_reader(state.dataset_path, file_type=state.file_type)
         preview_df = reader.read_preview(num_rows=10)
         metadata = reader.get_metadata()
         actual_row_count = metadata.get('num_rows', len(preview_df))

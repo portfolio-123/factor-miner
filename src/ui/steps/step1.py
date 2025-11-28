@@ -8,6 +8,7 @@ from src.ui.components import section_header
 from src.data.readers import get_data_reader
 from src.logic.calculations import fetch_benchmark_data, get_dataset_date_range
 
+
 # disable continue button if required fields are not filled
 def _check_required_fields() -> bool:
     state = get_state()
@@ -18,8 +19,16 @@ def _check_required_fields() -> bool:
         return all([api_key.strip(), api_id.strip()]) and state.files_verified
     else:
         dataset = st.session_state.get('dataset_path', '')
-        formulas = st.session_state.get('formulas_path', '')
-        return all([dataset.strip(), formulas.strip(), api_key.strip(), api_id.strip()])
+        dataset_path = Path(dataset.strip()) if dataset.strip() else None
+        is_parquet = dataset_path and dataset_path.exists() and detect_file_type(dataset_path) == 'parquet'
+
+        if is_parquet:
+            # Parquet files have formulas embedded in metadata
+            return all([dataset.strip(), api_key.strip(), api_id.strip()])
+        else:
+            # CSV files require separate formulas file
+            formulas = st.session_state.get('formulas_path', '')
+            return all([dataset.strip(), formulas.strip(), api_key.strip(), api_id.strip()])
 
 
 # validate all required inputs after continue button is clicked
@@ -41,12 +50,9 @@ def _validate_inputs() -> tuple[bool, str]:
     else:
         # External mode: check dataset, formulas, API key, and API ID
         dataset_path = st.session_state.get('dataset_path', '')
-        formulas_path = st.session_state.get('formulas_path', '')
 
         if not dataset_path.strip():
             return False, "Dataset path is required"
-        if not formulas_path.strip():
-            return False, "Formulas path is required"
         if not api_key.strip():
             return False, "API Key is required"
         if not api_id.strip():
@@ -59,12 +65,18 @@ def _validate_inputs() -> tuple[bool, str]:
         if not dataset_file.exists():
             return False, f"Dataset file not found: {dataset_path}"
 
-        # Validate formulas file exists
-        formulas_file = Path(formulas_path.strip())
-        if not formulas_file.is_absolute():
-            formulas_file = formulas_file.resolve()
-        if not formulas_file.exists():
-            return False, f"Formulas file not found: {formulas_path}"
+        # Only validate formulas path for CSV files (parquet has embedded metadata)
+        if detect_file_type(dataset_file) != 'parquet':
+            formulas_path = st.session_state.get('formulas_path', '')
+            if not formulas_path.strip():
+                return False, "Formulas path is required for CSV datasets"
+
+            # Validate formulas file exists
+            formulas_file = Path(formulas_path.strip())
+            if not formulas_file.is_absolute():
+                formulas_file = formulas_file.resolve()
+            if not formulas_file.exists():
+                return False, f"Formulas file not found: {formulas_path}"
 
     return True, ""
 
@@ -102,17 +114,20 @@ def _process_continue() -> bool:
         else:
             # External mode: resolve paths provided by user
             dataset_path = st.session_state.get('dataset_path', '').strip()
-            formulas_path = st.session_state.get('formulas_path', '').strip()
 
             dataset_file = Path(dataset_path)
             if not dataset_file.is_absolute():
                 dataset_file = dataset_file.resolve()
 
-            formulas_file = Path(formulas_path)
-            if not formulas_file.is_absolute():
-                formulas_file = formulas_file.resolve()
-
             file_type = detect_file_type(dataset_file)
+
+            if file_type != 'parquet':
+                formulas_path = st.session_state.get('formulas_path', '').strip()
+                formulas_file = Path(formulas_path)
+                if not formulas_file.is_absolute():
+                    formulas_file = formulas_file.resolve()
+            else:
+                formulas_file = None
 
         add_debug_log(f"Dataset file: {dataset_file}")
         add_debug_log(f"Formulas file: {formulas_file}")
@@ -135,22 +150,24 @@ def _process_continue() -> bool:
             raw_data = None  # will be loaded on-demand in step 2
             metadata = dataset_reader.get_metadata()
             add_debug_log(f"Parquet validated: {metadata['num_rows']:,} rows, {metadata['num_columns']} columns")
-            if state.is_internal_app:
-                custom_metadata = dataset_reader.get_custom_metadata()
-                if custom_metadata:
-                    add_debug_log(f"Parquet custom metadata: {json.dumps(custom_metadata, indent=4)}")
+
+            formulas_data = dataset_reader.get_formulas_from_metadata()
+            if formulas_data is not None:
+                add_debug_log(f"Formulas loaded from parquet metadata: {len(formulas_data)} formulas")
+            else:
+                st.session_state['step1_error'] = "Parquet file missing 'features' metadata with formula definitions"
+                return False
         else:
             raw_data = dataset_reader.read_full()
             add_debug_log(f"CSV loaded: {len(raw_data):,} rows")
 
-        # Load formulas
-        if state.is_internal_app:
-            formulas_reader = get_data_reader(formulas_file, file_type='csv')
-        else:
-            formulas_reader = get_data_reader(formulas_file)
+            if state.is_internal_app:
+                formulas_reader = get_data_reader(formulas_file, file_type='csv')
+            else:
+                formulas_reader = get_data_reader(formulas_file)
 
-        formulas_data = formulas_reader.read_full()
-        add_debug_log(f"Formulas loaded: {len(formulas_data)} formulas")
+            formulas_data = formulas_reader.read_full()
+            add_debug_log(f"Formulas loaded from CSV: {len(formulas_data)} formulas")
 
         add_debug_log("Getting date range from dataset...")
         if file_type == 'parquet':
@@ -314,25 +331,39 @@ def render() -> None:
             st.warning("No fl_id provided in URL")
     else:
         # External app mode - file path inputs
-        col1, col2 = st.columns(2)
+        dataset_path = st.session_state.get('dataset_path', '')
+        dataset_file = Path(dataset_path.strip()) if dataset_path.strip() else None
+        is_parquet = dataset_file and dataset_file.exists() and detect_file_type(dataset_file) == 'parquet'
 
-        with col1:
+        if is_parquet:
             st.text_input(
                 "Dataset Path",
                 placeholder="data/dataset.parquet",
                 key="dataset_path",
             )
-
-        with col2:
-            st.text_input(
-                "Formulas Path",
-                placeholder="data/formulas.csv",
-                key="formulas_path",
+            st.caption(
+                "**Note:** Parquet files include formulas in metadata. Your dataset must contain 'Last Close' for price data."
             )
+        else:
+            col1, col2 = st.columns(2)
 
-        st.caption(
-            "**Note:** Your dataset must contain a column named 'Last Close' for price data. We support both CSV and Parquet file formats."
-        )
+            with col1:
+                st.text_input(
+                    "Dataset Path",
+                    placeholder="data/dataset.parquet",
+                    key="dataset_path",
+                )
+
+            with col2:
+                st.text_input(
+                    "Formulas Path",
+                    placeholder="data/formulas.csv",
+                    key="formulas_path",
+                )
+
+            st.caption(
+                "**Note:** Your dataset must contain a column named 'Last Close' for price data. We support both CSV and Parquet file formats."
+            )
 
     section_header("Configuration")
 
