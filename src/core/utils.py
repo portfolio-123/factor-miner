@@ -68,12 +68,14 @@ def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path]
     if not dataset_path.exists():
         return None, None, f"Dataset file not found: {dataset_path}", None
 
-    # Formulas file:
-    formulas_path = base_path / f"{fl_id}_meta.csv"
-    if not formulas_path.exists():
-        return None, None, f"Formulas file not found: {formulas_path}", None
-
     file_type = detect_file_type(dataset_path)
+
+    if file_type == 'parquet':
+        formulas_path = None
+    else:
+        formulas_path = base_path / f"{fl_id}_meta"
+        if not formulas_path.exists():
+            return None, None, f"Formulas file not found: {formulas_path}", None
 
     return dataset_path, formulas_path, None, file_type
 
