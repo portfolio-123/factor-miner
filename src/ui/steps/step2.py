@@ -1,5 +1,10 @@
 import streamlit as st
 import pandas as pd
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.utils import format_date
@@ -9,13 +14,12 @@ from src.ui.components import (
     render_dataset_preview
 )
 from src.data.readers import get_data_reader
-from src.logic.calculations import (
-    calculate_benchmark_returns,
-    calculate_future_performance,
-    analyze_factors,
-    calculate_factor_metrics,
-    calculate_correlation_matrix,
-    select_best_features
+from src.jobs.manager import (
+    create_job,
+    read_job,
+    delete_job,
+    serialize_dataframe,
+    deserialize_dataframe
 )
 
 
@@ -23,82 +27,79 @@ def _set_error(message: str) -> None:
     st.session_state['step2_error'] = message
 
 
-def _run_analysis() -> bool:
+def _start_background_job() -> str:
+    """
+    Create a background job and spawn the worker process.
+    Returns the job ID.
+    """
     state = get_state()
 
-    st.session_state['step2_error'] = None
+    # Generate unique job ID
+    job_id = uuid.uuid4().hex
 
-    add_debug_log("Starting factor analysis...")
+    # Collect job parameters
+    params = {
+        'dataset_path': str(state.dataset_path),
+        'file_type': state.file_type,
+        'price_column': state.PRICE_COLUMN,
+        'top_pct': state.top_x_pct,
+        'bottom_pct': state.bottom_x_pct,
+        'n_features': state.n_features,
+        'correlation_threshold': state.correlation_threshold,
+        'min_alpha': state.min_alpha,
+        'benchmark_data': serialize_dataframe(state.benchmark_data),
+    }
+
+    # Create job file
+    create_job(job_id, params)
+    add_debug_log(f"Created background job: {job_id}")
+
+    # Get project root for running the worker
+    project_root = Path(__file__).parent.parent.parent.parent
+
+    # Spawn worker process (detached so it survives browser refresh)
+    subprocess.Popen(
+        [sys.executable, '-m', 'src.jobs.worker', job_id],
+        cwd=str(project_root),
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    add_debug_log(f"Spawned worker process for job: {job_id}")
+
+    return job_id
+
+
+def _check_job_status(job_id: str) -> dict:
+    """
+    Check the status of a background job.
+    Returns the job data dict or None if not found.
+    """
+    return read_job(job_id)
+
+
+def _load_job_results(job_data: dict) -> bool:
+    """
+    Load completed job results into the app state.
+    Returns True on success, False on failure.
+    """
+    state = get_state()
 
     try:
-        raw_data = state.raw_data
-        price_column = state.PRICE_COLUMN
-        file_type = state.file_type
-        benchmark_data = state.benchmark_data
+        results = job_data['results']
 
-        # read only required columns for parquet files
-        if file_type == 'parquet':
-            reader = get_data_reader(state.dataset_path, file_type=file_type)
-            perf_data = reader.read_columns(['Date', 'Ticker', price_column])
-            columns = reader.get_column_names()
-            excluded_columns = ['Date', 'Ticker', 'P123 ID', price_column]
-            factor_columns = [col for col in columns if col not in excluded_columns]
-        else:
-            perf_data = raw_data
-            factor_columns = None
+        # Deserialize DataFrames
+        metrics_df = deserialize_dataframe(results['all_metrics'])
+        corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
+        raw_data = deserialize_dataframe(results['raw_data'])
+        best_features = results['best_features']
 
-        future_perf_df = calculate_future_performance(perf_data, price_column)
-
-        add_debug_log("Analyzing factors...")
-
-        if file_type == 'parquet':
-            results_df = analyze_factors(
-                None,
-                future_perf_df,
-                parquet_path=state.dataset_path,
-                factor_columns=factor_columns,
-                top_pct=state.top_x_pct,
-                bottom_pct=state.bottom_x_pct
-            )
-            # Read Date/Ticker for benchmark calculation
-            date_ticker_df = reader.read_columns(['Date', 'Ticker'])
-            raw_data = date_ticker_df
-        else:
-            results_df = analyze_factors(
-                raw_data,
-                future_perf_df,
-                top_pct=state.top_x_pct,
-                bottom_pct=state.bottom_x_pct
-            )
-
-        add_debug_log("Calculating benchmark returns...")
-        raw_data, _ = calculate_benchmark_returns(raw_data, benchmark_data)
-
-        if results_df.empty:
-            _set_error("No results from factor analysis")
-            return False
-
-        add_debug_log("Calculating factor metrics...")
-        metrics_df = calculate_factor_metrics(results_df, raw_data)
-
-        add_debug_log("Calculating correlation matrix...")
-        corr_matrix = calculate_correlation_matrix(results_df)
-
-        # store results in state to access in step 3
+        # Update state with results
         update_state(
             all_metrics=metrics_df,
             all_corr_matrix=corr_matrix,
             raw_data=raw_data
-        )
-
-        # select best features
-        add_debug_log("Selecting best features...")
-        best_features = select_best_features(
-            metrics_df,
-            corr_matrix,
-            N=state.n_features,
-            correlation_threshold=state.correlation_threshold,
-            a_min=state.min_alpha
         )
 
         add_debug_log(f"Analysis complete! Found {len(best_features)} best features")
@@ -110,10 +111,8 @@ def _run_analysis() -> bool:
         return True
 
     except Exception as e:
-        add_debug_log(f"ERROR: {str(e)}")
-        import traceback
-        add_debug_log(traceback.format_exc())
-        _set_error(f"Error during analysis: {str(e)}")
+        add_debug_log(f"Error loading results: {str(e)}")
+        _set_error(f"Error loading results: {str(e)}")
         return False
 
 
@@ -175,26 +174,65 @@ def render() -> None:
     if st.session_state.get('step2_error'):
         st.error(st.session_state['step2_error'])
 
-    _, _, col3 = st.columns([2, 1, 1])
-    with col3:
-        is_running = st.session_state.get('analysis_running', False)
+    # Check if there's an active job
+    job_id = state.current_job_id
 
-        if is_running:
-            st.markdown('''
-            <div class="spinner-button">
-                <div class="spinner"></div>
-                <span>Analyzing</span>
-            </div>
-            ''', unsafe_allow_html=True)
-        else:
-            if st.button("Run Analysis", type="primary", width='stretch'):
-                st.session_state.analysis_running = True
-                st.rerun()
+    if job_id:
+        # Poll for job status
+        job_data = _check_job_status(job_id)
 
-    # run analysis after rerun if flagged
-    if st.session_state.get('analysis_running', False):
-        if _run_analysis():
-            st.session_state.analysis_running = False
+        if job_data is None:
+            # Job file not found - maybe it was cleaned up
+            add_debug_log(f"Job {job_id} not found, resetting state")
+            update_state(current_job_id=None)
             st.rerun()
+
+        elif job_data['status'] == 'completed':
+            # Job finished - load results
+            add_debug_log(f"Job {job_id} completed, loading results")
+            if _load_job_results(job_data):
+                # Clean up job file
+                delete_job(job_id)
+                update_state(current_job_id=None)
+                st.rerun()
+            else:
+                # Error loading results
+                delete_job(job_id)
+                update_state(current_job_id=None)
+
+        elif job_data['status'] == 'error':
+            # Job failed
+            error_msg = job_data.get('error', 'Unknown error')
+            add_debug_log(f"Job {job_id} failed: {error_msg}")
+            _set_error(f"Analysis failed: {error_msg.split(chr(10))[0]}")
+            delete_job(job_id)
+            update_state(current_job_id=None)
+
         else:
-            st.session_state.analysis_running = False
+            # Job still running (pending or running) - show spinner and poll
+            _, _, col3 = st.columns([2, 1, 1])
+            with col3:
+                st.markdown('''
+                <div class="spinner-button">
+                    <div class="spinner"></div>
+                    <span>Analyzing</span>
+                </div>
+                ''', unsafe_allow_html=True)
+
+            # Poll every 2 seconds
+            time.sleep(2)
+            st.rerun()
+
+    else:
+        # No active job - show the Run Analysis button
+        _, _, col3 = st.columns([2, 1, 1])
+        with col3:
+            if st.button("Run Analysis", type="primary", use_container_width=True):
+                st.session_state['step2_error'] = None
+                try:
+                    job_id = _start_background_job()
+                    update_state(current_job_id=job_id)
+                    st.rerun()
+                except Exception as e:
+                    add_debug_log(f"Error starting job: {str(e)}")
+                    _set_error(f"Error starting analysis: {str(e)}")

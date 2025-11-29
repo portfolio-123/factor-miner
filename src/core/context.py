@@ -55,6 +55,9 @@ class AppState:
     # debug logs
     debug_logs: List[str] = field(default_factory=list)
 
+    # background job tracking
+    current_job_id: Optional[str] = None
+
 
 def get_state() -> AppState:
     if 'app_state' not in st.session_state:
