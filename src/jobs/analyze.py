@@ -15,7 +15,8 @@ def analyze_factors_standalone(
     factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
     bottom_pct: float = 30.0,
-    log_fn: Optional[Callable[[str], None]] = None
+    log_fn: Optional[Callable[[str], None]] = None,
+    progress_fn: Optional[Callable[[int, int, str], None]] = None
 ) -> pd.DataFrame:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
@@ -29,6 +30,7 @@ def analyze_factors_standalone(
         top_pct: Percentage of top stocks to include (default: 30.0)
         bottom_pct: Percentage of bottom stocks to include (default: 30.0)
         log_fn: Optional logging function (prints to stdout if None)
+        progress_fn: Optional progress callback (completed, total, current_factor) for UI updates
 
     Returns:
         DataFrame with factor analysis results (Date, factor, ret)
@@ -40,6 +42,10 @@ def analyze_factors_standalone(
             print(msg, flush=True)
 
     results = []
+
+    # Ensure future_perf_df Date is datetime
+    future_perf_df = future_perf_df.copy()
+    future_perf_df['Date'] = pd.to_datetime(future_perf_df['Date'])
 
     if parquet_path is not None and factor_columns is not None:
         # Import here to avoid circular imports
@@ -83,11 +89,15 @@ def analyze_factors_standalone(
 
             del factor_df
             del merged_df
+
+            # Report progress with current factor name
+            if progress_fn:
+                progress_fn(idx, total_factors, col)
     else:
         # for csv files - merge with future performance
+        df = df.copy()
+        df['Date'] = pd.to_datetime(df['Date'])
         df_copy = df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
-
-        df_copy['Date'] = pd.to_datetime(df_copy['Date'])
         df_copy['Future Perf'] = pd.to_numeric(df_copy['Future Perf'], errors='coerce')
 
         excluded_columns = ['Date', 'Ticker', 'P123 ID', 'benchmark', 'Future Perf']
@@ -120,5 +130,9 @@ def analyze_factors_standalone(
 
                     value = (top_sum - bottom_sum) / (top_n + bottom_n)
                     results.append({'Date': date, 'factor': col, 'ret': value})
+
+            # Report progress with current factor name
+            if progress_fn:
+                progress_fn(idx, total_factors, col)
 
     return pd.DataFrame(results)

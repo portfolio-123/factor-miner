@@ -134,7 +134,19 @@ def render_dataset_preview(df: pd.DataFrame, actual_row_count: Optional[int] = N
         preview_df = df
         st.caption(f"Showing all {total_rows:,} rows")
 
-    st.dataframe(preview_df, height=500, width='stretch')
+    # Reset index to make it a regular column for better width control
+    display_df = preview_df.reset_index()
+    display_df.rename(columns={'index': 'Row'}, inplace=True)
+
+    st.dataframe(
+        display_df,
+        height=500,
+        width='stretch',
+        hide_index=True,
+        column_config={
+            "Row": st.column_config.NumberColumn("Row", width=85)
+        }
+    )
 
 
 def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> None:

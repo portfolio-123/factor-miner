@@ -1,5 +1,6 @@
 import os
 import json
+from io import StringIO
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -56,9 +57,10 @@ def update_job(
     job_id: str,
     status: str,
     results: Optional[Dict[str, Any]] = None,
-    error: Optional[str] = None
+    error: Optional[str] = None,
+    progress: Optional[Dict[str, int]] = None
 ) -> bool:
-    """Update a job file with new status and optionally results or error."""
+    """Update a job file with new status and optionally results, error, or progress."""
     job_data = read_job(job_id)
 
     if job_data is None:
@@ -72,6 +74,9 @@ def update_job(
 
     if error is not None:
         job_data["error"] = error
+
+    if progress is not None:
+        job_data["progress"] = progress
 
     job_path = _get_job_path(job_id)
     with open(job_path, 'w') as f:
@@ -98,4 +103,4 @@ def serialize_dataframe(df: pd.DataFrame) -> str:
 
 def deserialize_dataframe(json_str: str) -> pd.DataFrame:
     """Deserialize a JSON string back to DataFrame."""
-    return pd.read_json(json_str, orient='split')
+    return pd.read_json(StringIO(json_str), orient='split')

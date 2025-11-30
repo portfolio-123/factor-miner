@@ -3,10 +3,31 @@ import streamlit as st
 from src.core.context import get_state, update_state, add_debug_log
 from src.ui.components import section_header, render_results_table
 from src.logic.calculations import select_best_features
+from src.jobs.manager import delete_job
 
 
 def render() -> None:
     state = get_state()
+
+    # Header with New Analysis button
+    col_title, col_spacer, col_btn = st.columns([2, 1, 1])
+    with col_btn:
+        if st.button("New Analysis", type="secondary", use_container_width=True):
+            # Delete old job file
+            if state.factor_list_uid:
+                delete_job(state.factor_list_uid)
+                add_debug_log(f"Deleted job {state.factor_list_uid} for new analysis")
+
+            # Reset state to step 1
+            state.completed_steps.clear()
+            state.completed_steps.add(1)
+            update_state(
+                current_step=1,
+                current_job_id=None,
+                all_metrics=None,
+                all_corr_matrix=None,
+            )
+            st.rerun()
 
     section_header("Filter Parameters")
 

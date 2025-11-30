@@ -1,14 +1,12 @@
 """
 Standalone worker script for running factor analysis in background.
-This runs as a completely independent process from Streamlit.
-
-Usage: python -m src.jobs.worker <job_id>
 """
 import sys
-import os
 import traceback
 import pandas as pd
 from pathlib import Path
+from datetime import datetime
+from src.jobs.manager import read_job, update_job, serialize_dataframe
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent.parent
@@ -18,15 +16,15 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(project_root / '.env')
 
-from src.jobs.manager import read_job, update_job, serialize_dataframe
-
 
 def log(message: str) -> None:
-    """Simple logging for worker process."""
-    print(f"[WORKER] {message}", flush=True)
+    """Log to console."""
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    formatted = f"[{timestamp}] [WORKER] {message}"
+    print(formatted, flush=True)
 
 
-def run_analysis(params: dict) -> dict:
+def run_analysis(job_id: str, params: dict) -> dict:
     """
     Run the factor analysis with the given parameters.
     Returns a dict with serialized results.
@@ -59,6 +57,15 @@ def run_analysis(params: dict) -> dict:
 
     log(f"Processing dataset: {dataset_path}")
 
+    # Progress callback to update job file
+    def on_progress(completed: int, total: int, current_factor: str = "") -> None:
+        log(f"Progress: {completed}/{total} factors - {current_factor}")
+        update_job(job_id, status="running", progress={
+            "completed": completed,
+            "total": total,
+            "current_factor": current_factor
+        })
+
     # Read data based on file type
     if file_type == 'parquet':
         reader = get_data_reader(dataset_path, file_type=file_type)
@@ -83,7 +90,8 @@ def run_analysis(params: dict) -> dict:
             factor_columns=factor_columns,
             top_pct=top_pct,
             bottom_pct=bottom_pct,
-            log_fn=log
+            log_fn=log,
+            progress_fn=on_progress
         )
         # Read Date/Ticker for benchmark calculation
         date_ticker_df = reader.read_columns(['Date', 'Ticker'])
@@ -94,7 +102,8 @@ def run_analysis(params: dict) -> dict:
             future_perf_df,
             top_pct=top_pct,
             bottom_pct=bottom_pct,
-            log_fn=log
+            log_fn=log,
+            progress_fn=on_progress
         )
         raw_data = perf_data
 
@@ -175,6 +184,7 @@ def main():
         sys.exit(1)
 
     job_id = sys.argv[1]
+    
     log(f"Worker started for job: {job_id}")
 
     try:
@@ -190,7 +200,7 @@ def main():
 
         # Run the analysis
         params = job_data['params']
-        results = run_analysis(params)
+        results = run_analysis(job_id, params)
 
         # Update job with results
         update_job(job_id, status="completed", results=results)
