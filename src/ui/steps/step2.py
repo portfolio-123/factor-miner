@@ -21,6 +21,9 @@ from src.jobs.manager import (
     deserialize_dataframe
 )
 
+# Project root for subprocess cwd
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 def _set_error(message: str) -> None:
     st.session_state['step2_error'] = message
@@ -56,13 +59,10 @@ def _start_background_job() -> str:
     # Create job file
     create_job(job_id, params)
 
-    # Get project root for running the worker
-    project_root = Path(__file__).parent.parent.parent.parent
-
     # Spawn worker process (detached so it survives browser refresh)
     subprocess.Popen(
         [sys.executable, '-m', 'src.jobs.worker', job_id],
-        cwd=str(project_root),
+        cwd=str(PROJECT_ROOT),
         start_new_session=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -207,20 +207,17 @@ def render() -> None:
             # Job file not found - maybe it was cleaned up
             update_state(current_job_id=None)
             st.rerun()
-            st.stop()
 
         elif job_data['status'] == 'completed':
             # Job finished - load results (keep job file for refresh persistence)
             if _load_job_results(job_data):
                 update_state(current_job_id=None)
                 st.rerun()
-                st.stop()
             else:
                 # Error loading results - clean up in this case
                 delete_job(job_id)
                 update_state(current_job_id=None)
                 st.rerun()
-                st.stop()
 
         elif job_data['status'] == 'error':
             # Job failed
@@ -229,14 +226,8 @@ def render() -> None:
             delete_job(job_id)
             update_state(current_job_id=None)
             st.rerun()
-            st.stop()
 
         else:
-            # Job still running (pending or running) - show full-screen progress
-            progress = job_data.get('progress', {})
-            completed = progress.get('completed', 0)
-            total = progress.get('total', 0)
-
             # Render full-screen progress view ONLY - nothing else
             content_slot.empty()  # ensure previous tables/buttons are removed
             with progress_slot.container():
@@ -245,9 +236,6 @@ def render() -> None:
             # Poll every 1 seconds then rerun
             time.sleep(1)
             st.rerun()
-
-        # ALWAYS return when job_id exists - never render review content
-        return
 
     # Normal review content when no job is running
     # load preview data on demand (works after browser refresh)

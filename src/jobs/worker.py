@@ -1,20 +1,25 @@
 """
-Standalone worker script for running factor analysis in background.
+Worker script for running factor analysis in background.
+Run as: python -m src.jobs.worker <job_id>
 """
 import sys
 import traceback
 import pandas as pd
-from pathlib import Path
+from io import StringIO
 from datetime import datetime
-from src.jobs.manager import read_job, update_job, serialize_dataframe
-
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-# Load environment variables
 from dotenv import load_dotenv
-load_dotenv(project_root / '.env')
+
+load_dotenv()
+from src.jobs.manager import read_job, update_job, serialize_dataframe
+from src.data.readers import get_data_reader
+from src.logic.calculations import (
+    calculate_benchmark_returns,
+    calculate_future_performance,
+    analyze_factors,
+    calculate_factor_metrics,
+    calculate_correlation_matrix,
+    select_best_features
+)
 
 
 def log(message: str) -> None:
@@ -29,18 +34,6 @@ def run_analysis(job_id: str, params: dict) -> dict:
     Run the factor analysis with the given parameters.
     Returns a dict with serialized results.
     """
-    # Import calculation functions here to avoid circular imports
-    from src.data.readers import get_data_reader
-    from src.logic.calculations import (
-        calculate_benchmark_returns,
-        calculate_future_performance,
-        calculate_factor_metrics,
-        calculate_correlation_matrix,
-        select_best_features
-    )
-    # Import analyze_factors_standalone to avoid add_debug_log dependency
-    from src.jobs.analyze import analyze_factors_standalone
-
     log("Starting analysis...")
 
     dataset_path = params['dataset_path']
@@ -53,7 +46,7 @@ def run_analysis(job_id: str, params: dict) -> dict:
     min_alpha = params['min_alpha']
 
     # Deserialize benchmark data
-    benchmark_data = pd.read_json(params['benchmark_data'], orient='split')
+    benchmark_data = pd.read_json(StringIO(params['benchmark_data']), orient='split')
 
     log(f"Processing dataset: {dataset_path}")
 
@@ -79,30 +72,28 @@ def run_analysis(job_id: str, params: dict) -> dict:
         factor_columns = None
 
     log("Calculating future performance...")
-    future_perf_df = calculate_future_performance_standalone(perf_data, price_column)
+    future_perf_df = calculate_future_performance(perf_data, price_column)
 
     log("Analyzing factors...")
     if file_type == 'parquet':
-        results_df = analyze_factors_standalone(
+        results_df = analyze_factors(
             None,
             future_perf_df,
             parquet_path=dataset_path,
             factor_columns=factor_columns,
             top_pct=top_pct,
             bottom_pct=bottom_pct,
-            log_fn=log,
             progress_fn=on_progress
         )
         # Read Date/Ticker for benchmark calculation
         date_ticker_df = reader.read_columns(['Date', 'Ticker'])
         raw_data = date_ticker_df
     else:
-        results_df = analyze_factors_standalone(
+        results_df = analyze_factors(
             perf_data,
             future_perf_df,
             top_pct=top_pct,
             bottom_pct=bottom_pct,
-            log_fn=log,
             progress_fn=on_progress
         )
         raw_data = perf_data
@@ -139,52 +130,9 @@ def run_analysis(job_id: str, params: dict) -> dict:
     }
 
 
-def calculate_future_performance_standalone(
-    raw_data: pd.DataFrame,
-    price_column: str,
-) -> pd.DataFrame:
-    """
-    Calculate future performance without using add_debug_log.
-    This is a copy of the original function for standalone use.
-    """
-    df = raw_data[['Date', 'Ticker', price_column]].copy()
-
-    df['Date'] = pd.to_datetime(df['Date'])
-    df[price_column] = pd.to_numeric(df[price_column], errors='coerce')
-
-    # sort by Ticker and Date
-    df = df.sort_values(['Ticker', 'Date']).reset_index(drop=True)
-
-    # shift to get next week's values for each ticker
-    df['Next_Date'] = df.groupby('Ticker')['Date'].shift(-1)
-    df['Next_Price'] = df.groupby('Ticker')[price_column].shift(-1)
-
-    # calculate return only where conditions are true
-    valid_mask = (
-        (df[price_column].notna()) &
-        (df[price_column] != 0) &
-        (df['Next_Price'].notna())
-    )
-
-    df['Future Perf'] = float('nan')
-    df.loc[valid_mask, 'Future Perf'] = (
-        (df.loc[valid_mask, 'Next_Price'] - df.loc[valid_mask, price_column]) /
-        df.loc[valid_mask, price_column]
-    )
-
-    # clean up temporary columns
-    df = df.drop(columns=['Next_Date', 'Next_Price', price_column])
-
-    return df
-
-
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python -m src.jobs.worker <job_id>", file=sys.stderr)
-        sys.exit(1)
-
     job_id = sys.argv[1]
-    
+
     log(f"Worker started for job: {job_id}")
 
     try:

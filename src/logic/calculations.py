@@ -3,9 +3,8 @@ import numpy as np
 import scipy.stats as stats
 import p123api
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 from src.data.readers import ParquetDataReader
-from src.core.context import add_debug_log
 
 
 def validate_benchmark_data(df: Optional[pd.DataFrame]) -> bool:
@@ -202,15 +201,10 @@ def calculate_future_performance(
     Returns:
         DataFrame with Date, Ticker, and 'Future Perf' columns
     """
-
-    add_debug_log("Starting future performance calculation...")
-
     df = raw_data[['Date', 'Ticker', price_column]].copy()
 
     df['Date'] = pd.to_datetime(df['Date'])
     df[price_column] = pd.to_numeric(df[price_column], errors='coerce')
-
-    add_debug_log("Preparing data for vectorized calculation...")
 
     # sort by Ticker and Date
     df = df.sort_values(['Ticker', 'Date']).reset_index(drop=True)
@@ -218,8 +212,6 @@ def calculate_future_performance(
     # shift to get next week's values for each ticker
     df['Next_Date'] = df.groupby('Ticker')['Date'].shift(-1)
     df['Next_Price'] = df.groupby('Ticker')[price_column].shift(-1)
-
-    add_debug_log("Calculating weekly returns...")
 
     # calculate return only where conditions are true
     valid_mask = (
@@ -237,8 +229,6 @@ def calculate_future_performance(
     # clean up temporary columns
     df = df.drop(columns=['Next_Date', 'Next_Price', price_column])
 
-    add_debug_log(f"Future performance calculation complete: {df['Date'].nunique()} dates processed")
-
     return df
 
 
@@ -246,9 +236,10 @@ def analyze_factors(
     df: Optional[pd.DataFrame],
     future_perf_df: pd.DataFrame,
     parquet_path: Optional[Union[str, Path]] = None,
-    factor_columns: Optional[list] = None,
+    factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
-    bottom_pct: float = 30.0
+    bottom_pct: float = 30.0,
+    progress_fn: Optional[Callable[[int, int, str], None]] = None
 ) -> pd.DataFrame:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
@@ -261,18 +252,22 @@ def analyze_factors(
         factor_columns: List of factor columns to analyze (for Parquet files)
         top_pct: Percentage of top stocks to include (default: 30.0)
         bottom_pct: Percentage of bottom stocks to include (default: 30.0)
+        progress_fn: Optional callback (completed, total, current_factor) for progress updates
 
     Returns:
         DataFrame with factor analysis results (Date, factor, ret)
     """
     results = []
 
+    # Ensure future_perf_df Date is datetime
+    future_perf_df = future_perf_df.copy()
+    future_perf_df['Date'] = pd.to_datetime(future_perf_df['Date'])
+
     if parquet_path is not None and factor_columns is not None:
         # for parquet files
         total_factors = len(factor_columns)
 
         for idx, col in enumerate(factor_columns, 1):
-            add_debug_log(f'Analyzing factor {idx}/{total_factors}: {col}')
 
             # Read only the current factor column plus Date and Ticker
             reader = ParquetDataReader(parquet_path)
@@ -307,11 +302,15 @@ def analyze_factors(
 
             del factor_df
             del merged_df
+
+            # Report progress
+            if progress_fn:
+                progress_fn(idx, total_factors, col)
     else:
         # for csv files - merge with future performance
+        df = df.copy()
+        df['Date'] = pd.to_datetime(df['Date'])
         df_copy = df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
-
-        df_copy['Date'] = pd.to_datetime(df_copy['Date'])
         df_copy['Future Perf'] = pd.to_numeric(df_copy['Future Perf'], errors='coerce')
 
         excluded_columns = ['Date', 'Ticker', 'P123 ID', 'benchmark', 'Future Perf']
@@ -322,8 +321,6 @@ def analyze_factors(
 
         for idx, col in enumerate(factors, 1):
             if col in df_copy.columns:
-                add_debug_log(f'Analyzing factor {idx}/{total_factors}: {col}')
-
                 df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
 
                 for date, group in df_copy.groupby('Date'):
@@ -344,6 +341,10 @@ def analyze_factors(
 
                     value = (top_sum - bottom_sum) / (top_n + bottom_n)
                     results.append({'Date': date, 'factor': col, 'ret': value})
+
+            # Report progress
+            if progress_fn:
+                progress_fn(idx, total_factors, col)
 
     return pd.DataFrame(results)
 

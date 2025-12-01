@@ -1,4 +1,3 @@
-import os
 import json
 from io import StringIO
 from pathlib import Path
@@ -6,18 +5,14 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 import pandas as pd
 
-
-def get_jobs_dir() -> Path:
-    """Get the jobs directory from environment variable."""
-    jobs_dir = os.environ.get('JOBS_DIR', './data/jobs')
-    path = Path(jobs_dir)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+# Jobs directory: project_root/data/jobs
+JOBS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "jobs"
+JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_job_path(job_id: str) -> Path:
     """Get the path to a job file."""
-    return get_jobs_dir() / f"{job_id}.json"
+    return JOBS_DIR / f"{job_id}.json"
 
 
 def create_job(job_id: str, params: Dict[str, Any]) -> Path:
@@ -90,6 +85,7 @@ def delete_job(job_id: str) -> bool:
     job_path = _get_job_path(job_id)
 
     if job_path.exists():
+        # just remove file
         job_path.unlink()
         return True
 
