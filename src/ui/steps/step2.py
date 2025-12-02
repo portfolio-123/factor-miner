@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import uuid
 
 from src.core.context import get_state, update_state
 from src.core.utils import format_date, serialize_dataframe
@@ -23,10 +24,8 @@ def _on_run_analysis() -> None:
     state = get_state()
     st.session_state['step2_error'] = None
 
-    job_id = state.factor_list_uid
-    if not job_id:
-        _set_error("No factor_list_uid available - cannot create job")
-        return
+    # Use factor_list_uid for internal mode; generate a unique ID for external mode
+    job_id = state.factor_list_uid or uuid.uuid4().hex
 
     try:
         params = {
@@ -35,6 +34,8 @@ def _on_run_analysis() -> None:
             'min_alpha': state.min_alpha,
             'benchmark_data': serialize_dataframe(state.benchmark_data),
             'benchmark_ticker': state.benchmark_ticker,
+            'dataset_path': str(state.dataset_path) if state.dataset_path else None,
+            'file_type': state.file_type,
         }
         start_analysis_job(job_id, params)
         update_state(current_job_id=job_id)

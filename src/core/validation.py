@@ -87,7 +87,7 @@ def load_saved_settings() -> dict:
 
 def apply_saved_settings(saved: dict, is_internal: bool) -> None:
     """Apply saved settings to session_state."""
-    for key in ('api_key', 'api_id', 'benchmark_ticker', "api_id"):
+    for key in ('api_key', 'api_id', 'benchmark_ticker'):
         if saved.get(key):
             st.session_state[key] = saved[key]
 
@@ -117,7 +117,7 @@ def restore_session_defaults(state) -> None:
     }
 
     for key, value in defaults.items():
-        if key not in st.session_state and value:
+        if key not in st.session_state and value is not None:
             st.session_state[key] = value
 
     if not state.is_internal_app:

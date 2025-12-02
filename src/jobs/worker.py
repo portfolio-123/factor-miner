@@ -30,10 +30,26 @@ def log(message: str) -> None:
 def run_analysis(job_id: str, params: dict) -> dict:
     log("Starting analysis...")
 
-    # Locate dataset file using job_id (which is the factor_list_uid)
-    dataset_path, _, error, file_type = locate_factor_list_files(job_id)
-    if error or not dataset_path:
-        raise ValueError(f"Could not locate dataset: {error}")
+    # internal mode: locate by job_id (factor_list_uid)
+    # exteral mode: use dataset_path/file_type provided in params
+    dataset_path = params.get('dataset_path')
+    file_type = params.get('file_type')
+
+    if dataset_path:
+        # external mode
+        from pathlib import Path as _Path
+        dataset_path = _Path(dataset_path)
+        if file_type is None:
+            # detect if not provided
+            from src.core.utils import detect_file_type as _detect_file_type
+            file_type = _detect_file_type(dataset_path)
+        if not dataset_path.exists():
+            raise ValueError(f"Dataset file not found: {dataset_path}")
+    else:
+        # internal mode
+        dataset_path, _, error, file_type = locate_factor_list_files(job_id)
+        if error or not dataset_path:
+            raise ValueError(f"Could not locate dataset: {error}")
 
     top_pct = params['top_pct']
     bottom_pct = params['bottom_pct']
