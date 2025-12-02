@@ -1,9 +1,11 @@
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, Tuple
+from io import StringIO
 import os
 import streamlit as st
 from streamlit_local_storage import LocalStorage
+import pandas as pd
 
 
 def get_url_params(*keys: str) -> tuple:
@@ -85,3 +87,13 @@ def get_local_storage():
     if 'local_storage' not in st.session_state:
         st.session_state.local_storage = LocalStorage()
     return st.session_state.local_storage
+
+
+def serialize_dataframe(df: pd.DataFrame) -> str:
+    """Serialize a DataFrame to JSON string for storage."""
+    return df.to_json(orient='split', date_format='iso')
+
+
+def deserialize_dataframe(json_str: str) -> pd.DataFrame:
+    """Deserialize a JSON string back to DataFrame."""
+    return pd.read_json(StringIO(json_str), orient='split')

@@ -1,10 +1,12 @@
-import streamlit as st
 import os
+
+import streamlit as st
 from dotenv import load_dotenv
 
 from src.core.context import get_state, update_state, add_debug_log
-from src.core.utils import get_url_params, locate_factor_list_files
-from src.jobs.manager import read_job, deserialize_dataframe
+from src.core.processing import load_formulas_data
+from src.core.utils import get_url_params, locate_factor_list_files, deserialize_dataframe
+from src.jobs.manager import read_job
 from src.ui.components import header_with_navigation
 from src.ui.steps import render_step1, render_step2, render_step3
 from src.ui.styles import apply_custom_styles
@@ -30,65 +32,65 @@ def initialize_app() -> None:
     if is_internal_app:
         add_debug_log("Running in internal app mode")
 
-        # Get URL parameters
         fl_id, benchmark = get_url_params('fl_id', 'benchmark')
 
         if fl_id:
             add_debug_log(f"Factor list ID from URL: {fl_id}")
             update_state(factor_list_uid=fl_id)
 
-            # Check for existing job (survives browser refresh)
             job_data = read_job(fl_id)
             if job_data:
                 params = job_data['params']
                 state = get_state()
 
+                dataset_path, _, file_error, file_type = locate_factor_list_files(fl_id)
+
                 if job_data['status'] in ('pending', 'running'):
-                    # Job still running - restore step 2 state
+                    # Job still running - restore step 2 state that shows progress
                     add_debug_log(f"Found running job for {fl_id}, status: {job_data['status']}")
 
-                    formulas_data = None
-                    if params.get('formulas_data'):
-                        formulas_data = deserialize_dataframe(params['formulas_data'])
+                    formulas_data = load_formulas_data(
+                        str(dataset_path),
+                        file_type,
+                        fl_id
+                    ) if dataset_path else None
 
                     state.completed_steps.add(1)
                     update_state(
                         current_job_id=fl_id,
                         current_step=2,
-                        dataset_path=params['dataset_path'],
-                        file_type=params['file_type'],
+                        dataset_path=dataset_path,
+                        file_type=file_type,
                         benchmark_ticker=params.get('benchmark_ticker'),
                         formulas_data=formulas_data,
                     )
 
                 elif job_data['status'] == 'completed':
-                    # Job completed - load results and go to step 3
                     add_debug_log(f"Found completed job for {fl_id}, loading results")
 
                     try:
                         results = job_data['results']
                         metrics_df = deserialize_dataframe(results['all_metrics'])
                         corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
-                        raw_data = deserialize_dataframe(results['raw_data'])
 
                         # Also restore formulas_data for step 2 navigation
-                        formulas_data = None
-                        if params.get('formulas_data'):
-                            formulas_data = deserialize_dataframe(params['formulas_data'])
+                        formulas_data = load_formulas_data(
+                            str(dataset_path),
+                            file_type,
+                            fl_id
+                        ) if dataset_path else None
 
                         state.completed_steps.add(1)
                         state.completed_steps.add(2)
                         state.completed_steps.add(3)
                         update_state(
                             current_step=3,
-                            dataset_path=params['dataset_path'],
-                            file_type=params['file_type'],
+                            dataset_path=dataset_path,
+                            file_type=file_type,
                             benchmark_ticker=params.get('benchmark_ticker'),
                             formulas_data=formulas_data,
                             all_metrics=metrics_df,
                             all_corr_matrix=corr_matrix,
-                            raw_data=raw_data,
-                            # Restore step 1 config for navigation back
                             min_alpha=params.get('min_alpha', 0.5),
                             top_x_pct=params.get('top_pct', 20.0),
                             bottom_x_pct=params.get('bottom_pct', 20.0),
@@ -96,7 +98,6 @@ def initialize_app() -> None:
                     except Exception as e:
                         add_debug_log(f"Error loading completed job results: {e}")
 
-            # Locate files
             dataset_path, formulas_path, error, file_type = locate_factor_list_files(fl_id)
 
             if error:
@@ -132,10 +133,8 @@ def main() -> None:
 
     state = get_state()
 
-    # Header with brand and step navigation
     selected_step = header_with_navigation()
 
-    # Handle navigation
     if selected_step != state.current_step:
         available_steps = [1]
         if 1 in state.completed_steps:

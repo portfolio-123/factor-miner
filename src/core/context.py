@@ -6,13 +6,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 
+# Constant for price column name
+PRICE_COLUMN = "Last Close"
+
+
 @dataclass
 class AppState:
     """Central state management for the application."""
     current_step: int = 1
     completed_steps: set = field(default_factory=set)
-
-    PRICE_COLUMN: str = "Last Close"
 
     # internal app config
     is_internal_app: bool = False
@@ -27,8 +29,6 @@ class AppState:
 
     # data state
     benchmark_data: Optional[pd.DataFrame] = None
-    raw_data: Optional[pd.DataFrame] = None
-    price_column: Optional[str] = None
     benchmark_ticker: Optional[str] = None
     api_id: Optional[str] = None
     api_key: Optional[str] = None

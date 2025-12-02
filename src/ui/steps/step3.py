@@ -1,4 +1,5 @@
 import streamlit as st
+from st_copy import copy_button
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.ui.components import section_header, render_results_table
@@ -9,11 +10,9 @@ from src.jobs.manager import delete_job
 def render() -> None:
     state = get_state()
 
-    # Header with New Analysis button
-    col_title, col_spacer, col_btn = st.columns([2, 1, 1])
+    _, _, col_btn = st.columns([2, 1, 1])
     with col_btn:
         if st.button("New Analysis", type="secondary", use_container_width=True):
-            # Delete old job file
             if state.factor_list_uid:
                 delete_job(state.factor_list_uid)
                 add_debug_log(f"Deleted job {state.factor_list_uid} for new analysis")
@@ -57,7 +56,6 @@ def render() -> None:
             step=1,
         )
 
-    # update app state if widget values changed
     if (correlation_threshold != state.correlation_threshold or
             n_features != state.n_features):
         update_state(
@@ -77,4 +75,21 @@ def render() -> None:
 
     section_header("Best Performing Factors")
 
-    render_results_table(best_features, state.all_metrics)
+    display_df = render_results_table(best_features, state.all_metrics)
+
+    if display_df is not None and not display_df.empty:
+        col1, col2, _ = st.columns([1, 1, 2])
+
+        csv_data = display_df.to_csv(index=False)
+
+        with col1:
+            copy_button(csv_data, tooltip="Copy to Clipboard", key="copy_results")
+
+        with col2:
+            st.download_button(
+                label="Download CSV",
+                data=csv_data,
+                file_name=f"{state.factor_list_uid}_best_features.csv",
+                mime="text/csv",
+                use_container_width=True
+            )

@@ -1,24 +1,27 @@
 import json
-from io import StringIO
+import subprocess
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
 import pandas as pd
 
+from src.core.utils import serialize_dataframe, deserialize_dataframe
+
 # Jobs directory: project_root/data/jobs
+# TODO: add env variable for this?
 JOBS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "jobs"
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_job_path(job_id: str) -> Path:
-    """Get the path to a job file."""
     return JOBS_DIR / f"{job_id}.json"
 
 
 def create_job(job_id: str, params: Dict[str, Any]) -> Path:
-    """Create a new job file with pending status."""
     job_data = {
         "id": job_id,
+        # pending for now, will be updated to running when worker starts
         "status": "pending",
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat(),
@@ -35,7 +38,6 @@ def create_job(job_id: str, params: Dict[str, Any]) -> Path:
 
 
 def read_job(job_id: str) -> Optional[Dict[str, Any]]:
-    """Read a job file and return its data."""
     job_path = _get_job_path(job_id)
 
     if not job_path.exists():
@@ -55,7 +57,6 @@ def update_job(
     error: Optional[str] = None,
     progress: Optional[Dict[str, int]] = None
 ) -> bool:
-    """Update a job file with new status and optionally results, error, or progress."""
     job_data = read_job(job_id)
 
     if job_data is None:
@@ -73,6 +74,10 @@ def update_job(
     if progress is not None:
         job_data["progress"] = progress
 
+    # Clear progress when job is finished (no longer needed)
+    if status in ('completed', 'error'):
+        job_data.pop("progress", None)
+
     job_path = _get_job_path(job_id)
     with open(job_path, 'w') as f:
         json.dump(job_data, f, indent=2)
@@ -81,7 +86,6 @@ def update_job(
 
 
 def delete_job(job_id: str) -> bool:
-    """Delete a job file."""
     job_path = _get_job_path(job_id)
 
     if job_path.exists():
@@ -92,11 +96,25 @@ def delete_job(job_id: str) -> bool:
     return False
 
 
-def serialize_dataframe(df: pd.DataFrame) -> str:
-    """Serialize a DataFrame to JSON string for storage."""
-    return df.to_json(orient='split', date_format='iso')
+def start_analysis_job(job_id: str, params: Dict[str, Any]) -> str:
+    project_root = Path(__file__).resolve().parent.parent.parent
+
+    create_job(job_id, params)
+
+    # Spawn worker process
+    subprocess.Popen(
+        [sys.executable, '-m', 'src.jobs.worker', job_id],
+        cwd=str(project_root),
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    return job_id
 
 
-def deserialize_dataframe(json_str: str) -> pd.DataFrame:
-    """Deserialize a JSON string back to DataFrame."""
-    return pd.read_json(StringIO(json_str), orient='split')
+def get_job_results(job_data: Dict[str, Any]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    results = job_data['results']
+    metrics_df = deserialize_dataframe(results['all_metrics'])
+    corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
+    return metrics_df, corr_matrix

@@ -5,6 +5,7 @@ import p123api
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 from src.data.readers import ParquetDataReader
+from src.core.context import PRICE_COLUMN
 
 
 def validate_benchmark_data(df: Optional[pd.DataFrame]) -> bool:
@@ -313,7 +314,7 @@ def analyze_factors(
         df_copy = df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
         df_copy['Future Perf'] = pd.to_numeric(df_copy['Future Perf'], errors='coerce')
 
-        excluded_columns = ['Date', 'Ticker', 'P123 ID', 'benchmark', 'Future Perf']
+        excluded_columns = ['Date', 'Ticker', 'P123 ID', 'benchmark', 'Future Perf', PRICE_COLUMN]
         numeric_columns = df_copy.select_dtypes(include=[np.number]).columns.tolist()
         factors = [col for col in numeric_columns if col not in excluded_columns]
 

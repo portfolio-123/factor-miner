@@ -121,18 +121,15 @@ def render_formulas_grid(formulas_df: pd.DataFrame) -> None:
             hide_index=True
         )
 
-def render_dataset_preview(df: pd.DataFrame, actual_row_count: Optional[int] = None) -> None:
-    """Render a dataset preview with first and last rows."""
-    total_rows = actual_row_count if actual_row_count is not None else len(df)
-
+def render_dataset_preview(df: pd.DataFrame) -> None:
     if len(df) > 20:
         first_10 = df.head(10)
         last_10 = df.tail(10)
         preview_df = pd.concat([first_10, last_10], ignore_index=False)
-        st.caption(f"Showing first 10 and last 10 of {total_rows:,} rows")
     else:
         preview_df = df
-        st.caption(f"Showing all {total_rows:,} rows")
+
+    st.caption(f"Showing first and last 10 rows")
 
     # Reset index to make it a regular column for better width control
     display_df = preview_df.reset_index()
@@ -149,8 +146,7 @@ def render_dataset_preview(df: pd.DataFrame, actual_row_count: Optional[int] = N
     )
 
 
-def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> None:
-    """Render the results table with best features."""
+def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> Optional[pd.DataFrame]:
     if best_features:
         best_metrics_df = metrics_df[metrics_df['column'].isin(best_features)].copy()
         best_metrics_df = best_metrics_df.sort_values(
@@ -167,12 +163,10 @@ def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> None:
             'p-value': 'P-Value'
         })
 
-        # Format values
         display_df['Ann. Alpha %'] = display_df['Ann. Alpha %'].apply(lambda x: f"{x:.2f}%")
         display_df['T-Statistic'] = display_df['T-Statistic'].apply(lambda x: f"{x:.4f}")
         display_df['P-Value'] = display_df['P-Value'].apply(lambda x: f"{x:.6f}")
 
-        # Select columns to display
         display_df = display_df[['Factor', 'Ann. Alpha %', 'T-Statistic', 'P-Value']]
 
         st.dataframe(
@@ -187,8 +181,10 @@ def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> None:
                 "P-Value": st.column_config.TextColumn("P-Value", width="medium")
             }
         )
+        return display_df
     else:
         st.warning(
             "No features found matching the current criteria. "
             "Try adjusting the correlation threshold or minimum alpha."
         )
+        return None

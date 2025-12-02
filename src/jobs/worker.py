@@ -4,13 +4,13 @@ Run as: python -m src.jobs.worker <job_id>
 """
 import sys
 import traceback
-import pandas as pd
-from io import StringIO
 from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
-from src.jobs.manager import read_job, update_job, serialize_dataframe
+from src.core.context import PRICE_COLUMN
+from src.core.utils import locate_factor_list_files, deserialize_dataframe, serialize_dataframe
+from src.jobs.manager import read_job, update_job
 from src.data.readers import get_data_reader
 from src.logic.calculations import (
     calculate_benchmark_returns,
@@ -18,35 +18,27 @@ from src.logic.calculations import (
     analyze_factors,
     calculate_factor_metrics,
     calculate_correlation_matrix,
-    select_best_features
 )
 
 
 def log(message: str) -> None:
-    """Log to console."""
     timestamp = datetime.now().strftime('%H:%M:%S')
     formatted = f"[{timestamp}] [WORKER] {message}"
     print(formatted, flush=True)
 
 
 def run_analysis(job_id: str, params: dict) -> dict:
-    """
-    Run the factor analysis with the given parameters.
-    Returns a dict with serialized results.
-    """
     log("Starting analysis...")
 
-    dataset_path = params['dataset_path']
-    file_type = params['file_type']
-    price_column = params['price_column']
+    # Locate dataset file using job_id (which is the factor_list_uid)
+    dataset_path, _, error, file_type = locate_factor_list_files(job_id)
+    if error or not dataset_path:
+        raise ValueError(f"Could not locate dataset: {error}")
+
     top_pct = params['top_pct']
     bottom_pct = params['bottom_pct']
-    n_features = params['n_features']
-    correlation_threshold = params['correlation_threshold']
-    min_alpha = params['min_alpha']
 
-    # Deserialize benchmark data
-    benchmark_data = pd.read_json(StringIO(params['benchmark_data']), orient='split')
+    benchmark_data = deserialize_dataframe(params['benchmark_data'])
 
     log(f"Processing dataset: {dataset_path}")
 
@@ -59,12 +51,11 @@ def run_analysis(job_id: str, params: dict) -> dict:
             "current_factor": current_factor
         })
 
-    # Read data based on file type
     if file_type == 'parquet':
         reader = get_data_reader(dataset_path, file_type=file_type)
-        perf_data = reader.read_columns(['Date', 'Ticker', price_column])
+        perf_data = reader.read_columns(['Date', 'Ticker', PRICE_COLUMN])
         columns = reader.get_column_names()
-        excluded_columns = ['Date', 'Ticker', 'P123 ID', price_column]
+        excluded_columns = ['Date', 'Ticker', 'P123 ID', PRICE_COLUMN]
         factor_columns = [col for col in columns if col not in excluded_columns]
     else:
         reader = get_data_reader(dataset_path, file_type=file_type)
@@ -72,7 +63,7 @@ def run_analysis(job_id: str, params: dict) -> dict:
         factor_columns = None
 
     log("Calculating future performance...")
-    future_perf_df = calculate_future_performance(perf_data, price_column)
+    future_perf_df = calculate_future_performance(perf_data, PRICE_COLUMN)
 
     log("Analyzing factors...")
     if file_type == 'parquet':
@@ -110,23 +101,12 @@ def run_analysis(job_id: str, params: dict) -> dict:
     log("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(results_df)
 
-    log("Selecting best features...")
-    best_features = select_best_features(
-        metrics_df,
-        corr_matrix,
-        N=n_features,
-        correlation_threshold=correlation_threshold,
-        a_min=min_alpha
-    )
-
-    log(f"Analysis complete! Found {len(best_features)} best features")
+    log("Analysis complete!")
 
     # Serialize results for JSON storage
     return {
         'all_metrics': serialize_dataframe(metrics_df),
         'all_corr_matrix': serialize_dataframe(corr_matrix),
-        'raw_data': serialize_dataframe(raw_data),
-        'best_features': best_features
     }
 
 
