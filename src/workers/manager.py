@@ -103,7 +103,7 @@ def start_analysis_job(job_id: str, params: Dict[str, Any]) -> str:
 
     # Spawn worker process
     subprocess.Popen(
-        [sys.executable, '-m', 'src.jobs.worker', job_id],
+        [sys.executable, '-m', 'src.workers.worker', job_id],
         cwd=str(project_root),
         start_new_session=True,
         stdout=subprocess.DEVNULL,
@@ -118,3 +118,5 @@ def get_job_results(job_data: Dict[str, Any]) -> tuple[pd.DataFrame, pd.DataFram
     metrics_df = deserialize_dataframe(results['all_metrics'])
     corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
     return metrics_df, corr_matrix
+
+

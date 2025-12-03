@@ -1,6 +1,6 @@
 """
 Worker script for running factor analysis in background.
-Run as: python -m src.jobs.worker <job_id>
+Run as: python -m src.workers.worker <job_id>
 """
 import sys
 import traceback
@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 load_dotenv()
 from src.core.constants import PRICE_COLUMN
 from src.core.utils import locate_factor_list_files, deserialize_dataframe, serialize_dataframe
-from src.jobs.manager import read_job, update_job
-from src.data.readers import get_data_reader
-from src.logic.calculations import (
+from src.workers.manager import read_job, update_job
+from src.services.readers import get_data_reader
+from src.core.calculations import (
     calculate_benchmark_returns,
     calculate_future_performance,
     analyze_factors,
@@ -98,7 +98,6 @@ def run_analysis(job_id: str, params: dict) -> dict:
             bottom_pct=bottom_pct,
             progress_fn=on_progress
         )
-        # Read Date/Ticker for benchmark calculation
         date_ticker_df = reader.read_columns(['Date', 'Ticker'])
         raw_data = date_ticker_df
     else:
@@ -125,7 +124,6 @@ def run_analysis(job_id: str, params: dict) -> dict:
 
     log("Analysis complete!")
 
-    # Serialize results for JSON storage
     return {
         'all_metrics': serialize_dataframe(metrics_df),
         'all_corr_matrix': serialize_dataframe(corr_matrix),
@@ -138,21 +136,17 @@ def main():
     log(f"Worker started for job: {job_id}")
 
     try:
-        # Read job data
         job_data = read_job(job_id)
         if job_data is None:
             log(f"Job {job_id} not found")
             sys.exit(1)
 
-        # Update status to running
         update_job(job_id, status="running")
         log("Status updated to running")
 
-        # Run the analysis
         params = job_data['params']
         results = run_analysis(job_id, params)
 
-        # Update job with results
         update_job(job_id, status="completed", results=results)
         log("Job completed successfully")
 
@@ -165,3 +159,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

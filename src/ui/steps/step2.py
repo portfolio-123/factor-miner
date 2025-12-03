@@ -10,8 +10,8 @@ from src.ui.components import (
     render_formulas_grid,
     render_dataset_preview
 )
-from src.data.readers import get_data_reader
-from src.jobs.manager import (
+from src.services.readers import get_data_reader
+from src.workers.manager import (
     read_job,
     delete_job,
     start_analysis_job,

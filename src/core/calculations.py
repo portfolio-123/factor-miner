@@ -4,7 +4,7 @@ import scipy.stats as stats
 import p123api
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
-from src.data.readers import ParquetDataReader
+from src.services.readers import ParquetDataReader
 from src.core.constants import PRICE_COLUMN
 
 
@@ -399,3 +399,5 @@ def select_best_features(
             break
 
     return selected_features
+
+

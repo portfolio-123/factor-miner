@@ -33,16 +33,17 @@ class CSVDataReader:
             return None
 
     def read_preview(self, num_rows: int = 10) -> Optional[pd.DataFrame]:
-        # read preview of csv file (first and last N rows)
+        # read preview of csv file (first and last N rows) using deque for tail
         try:
-            head_df = pd.read_csv(str(self.file_path), nrows=num_rows)
-            with open(self.file_path, 'r', newline='') as f:
-                header = f.readline().rstrip('\r\n')
-                if header == '':
-                    return head_df
+            first_rows = pd.read_csv(str(self.file_path), nrows=num_rows)
+            with self.file_path.open('r', newline='') as f:
+                header_line = f.readline().rstrip('\r\n')
                 tail_lines = deque(f, num_rows)
-            tail_df = pd.read_csv(io.StringIO(header + '\n' + ''.join(tail_lines)))
-            return pd.concat([head_df, tail_df], ignore_index=True)
+            if not tail_lines:
+                return first_rows
+            tail_csv = header_line + '\n' + ''.join(tail_lines)
+            last_rows = pd.read_csv(io.StringIO(tail_csv))
+            return pd.concat([first_rows, last_rows], ignore_index=True)
         except Exception:
             return None
 
@@ -173,3 +174,5 @@ class ParquetDataReader:
 def get_data_reader(file_path: Union[str, Path], file_type: FileType) -> Union[CSVDataReader, ParquetDataReader]:
     reader_map = {FileType.CSV: CSVDataReader, FileType.PARQUET: ParquetDataReader}
     return reader_map[file_type](Path(file_path))
+
+

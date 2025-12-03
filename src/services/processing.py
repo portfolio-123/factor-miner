@@ -8,9 +8,9 @@ import streamlit as st
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.utils import detect_file_type, get_local_storage
 from src.core.validation import validate_inputs
-from src.data.readers import get_data_reader
-from src.integrations.p123 import fetch_benchmark_data
-from src.logic.calculations import get_dataset_date_range
+from src.services.readers import get_data_reader
+from src.services.p123_client import fetch_benchmark_data
+from src.core.calculations import get_dataset_date_range
 from src.core.constants import FileType
 
 
@@ -125,7 +125,6 @@ def process_step1() -> bool:
             st.session_state['step1_error'] = f"Error getting date range: {str(e)}"
             return False
 
-        # Fetch benchmark data (validates API credentials)
         add_debug_log(f"Fetching benchmark data for {benchmark_ticker}...")
         benchmark_data, error = fetch_benchmark_data(
             benchmark_ticker,
@@ -178,3 +177,5 @@ def process_step1() -> bool:
         add_debug_log(f"ERROR: {str(e)}")
         st.session_state['step1_error'] = f"Error processing data: {str(e)}"
         return False
+
+

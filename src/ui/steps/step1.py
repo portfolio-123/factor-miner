@@ -2,7 +2,7 @@ import streamlit as st
 from pathlib import Path
 
 from src.core.context import get_state
-from src.core.processing import process_step1
+from src.services.processing import process_step1
 from src.core.utils import detect_file_type
 from src.core.validation import (
     check_required_fields,

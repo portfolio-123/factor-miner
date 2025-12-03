@@ -3,8 +3,8 @@ from st_copy import copy_button
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.ui.components import section_header, render_results_table
-from src.logic.calculations import select_best_features
-from src.jobs.manager import delete_job
+from src.core.calculations import select_best_features
+from src.workers.manager import delete_job
 
 
 def render() -> None:

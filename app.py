@@ -4,9 +4,9 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from src.core.context import get_state, update_state, add_debug_log
-from src.core.processing import load_formulas_data
+from src.services.processing import load_formulas_data
 from src.core.utils import get_url_params, locate_factor_list_files, deserialize_dataframe
-from src.jobs.manager import read_job
+from src.workers.manager import read_job
 from src.ui.components import header_with_navigation
 from src.ui.steps import render_step1, render_step2, render_step3
 from src.ui.styles import apply_custom_styles
