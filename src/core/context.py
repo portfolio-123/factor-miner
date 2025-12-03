@@ -6,15 +6,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 
-# Constant for price column name
-PRICE_COLUMN = "Last Close"
+from typing import Set, Optional
+from src.core.constants import FileType
 
 
 @dataclass
 class AppState:
     """Central state management for the application."""
     current_step: int = 1
-    completed_steps: set = field(default_factory=set)
+    completed_steps: Set[int] = field(default_factory=set)
 
     # internal app config
     is_internal_app: bool = False
@@ -23,7 +23,6 @@ class AppState:
     # auto-located file paths (internal app mode)
     auto_dataset_path: Optional[Path] = None
     auto_formulas_path: Optional[Path] = None
-    auto_dataset_file_type: Optional[str] = None  # 'csv' or 'parquet', detected via magic bytes
     files_verified: bool = False
     files_verification_error: Optional[str] = None
 
@@ -33,7 +32,7 @@ class AppState:
     api_id: Optional[str] = None
     api_key: Optional[str] = None
 
-    file_type: Optional[str] = None  # 'csv' or 'parquet'
+    file_type: Optional[FileType] = None
     dataset_path: Optional[Path] = None
     formulas_path: Optional[Path] = None
     formulas_data: Optional[pd.DataFrame] = None

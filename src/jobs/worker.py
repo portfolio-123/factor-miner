@@ -8,7 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
-from src.core.context import PRICE_COLUMN
+from src.core.constants import PRICE_COLUMN
 from src.core.utils import locate_factor_list_files, deserialize_dataframe, serialize_dataframe
 from src.jobs.manager import read_job, update_job
 from src.data.readers import get_data_reader
@@ -19,6 +19,7 @@ from src.logic.calculations import (
     calculate_factor_metrics,
     calculate_correlation_matrix,
 )
+from src.core.constants import FileType
 
 
 def log(message: str) -> None:
@@ -34,6 +35,11 @@ def run_analysis(job_id: str, params: dict) -> dict:
     # exteral mode: use dataset_path/file_type provided in params
     dataset_path = params.get('dataset_path')
     file_type = params.get('file_type')
+    if isinstance(file_type, str):
+        try:
+            file_type = FileType(file_type)
+        except ValueError:
+            file_type = None
 
     if dataset_path:
         # external mode
@@ -67,7 +73,7 @@ def run_analysis(job_id: str, params: dict) -> dict:
             "current_factor": current_factor
         })
 
-    if file_type == 'parquet':
+    if file_type == FileType.PARQUET:
         reader = get_data_reader(dataset_path, file_type=file_type)
         perf_data = reader.read_columns(['Date', 'Ticker', PRICE_COLUMN])
         columns = reader.get_column_names()
@@ -82,7 +88,7 @@ def run_analysis(job_id: str, params: dict) -> dict:
     future_perf_df = calculate_future_performance(perf_data, PRICE_COLUMN)
 
     log("Analyzing factors...")
-    if file_type == 'parquet':
+    if file_type == FileType.PARQUET:
         results_df = analyze_factors(
             None,
             future_perf_df,

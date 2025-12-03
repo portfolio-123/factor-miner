@@ -5,6 +5,7 @@ import streamlit as st
 
 from src.core.context import get_state
 from src.core.utils import detect_file_type, get_local_storage
+from src.core.constants import FileType
 
 
 def check_required_fields() -> bool:
@@ -18,7 +19,7 @@ def check_required_fields() -> bool:
     else:
         dataset = st.session_state.get('dataset_path', '')
         dataset_path = Path(dataset.strip()) if dataset.strip() else None
-        is_parquet = dataset_path and dataset_path.exists() and detect_file_type(dataset_path) == 'parquet'
+        is_parquet = dataset_path and dataset_path.exists() and detect_file_type(dataset_path) == FileType.PARQUET
 
         if is_parquet:
             # Parquet files have formulas embedded in metadata
@@ -62,7 +63,7 @@ def validate_inputs() -> tuple[bool, str]:
             return False, f"Dataset file not found: {dataset_path}"
 
         # Only validate formulas path for CSV files (parquet has embedded metadata)
-        if detect_file_type(dataset_file) != 'parquet':
+        if detect_file_type(dataset_file) != FileType.PARQUET:
             formulas_path = st.session_state.get('formulas_path', '')
             if not formulas_path.strip():
                 return False, "Formulas path is required for CSV datasets"
@@ -83,26 +84,6 @@ def load_saved_settings() -> dict:
         return json.loads(saved_data.get('factor_eval_settings', '')) or {}
     except (json.JSONDecodeError, TypeError):
         return {}
-
-
-def apply_saved_settings(saved: dict, is_internal: bool) -> None:
-    """Apply saved settings to session_state."""
-    for key in ('api_key', 'api_id', 'benchmark_ticker'):
-        if saved.get(key):
-            st.session_state[key] = saved[key]
-
-    if not is_internal:
-        for key in ('dataset_path', 'formulas_path'):
-            if saved.get(key):
-                st.session_state[key] = saved[key]
-
-    if saved.get('min_alpha') is not None:
-        st.session_state['min_alpha'] = float(saved['min_alpha'])
-    for key in ('top_x_pct', 'bottom_x_pct'):
-        if saved.get(key) is not None:
-            st.session_state[key] = int(saved[key])
-
-    st.session_state['step1_error'] = None
 
 
 def restore_session_defaults(state) -> None:

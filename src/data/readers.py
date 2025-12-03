@@ -1,8 +1,13 @@
 import json
-import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, Union
+import io
+from collections import deque
+
+import pandas as pd
 import pyarrow.parquet as pq
+
+from src.core.constants import REQUIRED_COLUMNS, FileType
 
 
 class CSVDataReader:
@@ -11,14 +16,11 @@ class CSVDataReader:
 
     def validate(self) -> Tuple[bool, Optional[str]]:
         try:
-            # read first row to check if required columns are present
-            df = pd.read_csv(str(self.file_path), nrows=1)
-            required_columns = ['Date', 'Ticker', 'Last Close']
-            missing = [col for col in required_columns if col not in df.columns]
-
+            # read only header to validate required columns
+            header_df = pd.read_csv(str(self.file_path), nrows=0)
+            missing = [col for col in REQUIRED_COLUMNS if col not in header_df.columns]
             if missing:
                 return False, f"Missing required columns: {', '.join(missing)}"
-
             return True, None
         except Exception as e:
             return False, str(e)
@@ -31,30 +33,28 @@ class CSVDataReader:
             return None
 
     def read_preview(self, num_rows: int = 10) -> Optional[pd.DataFrame]:
-        # read preview of csv file (first and last N rows). currently using this in step 2, on the dataset inspect
+        # read preview of csv file (first and last N rows)
         try:
-            df = self.read_full()
-            if df is None or len(df) <= num_rows * 2:
-                return df
-
-            first_rows = df.head(num_rows)
-            last_rows = df.tail(num_rows)
-            return pd.concat([first_rows, last_rows], ignore_index=False)
+            head_df = pd.read_csv(str(self.file_path), nrows=num_rows)
+            with open(self.file_path, 'r', newline='') as f:
+                header = f.readline().rstrip('\r\n')
+                if header == '':
+                    return head_df
+                tail_lines = deque(f, num_rows)
+            tail_df = pd.read_csv(io.StringIO(header + '\n' + ''.join(tail_lines)))
+            return pd.concat([head_df, tail_df], ignore_index=True)
         except Exception:
             return None
 
     def get_metadata(self) -> Dict[str, Any]:
-        # get metadata like number of rows, columns, etc. using in step 2
+        # get metadata like number of rows, columns, etc.
         try:
             df = self.read_full()
             if df is None:
                 return {'valid': False, 'error': 'Failed to read file'}
-
-            # Calculate unique dates from full dataset
             unique_dates = None
             if 'Date' in df.columns:
                 unique_dates = pd.to_datetime(df['Date']).nunique()
-
             return {
                 'valid': True,
                 'num_rows': len(df),
@@ -72,16 +72,11 @@ class ParquetDataReader:
 
     def validate(self) -> Tuple[bool, Optional[str]]:
         try:
-            # read metadata only and get columns
             parquet_file = pq.ParquetFile(str(self.file_path))
             columns = parquet_file.schema_arrow.names
-
-            required_columns = ['Date', 'Ticker', 'Last Close']
-            missing = [col for col in required_columns if col not in columns]
-
+            missing = [col for col in REQUIRED_COLUMNS if col not in columns]
             if missing:
                 return False, f"Missing required columns: {', '.join(missing)}"
-
             return True, None
         except Exception as e:
             return False, str(e)
@@ -107,33 +102,27 @@ class ParquetDataReader:
             if total_rows <= num_rows * 2:
                 return parquet_file.read().to_pandas()
 
-            # read first N rows from first row group
-            first_batch = parquet_file.read_row_group(0).to_pandas()
-            first_rows = first_batch.head(num_rows)
+            first_rows = next(parquet_file.iter_batches(num_rows=num_rows))
 
             # read last N rows from last row group
             last_row_group_idx = parquet_file.num_row_groups - 1
             last_batch = parquet_file.read_row_group(last_row_group_idx).to_pandas()
             last_rows = last_batch.tail(num_rows)
             last_rows.index = range(total_rows - num_rows, total_rows)
-
             return pd.concat([first_rows, last_rows], ignore_index=False)
         except Exception:
             return None
 
     def get_metadata(self) -> Dict[str, Any]:
-        # get metadata like number of rows, columns, etc. using in step 2
         try:
             parquet_file = pq.ParquetFile(str(self.file_path))
             num_rows = parquet_file.metadata.num_rows
             columns = parquet_file.schema_arrow.names
-
             unique_dates = None
             if 'Date' in columns:
                 date_df = self.read_columns(['Date'])
                 if date_df is not None:
                     unique_dates = pd.to_datetime(date_df['Date']).nunique()
-
             return {
                 'valid': True,
                 'num_rows': num_rows,
@@ -145,7 +134,6 @@ class ParquetDataReader:
             return {'valid': False, 'error': str(e)}
 
     def get_column_names(self) -> list:
-        # get list of column names from metadata only
         try:
             parquet_file = pq.ParquetFile(str(self.file_path))
             return parquet_file.schema_arrow.names
@@ -153,7 +141,6 @@ class ParquetDataReader:
             return []
 
     def get_custom_metadata(self) -> Optional[Dict[str, str]]:
-        """Get custom key-value metadata from parquet file schema."""
         try:
             parquet_file = pq.ParquetFile(str(self.file_path))
             schema_metadata = parquet_file.schema_arrow.metadata
@@ -167,43 +154,22 @@ class ParquetDataReader:
             return None
 
     def get_formulas_from_metadata(self) -> Optional[pd.DataFrame]:
-        """Extract formulas DataFrame from parquet custom metadata."""
         try:
             metadata = self.get_custom_metadata()
             if metadata is None or 'features' not in metadata:
                 return None
-
             features_json = json.loads(metadata['features'])
             df = pd.DataFrame(features_json)
-
-            # Ensure expected columns exist, add empty if missing
             for col in ['formula', 'name', 'tag']:
                 if col not in df.columns:
                     df[col] = ''
-
-            # Add Normalization column if not present (matches CSV format)
             if 'Normalization' not in df.columns:
                 df['Normalization'] = 'Raw'
-
             return df[['formula', 'name', 'tag', 'Normalization']]
         except Exception:
             return None
 
 
-def get_data_reader(file_path: Union[str, Path], file_type: Optional[str] = None):
-    path = Path(file_path)
-
-    # Use explicit file_type if provided, otherwise detect from extension
-    if file_type is None:
-        suffix = path.suffix.lower()
-        if suffix == '.csv':
-            file_type = 'csv'
-        elif suffix == '.parquet':
-            file_type = 'parquet'
-
-    if file_type == 'csv':
-        return CSVDataReader(path)
-    elif file_type == 'parquet':
-        return ParquetDataReader(path)
-    else:
-        raise ValueError(f"Unsupported file type: {path}")
+def get_data_reader(file_path: Union[str, Path], file_type: FileType) -> Union[CSVDataReader, ParquetDataReader]:
+    reader_map = {FileType.CSV: CSVDataReader, FileType.PARQUET: ParquetDataReader}
+    return reader_map[file_type](Path(file_path))

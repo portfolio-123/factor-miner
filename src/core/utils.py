@@ -7,19 +7,9 @@ import streamlit as st
 from streamlit_local_storage import LocalStorage
 import pandas as pd
 
+from src.core.constants import FileType
 
 def get_url_params(*keys: str) -> tuple:
-    """Get multiple URL parameters at once.
-
-    Args:
-        *keys: Parameter names to retrieve
-
-    Returns:
-        Tuple of parameter values (None if not found)
-
-    Example:
-        fl_id, benchmark = get_url_params('fl_id', 'benchmark')
-    """
     try:
         params = st.query_params
         return tuple(params.get(key, None) for key in keys)
@@ -36,27 +26,19 @@ def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
         return 'N/A'
 
 
-def detect_file_type(file_path: Path) -> str:
+def detect_file_type(file_path: Path) -> FileType:
     """Detect file type by reading magic bytes."""
     try:
         with open(file_path, 'rb') as f:
             magic = f.read(4)
             if magic == b'PAR1':
-                return 'parquet'
+                return FileType.PARQUET
     except Exception:
         pass
-    return 'csv'
+    return FileType.CSV
 
 
 def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path], Optional[str], Optional[str]]:
-    """Locate dataset and formulas files for internal app mode.
-
-    Args:
-        fl_id: Factor list ID from URL parameter
-
-    Returns:
-        Tuple of (dataset_path, formulas_path, error_message, file_type)
-    """
     base_dir = os.getenv('FACTOR_LIST_DIR')
     if not base_dir:
         return None, None, "FACTOR_LIST_DIR environment variable not set", None
@@ -72,7 +54,7 @@ def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path]
 
     file_type = detect_file_type(dataset_path)
 
-    if file_type == 'parquet':
+    if file_type == FileType.PARQUET:
         formulas_path = None
     else:
         formulas_path = base_path / f"{fl_id}_meta"
@@ -83,17 +65,13 @@ def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path]
 
 
 def get_local_storage():
-    """Get or create LocalStorage instance (lazy initialization)."""
     if 'local_storage' not in st.session_state:
         st.session_state.local_storage = LocalStorage()
     return st.session_state.local_storage
 
 
 def serialize_dataframe(df: pd.DataFrame) -> str:
-    """Serialize a DataFrame to JSON string for storage."""
     return df.to_json(orient='split', date_format='iso')
 
 
-def deserialize_dataframe(json_str: str) -> pd.DataFrame:
-    """Deserialize a JSON string back to DataFrame."""
-    return pd.read_json(StringIO(json_str), orient='split')
+def deserialize_dataframe(json_str: str) -> pd.DataFrame:    return pd.read_json(StringIO(json_str), orient='split')

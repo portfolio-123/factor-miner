@@ -35,7 +35,7 @@ def _on_run_analysis() -> None:
             'benchmark_data': serialize_dataframe(state.benchmark_data),
             'benchmark_ticker': state.benchmark_ticker,
             'dataset_path': str(state.dataset_path) if state.dataset_path else None,
-            'file_type': state.file_type,
+            'file_type': state.file_type.value if state.file_type else None,
         }
         start_analysis_job(job_id, params)
         update_state(current_job_id=job_id)

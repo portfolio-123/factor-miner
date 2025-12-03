@@ -5,26 +5,7 @@ import p123api
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 from src.data.readers import ParquetDataReader
-from src.core.context import PRICE_COLUMN
-
-
-def validate_benchmark_data(df: Optional[pd.DataFrame]) -> bool:
-    """
-    Validate that benchmark data has required columns.
-
-    Args:
-        df: DataFrame to validate
-
-    Returns:
-        True if valid, False otherwise
-    """
-    if df is None or df.empty or len(df) == 0:
-        return False
-
-    if 'close' not in df.columns or 'dt' not in df.columns:
-        return False
-
-    return True
+from src.core.constants import PRICE_COLUMN
 
 
 def get_dataset_date_range(df: pd.DataFrame) -> Tuple[str, str]:
@@ -58,57 +39,6 @@ def get_dataset_date_range(df: pd.DataFrame) -> Tuple[str, str]:
     end_date = latest_date + pd.Timedelta(days=14)
 
     return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
-
-
-def fetch_benchmark_data(
-    benchmark_ticker: str,
-    api_key: str,
-    start_date: str,
-    end_date: str,
-    api_id: str = None
-) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
-    """
-    Fetch benchmark price data from Portfolio123 API.
-
-    Args:
-        benchmark_ticker: Ticker symbol for benchmark (e.g., 'SPY:USA')
-        api_key: Portfolio123 API key
-        start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
-        api_id: Optional API ID
-
-    Returns:
-        Tuple of (DataFrame with benchmark data, error message)
-        DataFrame is None if error occurred
-    """
-    try:
-        client = p123api.Client(api_id=api_id, api_key=api_key)
-
-        benchmark_response = client.data_prices(
-            benchmark_ticker,
-            start_date,
-            end_date,
-            False
-        )
-
-        benchmark_df = pd.DataFrame(benchmark_response["prices"])
-
-        if not validate_benchmark_data(benchmark_df):
-            return None, f"Benchmark ticker '{benchmark_ticker}' returned invalid data"
-
-        return benchmark_df, None
-
-    except Exception as e:
-        error_msg = str(e)
-
-        if "authentication" in error_msg.lower() or "invalid id/key" in error_msg.lower() or "401" in error_msg:
-            return None, "Invalid API Key"
-        elif "404" in error_msg or "not found" in error_msg.lower():
-            return None, f"Benchmark ticker '{benchmark_ticker}' not found"
-        elif "timeout" in error_msg.lower() or "connection" in error_msg.lower():
-            return None, "Connection error. Please check your internet connection"
-        else:
-            return None, f"Error: {error_msg}"
 
 
 def find_prior_trading_day(
@@ -267,11 +197,11 @@ def analyze_factors(
     if parquet_path is not None and factor_columns is not None:
         # for parquet files
         total_factors = len(factor_columns)
+        reader = ParquetDataReader(parquet_path)
 
         for idx, col in enumerate(factor_columns, 1):
 
-            # Read only the current factor column plus Date and Ticker
-            reader = ParquetDataReader(parquet_path)
+            # Read only the current factor column plus Date and Ticker (reuse reader)
             factor_df = reader.read_columns(['Date', 'Ticker', col])
 
             factor_df['Date'] = pd.to_datetime(factor_df['Date'])
@@ -281,25 +211,34 @@ def analyze_factors(
             merged_df = factor_df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
             merged_df['Future Perf'] = pd.to_numeric(merged_df['Future Perf'], errors='coerce')
 
-            # Analyze by date
-            for date, group in merged_df.groupby('Date'):
-                group_sorted = group.sort_values(by=col, ascending=False)
+            # Vectorized per-date ranking and aggregation
+            grp = merged_df.groupby('Date', sort=False)
+            n_in_group = grp[col].transform('size')
+            top_n = (n_in_group * (top_pct / 100.0)).astype(int)
+            bottom_n = (n_in_group * (bottom_pct / 100.0)).astype(int)
 
-                n = len(group_sorted)
-                top_n = int(n * (top_pct / 100.0))
-                bottom_n = int(n * (bottom_pct / 100.0))
+            ranks = grp[col].rank(method='first', ascending=False)
+            bottom_threshold = n_in_group - bottom_n
 
-                if top_n == 0 or bottom_n == 0:
-                    continue
+            is_top = ranks <= top_n
+            is_bottom = ranks > bottom_threshold
 
-                top_stocks = group_sorted.iloc[:top_n]
-                bottom_stocks = group_sorted.iloc[-bottom_n:]
+            agg = pd.DataFrame({
+                'Date': merged_df['Date'],
+                'top_sum': (merged_df['Future Perf'] * is_top).groupby(merged_df['Date']).transform('sum'),
+                'bottom_sum': (merged_df['Future Perf'] * is_bottom).groupby(merged_df['Date']).transform('sum'),
+                'top_n': top_n,
+                'bottom_n': bottom_n,
+            })
+            reduced = agg.drop_duplicates(subset=['Date'])
+            denom = (reduced['top_n'] + reduced['bottom_n']).replace(0, pd.NA)
+            ret_values = (reduced['top_sum'] - reduced['bottom_sum']) / denom
 
-                top_sum = top_stocks['Future Perf'].sum()
-                bottom_sum = bottom_stocks['Future Perf'].sum()
-
-                value = (top_sum - bottom_sum) / (top_n + bottom_n)
-                results.append({'Date': date, 'factor': col, 'ret': value})
+            results.extend(
+                {'Date': d, 'factor': col, 'ret': v}
+                for d, v in zip(reduced['Date'], ret_values)
+                if pd.notna(v)
+            )
 
             del factor_df
             del merged_df

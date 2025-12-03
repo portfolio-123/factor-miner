@@ -7,19 +7,22 @@ from src.core.utils import detect_file_type
 from src.core.validation import (
     check_required_fields,
     load_saved_settings,
-    apply_saved_settings,
     restore_session_defaults,
 )
 from src.ui.components import section_header
+from src.core.constants import FileType
 
 
 def render() -> None:
     state = get_state()
     saved = load_saved_settings()
-    has_saved = bool(saved.get('api_key') or saved.get('dataset_path') or saved.get('formulas_path') or saved.get('api_id'))
+    has_saved = bool(saved.get('api_key') or saved.get('api_id'))
 
     if st.session_state.pop('_apply_saved_settings', False):
-        apply_saved_settings(saved, state.is_internal_app)
+        for key in ('api_key', 'api_id'):
+            if saved.get(key) is not None:
+                st.session_state[key] = saved[key]
+        st.session_state['step1_error'] = None
 
     restore_session_defaults(state)
 
@@ -34,24 +37,15 @@ def render() -> None:
             key="factor_list_uid"
         )
 
-        if state.files_verified:
-            dataset_name = state.auto_dataset_path.stem if state.auto_dataset_path else ""
-            formulas_display = state.auto_formulas_path.name if state.auto_formulas_path else ""
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.text_input("Dataset", value=dataset_name, disabled=True)
-            with col2:
-                st.text_input("Formulas", value=formulas_display, disabled=True)
-        elif state.files_verification_error:
+        if state.files_verification_error:
             st.error(state.files_verification_error)
-        else:
+        elif not state.files_verified:
             st.warning("No fl_id provided in URL")
     else:
         # External app mode - file path inputs
         dataset_path = st.session_state.get('dataset_path', '')
         dataset_file = Path(dataset_path.strip()) if dataset_path.strip() else None
-        is_parquet = dataset_file and dataset_file.exists() and detect_file_type(dataset_file) == 'parquet'
+        is_parquet = dataset_file and dataset_file.exists() and detect_file_type(dataset_file) == FileType.PARQUET
 
         if is_parquet:
             st.text_input(
