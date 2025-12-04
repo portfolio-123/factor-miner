@@ -1,5 +1,5 @@
 import streamlit as st
-from st_copy import copy_button
+import streamlit.components.v1 as components
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.ui.components import section_header, render_results_table
@@ -9,24 +9,6 @@ from src.workers.manager import delete_job
 
 def render() -> None:
     state = get_state()
-
-    _, _, col_btn = st.columns([2, 1, 1])
-    with col_btn:
-        if st.button("New Analysis", type="secondary", use_container_width=True):
-            if state.factor_list_uid:
-                delete_job(state.factor_list_uid)
-                add_debug_log(f"Deleted job {state.factor_list_uid} for new analysis")
-
-            # Reset state to step 1
-            state.completed_steps.clear()
-            state.completed_steps.add(1)
-            update_state(
-                current_step=1,
-                current_job_id=None,
-                all_metrics=None,
-                all_corr_matrix=None,
-            )
-            st.rerun()
 
     section_header("Filter Parameters")
 
@@ -78,18 +60,44 @@ def render() -> None:
     display_df = render_results_table(best_features, state.all_metrics, state.formulas_data)
 
     if display_df is not None and not display_df.empty:
-        col1, col2, _ = st.columns([1, 1, 2])
+        col1, _, col3, col4 = st.columns([1, 1, 1, 1])
 
-        csv_data = display_df.to_csv(index=False)
+        # tab delimited for copy to clipboard
+        csv_to_copy = display_df.to_csv(index=False, sep='\t')
+        # comma delimited for file download
+        csv_to_download = display_df.to_csv(index=False)
 
         with col1:
-            copy_button(csv_data, tooltip="Copy to Clipboard", key="copy_results")
+            if  st.button("New Analysis", type="tertiary", use_container_width=True) and state.factor_list_uid:
+                delete_job(state.factor_list_uid)
+                add_debug_log(f"Deleted job {state.factor_list_uid} for new analysis")
 
-        with col2:
+                # Reset state to step 1
+                state.completed_steps.clear()
+                state.completed_steps.add(1)
+                update_state(
+                    current_step=1,
+                    current_job_id=None,
+                    all_metrics=None,
+                    all_corr_matrix=None,
+                )
+                st.rerun()
+        
+        with col3:
+            components.html(f"""
+                <button onclick="navigator.clipboard.writeText('{csv_to_copy}')">
+                    Copy to Clipboard
+                </button>
+            """, height=0, width=0)
+
+        with col4:
             st.download_button(
+                type="primary",
                 label="Download CSV",
-                data=csv_data,
+                data=csv_to_download,
                 file_name=f"{state.factor_list_uid}_best_features.csv",
                 mime="text/csv",
                 use_container_width=True
             )
+        
+       
