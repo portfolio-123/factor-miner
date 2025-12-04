@@ -5,7 +5,7 @@ import streamlit as st
 
 from src.core.context import get_state
 from src.core.utils import detect_file_type, get_local_storage
-from src.core.constants import FileType
+from src.core.constants import FileType, DEFAULT_BENCHMARK
 
 
 def check_required_fields() -> bool:
@@ -91,7 +91,7 @@ def restore_session_defaults(state) -> None:
     defaults = {
         'api_key': state.api_key,
         'api_id': state.api_id,
-        'benchmark_ticker': state.benchmark_ticker or "SPY:USA",
+        'benchmark_ticker': state.benchmark_ticker or DEFAULT_BENCHMARK,
         'min_alpha': state.min_alpha,
         'top_x_pct': int(state.top_x_pct),
         'bottom_x_pct': int(state.bottom_x_pct),

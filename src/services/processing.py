@@ -11,7 +11,7 @@ from src.core.validation import validate_inputs
 from src.services.readers import get_data_reader
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import get_dataset_date_range
-from src.core.constants import FileType
+from src.core.constants import FileType, DEFAULT_BENCHMARK
 
 
 def load_formulas_data(
@@ -25,16 +25,14 @@ def load_formulas_data(
         if file_type == FileType.PARQUET:
             return reader.get_formulas_from_metadata()
         # CSV
-        if formulas_path:
-            meta_path = Path(formulas_path)
-            if meta_path.exists():
-                meta_reader = get_data_reader(str(meta_path), file_type=FileType.CSV)
-                return meta_reader.read_full()
-        if fl_id:
+        state = get_state()
+        meta_path: Path = None
+        if state.is_internal_app:
             meta_path = Path(dataset_path).parent / f"{fl_id}_meta"
-            if meta_path.exists():
-                meta_reader = get_data_reader(str(meta_path), file_type=FileType.CSV)
-                return meta_reader.read_full()
+        else:
+            meta_path = Path(formulas_path)
+        if meta_path.exists():
+            return get_data_reader(str(meta_path), file_type=FileType.CSV).read_full()
     except Exception as e:
         add_debug_log(f"Error loading formulas data: {e}")
     return None
@@ -50,7 +48,7 @@ def process_step1() -> bool:
 
     st.session_state['step1_error'] = None
 
-    benchmark_ticker = st.session_state.get('benchmark_ticker', 'SPY:USA').strip() or 'SPY:USA'
+    benchmark_ticker = st.session_state.get('benchmark_ticker', DEFAULT_BENCHMARK).strip() or DEFAULT_BENCHMARK
     api_id = st.session_state.get('api_id', '').strip() or None
     api_key = st.session_state.get('api_key', '').strip()
     min_alpha = st.session_state.get('min_alpha', 0.5)
@@ -62,9 +60,12 @@ def process_step1() -> bool:
 
     try:
         if state.is_internal_app:
-            dataset_file = state.auto_dataset_path
-            formulas_file = state.auto_formulas_path
-            file_type = state.auto_dataset_file_type
+            dataset_file = state.dataset_path
+            file_type = state.file_type
+            if file_type != FileType.PARQUET:
+                formulas_file = state.formulas_path
+            else:
+                formulas_file = None
         else:
             dataset_path = st.session_state.get('dataset_path', '').strip()
             dataset_file = Path(dataset_path)

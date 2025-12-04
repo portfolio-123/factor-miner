@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, Union
-import io
-from collections import deque
 
 import pandas as pd
 import pyarrow.parquet as pq
@@ -15,15 +13,10 @@ class CSVDataReader:
         self.file_path = Path(file_path)
 
     def validate(self) -> Tuple[bool, Optional[str]]:
-        try:
-            # read only header to validate required columns
-            header_df = pd.read_csv(str(self.file_path), nrows=0)
-            missing = [col for col in REQUIRED_COLUMNS if col not in header_df.columns]
-            if missing:
-                return False, f"Missing required columns: {', '.join(missing)}"
-            return True, None
-        except Exception as e:
-            return False, str(e)
+        df = self.read_columns(REQUIRED_COLUMNS, num_rows=0)
+        if df is None:
+            return False, "Missing required columns or unreadable file"
+        return True, None
 
     def read_full(self) -> Optional[pd.DataFrame]:
         #read entire csv file into memory
@@ -32,18 +25,33 @@ class CSVDataReader:
         except Exception:
             return None
 
-    def read_preview(self, num_rows: int = 10) -> Optional[pd.DataFrame]:
-        # read preview of csv file (first and last N rows) using deque for tail
+    def read_columns(self, columns: list, num_rows: Optional[int] = None) -> Optional[pd.DataFrame]:
+        # read only selected columns from csv
         try:
+            kwargs = {'usecols': columns}
+            if num_rows is not None:
+                kwargs['nrows'] = num_rows
+            return pd.read_csv(str(self.file_path), **kwargs)
+        except Exception:
+            return None
+
+    def read_preview(self, num_rows: int = 10) -> Optional[pd.DataFrame]:
+        # read preview of csv file (first and last N rows)
+        try:
+            with self.file_path.open('r') as f:
+                total_rows = sum(1 for _ in f) - 1
+            # If file has fewer rows than 2*num_rows, return all rows
+            if total_rows <= num_rows * 2:
+                return pd.read_csv(str(self.file_path))
+
             first_rows = pd.read_csv(str(self.file_path), nrows=num_rows)
-            with self.file_path.open('r', newline='') as f:
-                header_line = f.readline().rstrip('\r\n')
-                tail_lines = deque(f, num_rows)
-            if not tail_lines:
-                return first_rows
-            tail_csv = header_line + '\n' + ''.join(tail_lines)
-            last_rows = pd.read_csv(io.StringIO(tail_csv))
-            return pd.concat([first_rows, last_rows], ignore_index=True)
+
+            skip_rows = total_rows - num_rows
+            last_rows = pd.read_csv(str(self.file_path), skiprows=range(1, skip_rows + 1))
+
+            last_rows.index = range(total_rows - num_rows, total_rows)
+
+            return pd.concat([first_rows, last_rows], ignore_index=False)
         except Exception:
             return None
 
@@ -65,6 +73,13 @@ class CSVDataReader:
             }
         except Exception as e:
             return {'valid': False, 'error': str(e)}
+
+    def get_column_names(self) -> list:
+        try:
+            header_df = pd.read_csv(str(self.file_path), nrows=0)
+            return header_df.columns.tolist()
+        except Exception:
+            return []
 
 
 class ParquetDataReader:
@@ -88,8 +103,9 @@ class ParquetDataReader:
         except Exception:
             return None
 
-    def read_columns(self, columns: list) -> Optional[pd.DataFrame]:
+    def read_columns(self, columns: list, num_rows: Optional[int] = None) -> Optional[pd.DataFrame]:
         try:
+            # num_rows is ignored for parquet fast-path
             return pd.read_parquet(str(self.file_path), columns=columns)
         except Exception:
             return None

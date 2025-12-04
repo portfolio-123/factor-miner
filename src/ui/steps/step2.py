@@ -20,7 +20,6 @@ from src.workers.manager import (
 
 
 def _on_run_analysis() -> None:
-    """Handle Run Analysis button click."""
     state = get_state()
     st.session_state['step2_error'] = None
 
@@ -41,11 +40,10 @@ def _on_run_analysis() -> None:
         update_state(current_job_id=job_id)
         st.rerun()
     except Exception as e:
-        _set_error(f"Error starting analysis: {str(e)}")
+        st.session_state['step2_error'] = f"Error starting analysis: {str(e)}"
 
 
 def _on_job_completed(job_data: dict) -> None:
-    """Handle job completion - load results and navigate."""
     state = get_state()
 
     try:
@@ -60,7 +58,7 @@ def _on_job_completed(job_data: dict) -> None:
             current_job_id=None
         )
     except Exception as e:
-        _set_error(f"Error loading results: {str(e)}")
+        st.session_state['step2_error'] = f"Error loading results: {str(e)}"
         delete_job(state.current_job_id)
         update_state(current_job_id=None)
 
@@ -68,22 +66,13 @@ def _on_job_completed(job_data: dict) -> None:
 
 
 def _on_job_error(job_id: str, error_msg: str) -> None:
-    """Handle job failure - clean up and show error."""
     display_msg = error_msg.split('\n')[0] if error_msg else 'Unknown error'
-    _set_error(f"Analysis failed: {display_msg}")
+    st.session_state['step2_error'] = f"Analysis failed: {display_msg}"
     delete_job(job_id)
     update_state(current_job_id=None)
     st.rerun()
 
-
-def _set_error(message: str) -> None:
-    """Set error message in session state."""
-    st.session_state['step2_error'] = message
-
-
-
 def _calculate_dataset_stats(preview_df: pd.DataFrame, metadata: dict) -> dict:
-    """Calculate dataset statistics from preview data."""
     actual_row_count = metadata.get('num_rows', len(preview_df))
     unique_dates = metadata.get('unique_dates')
     dates = pd.to_datetime(preview_df['Date'])
@@ -98,7 +87,6 @@ def _calculate_dataset_stats(preview_df: pd.DataFrame, metadata: dict) -> dict:
 
 
 def _render_job_progress(job_data: dict) -> None:
-    """Render job progress screen."""
     progress = job_data.get('progress', {})
     completed = progress.get('completed', 0)
     total = progress.get('total', 0)
@@ -107,7 +95,7 @@ def _render_job_progress(job_data: dict) -> None:
     _, center_col, _ = st.columns([1, 2, 1])
 
     with center_col:
-        st.markdown("<div style='height: 100px'></div>", unsafe_allow_html=True)
+        st.space(100)
         st.subheader("Running Factor Analysis")
 
         if total > 0:
@@ -119,6 +107,10 @@ def _render_job_progress(job_data: dict) -> None:
             st.info(f"Analyzing: **{current_factor}**")
         else:
             st.info("Starting worker process...")
+
+    # Poll every 0.5 seconds for more responsive updates
+    time.sleep(0.5)
+    st.rerun()
 
 
 def _render_dataset_statistics(stats: dict, benchmark: str) -> None:
@@ -178,9 +170,14 @@ def render() -> None:
     state = get_state()
     job_id = state.current_job_id
 
+    content_placeholder = st.empty()
+    progress_placeholder = st.empty()
+
     # No active job - show review content
     if not job_id:
-        _render_review_content()
+        progress_placeholder.empty()
+        with content_placeholder.container():
+            _render_review_content()
         return
 
     job_data = read_job(job_id)
@@ -198,7 +195,7 @@ def render() -> None:
         _on_job_error(job_id, job_data.get('error', ''))
 
     else:
-        # Job running - show progress and poll
-        _render_job_progress(job_data)
-        time.sleep(1)
-        st.rerun()
+        # job running - clear review content and show only progress UI
+        content_placeholder.empty()
+        with progress_placeholder.container():
+            _render_job_progress(job_data)

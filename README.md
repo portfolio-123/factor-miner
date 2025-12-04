@@ -15,11 +15,6 @@ python -m venv venv
 source venv/bin/activate
 ```
 
-**Windows (Command Prompt):**
-```cmd
-venv\Scripts\activate
-```
-
 **Windows (PowerShell):**
 ```powershell
 venv\Scripts\Activate.ps1
@@ -41,11 +36,3 @@ INTERNAL_APP=false
 streamlit run app.py
 
 The app will open in http://localhost:8501/
-
-### Troubleshooting
-
-#### Windows PowerShell Execution Policy Error
-If you encounter an error about script execution being disabled:
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```

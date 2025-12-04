@@ -75,7 +75,7 @@ def render() -> None:
 
     section_header("Best Performing Factors")
 
-    display_df = render_results_table(best_features, state.all_metrics)
+    display_df = render_results_table(best_features, state.all_metrics, state.formulas_data)
 
     if display_df is not None and not display_df.empty:
         col1, col2, _ = st.columns([1, 1, 2])

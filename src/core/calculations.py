@@ -2,10 +2,9 @@ import pandas as pd
 import numpy as np
 import scipy.stats as stats
 import p123api
-from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple
 from src.services.readers import ParquetDataReader
-from src.core.constants import PRICE_COLUMN
+from src.core.constants import REQUIRED_COLUMNS
 
 
 def get_dataset_date_range(df: pd.DataFrame) -> Tuple[str, str]:
@@ -164,9 +163,10 @@ def calculate_future_performance(
 
 
 def analyze_factors(
-    df: Optional[pd.DataFrame],
     future_perf_df: pd.DataFrame,
-    parquet_path: Optional[Union[str, Path]] = None,
+    *,
+    df: Optional[pd.DataFrame] = None,
+    reader: Optional[ParquetDataReader] = None,
     factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
     bottom_pct: float = 30.0,
@@ -179,7 +179,6 @@ def analyze_factors(
     Args:
         df: DataFrame with factor columns (for CSV files, without Future Perf)
         future_perf_df: Pre-calculated future performance (Date, Ticker, Future Perf)
-        parquet_path: Path to parquet file (for Parquet files)
         factor_columns: List of factor columns to analyze (for Parquet files)
         top_pct: Percentage of top stocks to include (default: 30.0)
         bottom_pct: Percentage of bottom stocks to include (default: 30.0)
@@ -188,104 +187,90 @@ def analyze_factors(
     Returns:
         DataFrame with factor analysis results (Date, factor, ret)
     """
-    results = []
-
-    # Ensure future_perf_df Date is datetime
     future_perf_df = future_perf_df.copy()
     future_perf_df['Date'] = pd.to_datetime(future_perf_df['Date'])
+    future_perf_df['Future Perf'] = pd.to_numeric(future_perf_df['Future Perf'], errors='coerce')
 
-    if parquet_path is not None and factor_columns is not None:
-        # for parquet files
+    results: List[dict] = []
+    excluded_common = REQUIRED_COLUMNS
+
+    if reader is not None:
+        if factor_columns is None:
+            columns = reader.get_column_names()
+            factor_columns = [c for c in columns if c not in excluded_common]
         total_factors = len(factor_columns)
-        reader = ParquetDataReader(parquet_path)
 
         for idx, col in enumerate(factor_columns, 1):
-
-            # Read only the current factor column plus Date and Ticker (reuse reader)
             factor_df = reader.read_columns(['Date', 'Ticker', col])
-
             factor_df['Date'] = pd.to_datetime(factor_df['Date'])
             factor_df[col] = pd.to_numeric(factor_df[col], errors='coerce')
 
-            # Merge with future performance
             merged_df = factor_df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
             merged_df['Future Perf'] = pd.to_numeric(merged_df['Future Perf'], errors='coerce')
 
-            # Vectorized per-date ranking and aggregation
-            grp = merged_df.groupby('Date', sort=False)
-            n_in_group = grp[col].transform('size')
-            top_n = (n_in_group * (top_pct / 100.0)).astype(int)
-            bottom_n = (n_in_group * (bottom_pct / 100.0)).astype(int)
+            for date, group in merged_df.groupby('Date', sort=False):
+                group = group.dropna(subset=[col, 'Future Perf'])
+                if group.empty:
+                    continue
 
-            ranks = grp[col].rank(method='first', ascending=False)
-            bottom_threshold = n_in_group - bottom_n
+                n = len(group)
+                top_n = int(n * (top_pct / 100.0))
+                bottom_n = int(n * (bottom_pct / 100.0))
+                if top_n == 0 or bottom_n == 0:
+                    continue
 
-            is_top = ranks <= top_n
-            is_bottom = ranks > bottom_threshold
+                group_sorted = group.sort_values(by=col, ascending=False)
+                top_sum = group_sorted['Future Perf'].iloc[:top_n].sum()
+                bottom_sum = group_sorted['Future Perf'].iloc[-bottom_n:].sum()
+                value = (top_sum - bottom_sum) / (top_n + bottom_n)
 
-            agg = pd.DataFrame({
-                'Date': merged_df['Date'],
-                'top_sum': (merged_df['Future Perf'] * is_top).groupby(merged_df['Date']).transform('sum'),
-                'bottom_sum': (merged_df['Future Perf'] * is_bottom).groupby(merged_df['Date']).transform('sum'),
-                'top_n': top_n,
-                'bottom_n': bottom_n,
-            })
-            reduced = agg.drop_duplicates(subset=['Date'])
-            denom = (reduced['top_n'] + reduced['bottom_n']).replace(0, pd.NA)
-            ret_values = (reduced['top_sum'] - reduced['bottom_sum']) / denom
+                results.append({'Date': pd.to_datetime(date), 'factor': col, 'ret': value})
 
-            results.extend(
-                {'Date': d, 'factor': col, 'ret': v}
-                for d, v in zip(reduced['Date'], ret_values)
-                if pd.notna(v)
-            )
-
-            del factor_df
-            del merged_df
-
-            # Report progress
             if progress_fn:
                 progress_fn(idx, total_factors, col)
     else:
-        # for csv files - merge with future performance
-        df = df.copy()
-        df['Date'] = pd.to_datetime(df['Date'])
-        df_copy = df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
-        df_copy['Future Perf'] = pd.to_numeric(df_copy['Future Perf'], errors='coerce')
+        if df is None:
+            return pd.DataFrame(columns=['Date', 'factor', 'ret'])
 
-        excluded_columns = ['Date', 'Ticker', 'P123 ID', 'benchmark', 'Future Perf', PRICE_COLUMN]
-        numeric_columns = df_copy.select_dtypes(include=[np.number]).columns.tolist()
-        factors = [col for col in numeric_columns if col not in excluded_columns]
+        df_local = df.copy()
+        df_local['Date'] = pd.to_datetime(df_local['Date'])
+        merged_df = df_local.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
+        merged_df['Future Perf'] = pd.to_numeric(merged_df['Future Perf'], errors='coerce')
+
+        excluded_columns = excluded_common + ['benchmark', 'Future Perf']
+        numeric_columns = merged_df.select_dtypes(include=[np.number]).columns.tolist()
+        factors = [c for c in numeric_columns if c not in excluded_columns]
 
         total_factors = len(factors)
-
         for idx, col in enumerate(factors, 1):
-            if col in df_copy.columns:
-                df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
+            if col not in merged_df.columns:
+                continue
 
-                for date, group in df_copy.groupby('Date'):
-                    group_sorted = group.sort_values(by=col, ascending=False)
+            merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce')
 
-                    n = len(group_sorted)
-                    top_n = int(n * (top_pct / 100.0))
-                    bottom_n = int(n * (bottom_pct / 100.0))
+            for date, group in merged_df.groupby('Date', sort=False):
+                group = group.dropna(subset=[col, 'Future Perf'])
+                if group.empty:
+                    continue
 
-                    if top_n == 0 or bottom_n == 0:
-                        continue
+                n = len(group)
+                top_n = int(n * (top_pct / 100.0))
+                bottom_n = int(n * (bottom_pct / 100.0))
+                if top_n == 0 or bottom_n == 0:
+                    continue
 
-                    top_stocks = group_sorted.iloc[:top_n]
-                    bottom_stocks = group_sorted.iloc[-bottom_n:]
+                group_sorted = group.sort_values(by=col, ascending=False)
+                top_sum = group_sorted['Future Perf'].iloc[:top_n].sum()
+                bottom_sum = group_sorted['Future Perf'].iloc[-bottom_n:].sum()
+                value = (top_sum - bottom_sum) / (top_n + bottom_n)
 
-                    top_sum = top_stocks['Future Perf'].sum()
-                    bottom_sum = bottom_stocks['Future Perf'].sum()
+                results.append({'Date': pd.to_datetime(date), 'factor': col, 'ret': value})
 
-                    value = (top_sum - bottom_sum) / (top_n + bottom_n)
-                    results.append({'Date': date, 'factor': col, 'ret': value})
-
-            # Report progress
             if progress_fn:
                 progress_fn(idx, total_factors, col)
 
+    if not results:
+        return pd.DataFrame(columns=['Date', 'factor', 'ret'])
     return pd.DataFrame(results)
 
 

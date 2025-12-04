@@ -146,7 +146,7 @@ def render_dataset_preview(df: pd.DataFrame) -> None:
     )
 
 
-def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> Optional[pd.DataFrame]:
+def render_results_table(best_features: list, metrics_df: pd.DataFrame, formulas_df: Optional[pd.DataFrame] = None) -> Optional[pd.DataFrame]:
     if best_features:
         best_metrics_df = metrics_df[metrics_df['column'].isin(best_features)].copy()
         best_metrics_df = best_metrics_df.sort_values(
@@ -155,19 +155,32 @@ def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> Optio
             ascending=False
         )
 
+        # Join with formulas if available
+        if formulas_df is not None and 'name' in formulas_df.columns and 'formula' in formulas_df.columns:
+            formulas_lookup = formulas_df[['name', 'formula']].drop_duplicates(subset=['name'])
+            best_metrics_df = best_metrics_df.merge(
+                formulas_lookup,
+                left_on='column',
+                right_on='name',
+                how='left'
+            )
+        else:
+            best_metrics_df['formula'] = ''
+
         # Rename columns for display
         display_df = best_metrics_df.rename(columns={
             'column': 'Factor',
             'annualized alpha %': 'Ann. Alpha %',
             'T Statistic': 'T-Statistic',
-            'p-value': 'P-Value'
+            'p-value': 'P-Value',
+            'formula': 'Formula'
         })
 
         display_df['Ann. Alpha %'] = display_df['Ann. Alpha %'].apply(lambda x: f"{x:.2f}%")
         display_df['T-Statistic'] = display_df['T-Statistic'].apply(lambda x: f"{x:.4f}")
         display_df['P-Value'] = display_df['P-Value'].apply(lambda x: f"{x:.6f}")
 
-        display_df = display_df[['Factor', 'Ann. Alpha %', 'T-Statistic', 'P-Value']]
+        display_df = display_df[['Factor', 'Formula', 'Ann. Alpha %', 'T-Statistic', 'P-Value']]
 
         st.dataframe(
             display_df,
@@ -175,10 +188,11 @@ def render_results_table(best_features: list, metrics_df: pd.DataFrame) -> Optio
             width='stretch',
             hide_index=True,
             column_config={
-                "Factor": st.column_config.TextColumn("Factor", width="large"),
-                "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="medium"),
-                "T-Statistic": st.column_config.TextColumn("T-Statistic", width="medium"),
-                "P-Value": st.column_config.TextColumn("P-Value", width="medium")
+                "Factor": st.column_config.TextColumn("Factor", width="medium"),
+                "Formula": st.column_config.TextColumn("Formula", width="large"),
+                "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
+                "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
+                "P-Value": st.column_config.TextColumn("P-Value", width="small")
             }
         )
         return display_df

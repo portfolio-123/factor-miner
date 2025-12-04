@@ -11,6 +11,7 @@ from src.core.validation import (
 )
 from src.ui.components import section_header
 from src.core.constants import FileType
+from src.core.constants import DEFAULT_BENCHMARK
 
 
 def render() -> None:
@@ -83,7 +84,7 @@ def render() -> None:
     with col1:
         st.text_input(
             "Benchmark Ticker",
-            placeholder="SPY:USA",
+            placeholder=DEFAULT_BENCHMARK,
             key="benchmark_ticker",
         )
     with col2:

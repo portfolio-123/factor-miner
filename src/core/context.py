@@ -20,9 +20,7 @@ class AppState:
     is_internal_app: bool = False
     factor_list_uid: Optional[str] = None
 
-    # auto-located file paths (internal app mode)
-    auto_dataset_path: Optional[Path] = None
-    auto_formulas_path: Optional[Path] = None
+    # internal app file verification state
     files_verified: bool = False
     files_verification_error: Optional[str] = None
 

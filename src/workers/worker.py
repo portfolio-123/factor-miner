@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from src.core.constants import PRICE_COLUMN
+from src.core.constants import REQUIRED_COLUMNS
+
 from src.core.utils import locate_factor_list_files, deserialize_dataframe, serialize_dataframe
 from src.workers.manager import read_job, update_job
 from src.services.readers import get_data_reader
@@ -73,42 +75,33 @@ def run_analysis(job_id: str, params: dict) -> dict:
             "current_factor": current_factor
         })
 
-    if file_type == FileType.PARQUET:
-        reader = get_data_reader(dataset_path, file_type=file_type)
-        perf_data = reader.read_columns(['Date', 'Ticker', PRICE_COLUMN])
-        columns = reader.get_column_names()
-        excluded_columns = ['Date', 'Ticker', 'P123 ID', PRICE_COLUMN]
-        factor_columns = [col for col in columns if col not in excluded_columns]
-    else:
-        reader = get_data_reader(dataset_path, file_type=file_type)
-        perf_data = reader.read_full()
-        factor_columns = None
+    reader = get_data_reader(dataset_path, file_type=file_type)
+
+    columns = reader.get_column_names()
+    excluded_columns = REQUIRED_COLUMNS + ['benchmark', 'Future Perf']
+    factor_columns = [col for col in columns if col not in excluded_columns]
+
+    update_job(job_id, status="running", progress={
+        "completed": 0,
+        "total": len(factor_columns),
+        "current_factor": ""
+    })
 
     log("Calculating future performance...")
-    future_perf_df = calculate_future_performance(perf_data, PRICE_COLUMN)
+
+    perf_core = reader.read_columns(['Date', 'Ticker', PRICE_COLUMN])
+    future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
 
     log("Analyzing factors...")
-    if file_type == FileType.PARQUET:
-        results_df = analyze_factors(
-            None,
-            future_perf_df,
-            parquet_path=dataset_path,
-            factor_columns=factor_columns,
-            top_pct=top_pct,
-            bottom_pct=bottom_pct,
-            progress_fn=on_progress
-        )
-        date_ticker_df = reader.read_columns(['Date', 'Ticker'])
-        raw_data = date_ticker_df
-    else:
-        results_df = analyze_factors(
-            perf_data,
-            future_perf_df,
-            top_pct=top_pct,
-            bottom_pct=bottom_pct,
-            progress_fn=on_progress
-        )
-        raw_data = perf_data
+    results_df = analyze_factors(
+        future_perf_df,
+        reader=reader,
+        factor_columns=factor_columns,
+        top_pct=top_pct,
+        bottom_pct=bottom_pct,
+        progress_fn=on_progress
+    )
+    raw_data = reader.read_columns(['Date'])
 
     log("Calculating benchmark returns...")
     raw_data, _ = calculate_benchmark_returns(raw_data, benchmark_data)

@@ -109,9 +109,9 @@ def initialize_app() -> None:
             else:
                 add_debug_log(f"Files verified - Dataset: {dataset_path}, Formulas: {formulas_path}")
                 update_state(
-                    auto_dataset_path=dataset_path,
-                    auto_formulas_path=formulas_path,
-                    auto_dataset_file_type=file_type,
+                    dataset_path=dataset_path,
+                    formulas_path=formulas_path,
+                    file_type=file_type,
                     files_verified=True,
                     files_verification_error=None
                 )
