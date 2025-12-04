@@ -119,8 +119,8 @@ class ParquetDataReader:
             if total_rows <= num_rows * 2:
                 return parquet_file.read().to_pandas()
 
-            first_rows = next(parquet_file.iter_batches(num_rows=num_rows))
-
+            first_batch = next(parquet_file.iter_batches(batch_size=num_rows))
+            first_rows = first_batch.to_pandas()
             # read last N rows from last row group
             last_row_group_idx = parquet_file.num_row_groups - 1
             last_batch = parquet_file.read_row_group(last_row_group_idx).to_pandas()
