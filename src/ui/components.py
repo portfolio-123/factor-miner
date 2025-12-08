@@ -226,7 +226,7 @@ def render_results_table(best_features: list, metrics_df: pd.DataFrame, formulas
         display_df['T-Statistic'] = display_df['T-Statistic'].apply(lambda x: f"{x:.4f}")
         display_df['P-Value'] = display_df['P-Value'].apply(lambda x: f"{x:.6f}")
 
-        display_df = display_df[['Factor', 'Formula', 'Ann. Alpha %', 'T-Statistic', 'P-Value']]
+        display_df = display_df[['Factor', 'Ann. Alpha %', 'T-Statistic', 'P-Value']]
 
         st.dataframe(
             display_df,
@@ -235,7 +235,6 @@ def render_results_table(best_features: list, metrics_df: pd.DataFrame, formulas
             hide_index=True,
             column_config={
                 "Factor": st.column_config.TextColumn("Factor", width="medium"),
-                "Formula": st.column_config.TextColumn("Formula", width="large"),
                 "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
                 "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
                 "P-Value": st.column_config.TextColumn("P-Value", width="small")

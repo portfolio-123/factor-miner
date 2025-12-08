@@ -75,7 +75,7 @@ def run_analysis(job_id: str, params: dict) -> dict:
     log("Analyzing factors...")
     results_df = analyze_factors(
         future_perf_df,
-        reader=reader,
+        reader,
         factor_columns=factor_columns,
         top_pct=top_pct,
         bottom_pct=bottom_pct,

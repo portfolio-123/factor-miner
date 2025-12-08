@@ -90,10 +90,6 @@ def initialize_app() -> None:
                         )
                     except Exception as e:
                         add_debug_log(f"Error loading completed job results: {e}")
-
-        if benchmark:
-            add_debug_log(f"Benchmark from URL: {benchmark}")
-            update_state(benchmark_ticker=benchmark)
     else:
         add_debug_log("Running in external app mode")
 
