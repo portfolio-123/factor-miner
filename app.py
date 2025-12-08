@@ -3,8 +3,8 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
+from src.services.readers import ParquetDataReader
 from src.core.context import get_state, update_state, add_debug_log
-from src.services.processing import load_formulas_data
 from src.core.utils import get_url_params, locate_factor_list_file, deserialize_dataframe
 from src.workers.manager import read_job
 from src.ui.components import header_with_navigation
@@ -55,7 +55,7 @@ def initialize_app() -> None:
                     # Job still running - restore step 2 state that shows progress
                     add_debug_log(f"Found running job for {fl_id}, status: {job_data['status']}")
 
-                    formulas_data = load_formulas_data(dataset_path)
+                    formulas_data = ParquetDataReader(state.dataset_path).get_formulas_from_metadata()
 
                     state.completed_steps.add(1)
                     update_state(
@@ -73,7 +73,7 @@ def initialize_app() -> None:
                         metrics_df = deserialize_dataframe(results['all_metrics'])
                         corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
 
-                        formulas_data = load_formulas_data(dataset_path)
+                        formulas_data = ParquetDataReader(state.dataset_path).get_formulas_from_metadata()
 
                         state.completed_steps.add(1)
                         state.completed_steps.add(2)

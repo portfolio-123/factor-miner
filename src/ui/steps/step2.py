@@ -1,16 +1,16 @@
 import streamlit as st
 import pandas as pd
-import time
 
 from src.core.context import get_state, update_state
 from src.core.utils import format_date
 from src.ui.components import (
-    section_header,
     render_formulas_grid,
-    render_dataset_preview
+    render_dataset_preview,
+    render_job_progress,
+    render_dataset_statistics
 )
 from src.services.readers import ParquetDataReader
-from src.services.processing import start_step2_analysis, process_step2_completion
+from src.services.processing import start_step2_analysis, process_step2_completion, _merge_worker_logs
 from src.workers.manager import read_job, delete_job
 from src.core.constants import JobStatus
 
@@ -31,59 +31,16 @@ def _on_job_completed(job_data: dict) -> None:
     st.rerun()
 
 
-def _on_job_error(job_id: str, error_msg: str) -> None:
+def _on_job_error(job_id: str, job_data: dict) -> None:
+    # Merge worker logs before deleting job
+    _merge_worker_logs(job_data)
+
+    error_msg = job_data.get('error', '')
     display_msg = error_msg.split('\n')[0] if error_msg else 'Unknown error'
     st.session_state['step2_error'] = f"Analysis failed: {display_msg}"
     delete_job(job_id)
     update_state(current_job_id=None)
     st.rerun()
-
-
-def _render_job_progress(job_data: dict) -> None:
-    progress = job_data.get('progress', {})
-    completed = progress.get('completed', 0)
-    total = progress.get('total', 0)
-    current_factor = progress.get('current_factor', '')
-
-    _, center_col, _ = st.columns([1, 2, 1])
-
-    with center_col:
-        st.space(100)
-        st.subheader("Running Factor Analysis")
-
-        if total > 0:
-            st.progress(completed / total, text=f"{completed} / {total} factors analyzed")
-        else:
-            st.progress(0, text="Initializing...")
-
-        if current_factor:
-            st.info(f"Analyzing: **{current_factor}**")
-        else:
-            st.info("Starting worker process...")
-
-    # show updates every .5 seconds
-    time.sleep(0.5)
-    st.rerun()
-
-
-def _render_dataset_statistics(stats: dict, benchmark: str) -> None:
-    section_header("Dataset Statistics")
-
-    cols = st.columns([1, 1, 1, 2, 1], gap="small")
-    stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
-
-    stat_items = [
-        ("Rows", stats['num_rows']),
-        ("Dates", stats['num_dates']),
-        ("Columns", stats['num_columns']),
-        ("Period", f"{stats['min_date']} - {stats['max_date']}"),
-        ("Benchmark", benchmark or "N/A"),
-    ]
-
-    for col, (label, value) in zip(cols, stat_items):
-        with col:
-            st.badge(label)
-            st.markdown(f"<p style='{stat_style}'>{value}</p>", unsafe_allow_html=True)
 
 
 def _render_review_content() -> None:
@@ -107,7 +64,7 @@ def _render_review_content() -> None:
         'min_date': format_date(dates.min()),
         'max_date': format_date(dates.max()),
     }
-    _render_dataset_statistics(stats, state.benchmark_ticker)
+    render_dataset_statistics(stats, state.benchmark_ticker)
 
     tab1, tab2 = st.tabs(["Formulas", "Dataset Preview"])
 
@@ -154,10 +111,10 @@ def render() -> None:
         _on_job_completed(job_data)
 
     elif status == JobStatus.ERROR:
-        _on_job_error(job_id, job_data.get('error', ''))
+        _on_job_error(job_id, job_data)
 
     else:
         # job running - clear review content and show only progress UI
         content_placeholder.empty()
         with progress_placeholder.container():
-            _render_job_progress(job_data)
+            render_job_progress(job_data)

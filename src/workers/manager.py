@@ -86,6 +86,21 @@ def update_job(
     return True
 
 
+def append_job_log(job_id: str, message: str) -> None:
+    job_data = read_job(job_id)
+    if job_data is None:
+        return
+
+    if "logs" not in job_data:
+        job_data["logs"] = []
+
+    job_data["logs"].append(message)
+
+    job_path = _get_job_path(job_id)
+    with open(job_path, 'w') as f:
+        json.dump(job_data, f, indent=2)
+
+
 def delete_job(job_id: str) -> bool:
     job_path = _get_job_path(job_id)
 

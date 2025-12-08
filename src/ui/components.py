@@ -1,7 +1,6 @@
-"""Streamlit UI components for the Portfolio123 Factor Evaluator."""
-
 import streamlit as st
 import pandas as pd
+import time
 from typing import Optional
 import re
 from src.core.context import get_state, clear_debug_logs
@@ -95,6 +94,53 @@ def section_header(title: str) -> None:
             {title}
         </div>
     """, unsafe_allow_html=True)
+
+
+def render_job_progress(job_data: dict) -> None:
+    progress = job_data.get('progress', {})
+    completed = progress.get('completed', 0)
+    total = progress.get('total', 0)
+    current_factor = progress.get('current_factor', '')
+
+    _, center_col, _ = st.columns([1, 2, 1])
+
+    with center_col:
+        st.space(100)
+        st.subheader("Running Factor Analysis")
+
+        if total > 0:
+            st.progress(completed / total, text=f"{completed} / {total} factors analyzed")
+        else:
+            st.progress(0, text="Initializing...")
+
+        if current_factor:
+            st.info(f"Analyzing: **{current_factor}**")
+        else:
+            st.info("Starting worker process...")
+
+    # show updates every .5 seconds
+    time.sleep(0.5)
+    st.rerun()
+
+
+def render_dataset_statistics(stats: dict, benchmark: str) -> None:
+    section_header("Dataset Statistics")
+
+    cols = st.columns([1, 1, 1, 2, 1], gap="small")
+    stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
+
+    stat_items = [
+        ("Rows", stats['num_rows']),
+        ("Dates", stats['num_dates']),
+        ("Columns", stats['num_columns']),
+        ("Period", f"{stats['min_date']} - {stats['max_date']}"),
+        ("Benchmark", benchmark or "N/A"),
+    ]
+
+    for col, (label, value) in zip(cols, stat_items):
+        with col:
+            st.badge(label)
+            st.markdown(f"<p style='{stat_style}'>{value}</p>", unsafe_allow_html=True)
 
 
 def render_formulas_grid(formulas_df: pd.DataFrame) -> None:

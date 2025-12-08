@@ -3,7 +3,6 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-import pandas as pd
 import streamlit as st
 
 from src.core.context import get_state, update_state, add_debug_log
@@ -12,17 +11,8 @@ from src.core.validation import validate_inputs
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import get_dataset_date_range
 from src.core.constants import DEFAULT_BENCHMARK
-from src.workers.manager import start_analysis_job, get_job_results, delete_job
+from src.workers.manager import start_analysis_job, get_job_results, delete_job, read_job
 from src.services.readers import ParquetDataReader
-
-
-def load_formulas_data(dataset_path: Path) -> Optional[pd.DataFrame]:
-    try:
-        reader = ParquetDataReader(dataset_path)
-        return reader.get_formulas_from_metadata()
-    except Exception as e:
-        add_debug_log(f"Error loading formulas data: {e}")
-    return None
 
 
 def process_step1() -> bool:
@@ -55,7 +45,6 @@ def process_step1() -> bool:
                 dataset_file = dataset_file.resolve()
 
         add_debug_log(f"Dataset file: {dataset_file}")
-
     
         dataset_reader = ParquetDataReader(dataset_file)
 
@@ -64,10 +53,7 @@ def process_step1() -> bool:
             st.session_state['step1_error'] = f"Invalid dataset: {validation_error}"
             return False
 
-        metadata = dataset_reader.get_metadata()
-        add_debug_log(f"Parquet validated: {metadata['num_rows']:,} rows, {metadata['num_columns']} columns")
-
-        formulas_data = load_formulas_data(dataset_file)
+        formulas_data = dataset_reader.get_formulas_from_metadata()
         if formulas_data is None:
             st.session_state['step1_error'] = "Parquet file missing 'features' metadata with formula definitions"
             return False
@@ -76,7 +62,6 @@ def process_step1() -> bool:
         add_debug_log("Getting date range from dataset...")
 
         date_df = dataset_reader.read_columns(['Date'])
-
         try:
             start_date, end_date = get_dataset_date_range(date_df)
             add_debug_log(f"Date range: {start_date} to {end_date}")
@@ -155,11 +140,20 @@ def start_step2_analysis() -> str:
         return None, f"Error starting analysis: {str(e)}"
 
 
-def process_step2_completion(job_id: str) -> Optional[str]:
+def _merge_worker_logs(job_data: dict) -> None:
+    """Merge worker logs from job into main debug logs."""
+    worker_logs = job_data.get('logs', [])
+    for log_entry in worker_logs:
+        add_debug_log(log_entry, without_timestamp=True)
+
+
+def process_step2_completion(job_data: dict) -> Optional[str]:
     state = get_state()
+    
+    _merge_worker_logs(job_data)
 
     try:
-        metrics_df, corr_matrix = get_job_results(job_id)
+        metrics_df, corr_matrix = get_job_results(job_data)
 
         state.completed_steps.add(2)
         state.completed_steps.add(3)

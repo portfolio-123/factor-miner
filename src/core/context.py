@@ -61,10 +61,11 @@ def update_state(**kwargs) -> None:
             setattr(state, key, value)
 
 
-def add_debug_log(message: str) -> None:
+def add_debug_log(message: str, without_timestamp: bool = False) -> None:
     state = get_state()
     timestamp = datetime.now().strftime('%H:%M:%S')
-    state.debug_logs.append(f"[{timestamp}] {message}")
+    message = message if without_timestamp else f"[{timestamp}] {message}"
+    state.debug_logs.append(message)
     # keep only the last 100 logs
     if len(state.debug_logs) > 100:
         state.debug_logs = state.debug_logs[-100:]

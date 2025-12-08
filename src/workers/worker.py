@@ -13,7 +13,7 @@ from src.core.constants import REQUIRED_COLUMNS
 from src.core.constants import JobStatus
 
 from src.core.utils import deserialize_dataframe, serialize_dataframe
-from src.workers.manager import read_job, update_job
+from src.workers.manager import read_job, update_job, append_job_log
 from src.services.readers import ParquetDataReader
 from src.core.calculations import (
     calculate_benchmark_returns,
@@ -23,11 +23,15 @@ from src.core.calculations import (
     calculate_correlation_matrix,
 )
 
+_job_id: str | None = None
+
 
 def log(message: str) -> None:
     timestamp = datetime.now().strftime('%H:%M:%S')
     formatted = f"[{timestamp}] [WORKER] {message}"
-    print(formatted, flush=True)
+
+    if _job_id:
+        append_job_log(_job_id, formatted)
 
 
 def run_analysis(job_id: str, params: dict) -> dict:
@@ -100,29 +104,30 @@ def run_analysis(job_id: str, params: dict) -> dict:
 
 
 def main():
-    job_id = sys.argv[1]
+    global _job_id
+    _job_id = sys.argv[1]
 
-    log(f"Worker started for job: {job_id}")
+    log(f"Worker started for job: {_job_id}")
 
     try:
-        job_data = read_job(job_id)
+        job_data = read_job(_job_id)
         if job_data is None:
-            log(f"Job {job_id} not found")
+            log(f"Job {_job_id} not found")
             sys.exit(1)
 
-        update_job(job_id, status=JobStatus.RUNNING)
+        update_job(_job_id, status=JobStatus.RUNNING)
         log("Status updated to running")
 
         params = job_data['params']
-        results = run_analysis(job_id, params)
+        results = run_analysis(_job_id, params)
 
-        update_job(job_id, status=JobStatus.COMPLETED, results=results)
+        update_job(_job_id, status=JobStatus.COMPLETED, results=results)
         log("Job completed successfully")
 
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
         log(f"Error: {error_msg}")
-        update_job(job_id, status=JobStatus.ERROR, error=error_msg)
+        update_job(_job_id, status=JobStatus.ERROR, error=error_msg)
         sys.exit(1)
 
 
