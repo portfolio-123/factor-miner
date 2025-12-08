@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 import pandas as pd
 
-from src.core.utils import serialize_dataframe, deserialize_dataframe
+from src.core.utils import deserialize_dataframe
+from src.core.constants import JobStatus, JobProgress
 
 # Jobs directory: project_root/data/jobs
 # TODO: add env variable for this?
@@ -22,7 +23,7 @@ def create_job(job_id: str, params: Dict[str, Any]) -> Path:
     job_data = {
         "id": job_id,
         # pending for now, will be updated to running when worker starts
-        "status": "pending",
+        "status": JobStatus.PENDING,
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat(),
         "params": params,
@@ -52,10 +53,10 @@ def read_job(job_id: str) -> Optional[Dict[str, Any]]:
 
 def update_job(
     job_id: str,
-    status: str,
+    status: JobStatus,
     results: Optional[Dict[str, Any]] = None,
     error: Optional[str] = None,
-    progress: Optional[Dict[str, int]] = None
+    progress: Optional[JobProgress] = None
 ) -> bool:
     job_data = read_job(job_id)
 
@@ -75,7 +76,7 @@ def update_job(
         job_data["progress"] = progress
 
     # Clear progress when job is finished (no longer needed)
-    if status in ('completed', 'error'):
+    if status in (JobStatus.COMPLETED, JobStatus.ERROR):
         job_data.pop("progress", None)
 
     job_path = _get_job_path(job_id)

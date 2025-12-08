@@ -5,11 +5,12 @@ from dotenv import load_dotenv
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.services.processing import load_formulas_data
-from src.core.utils import get_url_params, locate_factor_list_files, deserialize_dataframe
+from src.core.utils import get_url_params, locate_factor_list_file, deserialize_dataframe
 from src.workers.manager import read_job
 from src.ui.components import header_with_navigation
 from src.ui.steps import render_step1, render_step2, render_step3
 from src.ui.styles import apply_custom_styles
+from src.core.constants import JobStatus
 
 load_dotenv()
 
@@ -38,34 +39,33 @@ def initialize_app() -> None:
             add_debug_log(f"Factor list ID from URL: {fl_id}")
             update_state(factor_list_uid=fl_id)
 
-            job_data = read_job(fl_id)
+            try:
+                dataset_path = locate_factor_list_file(fl_id)
+                update_state(dataset_path=dataset_path)
+            except (ValueError, FileNotFoundError) as e:
+                add_debug_log(f"File verification failed: {e}")
+                # dataset_path stays None, step1 will show the error
+
+            job_data = read_job(fl_id) if get_state().dataset_path else None
             if job_data:
                 params = job_data['params']
                 state = get_state()
 
-                dataset_path, _, file_error, file_type = locate_factor_list_files(fl_id)
-
-                if job_data['status'] in ('pending', 'running'):
+                if job_data['status'] in (JobStatus.PENDING, JobStatus.RUNNING):
                     # Job still running - restore step 2 state that shows progress
                     add_debug_log(f"Found running job for {fl_id}, status: {job_data['status']}")
 
-                    formulas_data = load_formulas_data(
-                        str(dataset_path),
-                        file_type,
-                        fl_id
-                    ) if dataset_path else None
+                    formulas_data = load_formulas_data(dataset_path)
 
                     state.completed_steps.add(1)
                     update_state(
                         current_job_id=fl_id,
                         current_step=2,
-                        dataset_path=dataset_path,
-                        file_type=file_type,
                         benchmark_ticker=params.get('benchmark_ticker'),
                         formulas_data=formulas_data,
                     )
 
-                elif job_data['status'] == 'completed':
+                elif job_data['status'] == JobStatus.COMPLETED:
                     add_debug_log(f"Found completed job for {fl_id}, loading results")
 
                     try:
@@ -73,20 +73,13 @@ def initialize_app() -> None:
                         metrics_df = deserialize_dataframe(results['all_metrics'])
                         corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
 
-                        # Also restore formulas_data for step 2 navigation
-                        formulas_data = load_formulas_data(
-                            str(dataset_path),
-                            file_type,
-                            fl_id
-                        ) if dataset_path else None
+                        formulas_data = load_formulas_data(dataset_path)
 
                         state.completed_steps.add(1)
                         state.completed_steps.add(2)
                         state.completed_steps.add(3)
                         update_state(
                             current_step=3,
-                            dataset_path=dataset_path,
-                            file_type=file_type,
                             benchmark_ticker=params.get('benchmark_ticker'),
                             formulas_data=formulas_data,
                             all_metrics=metrics_df,
@@ -97,24 +90,6 @@ def initialize_app() -> None:
                         )
                     except Exception as e:
                         add_debug_log(f"Error loading completed job results: {e}")
-
-            dataset_path, formulas_path, error, file_type = locate_factor_list_files(fl_id)
-
-            if error:
-                add_debug_log(f"File verification error: {error}")
-                update_state(
-                    files_verified=False,
-                    files_verification_error=error
-                )
-            else:
-                add_debug_log(f"Files verified - Dataset: {dataset_path}, Formulas: {formulas_path}")
-                update_state(
-                    dataset_path=dataset_path,
-                    formulas_path=formulas_path,
-                    file_type=file_type,
-                    files_verified=True,
-                    files_verification_error=None
-                )
 
         if benchmark:
             add_debug_log(f"Benchmark from URL: {benchmark}")

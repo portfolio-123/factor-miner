@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
-import p123api
 from typing import Callable, List, Optional, Tuple
 from src.services.readers import ParquetDataReader
 from src.core.constants import REQUIRED_COLUMNS
@@ -39,39 +38,6 @@ def get_dataset_date_range(df: pd.DataFrame) -> Tuple[str, str]:
 
     return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
 
-
-def find_prior_trading_day(
-    saturday_date: pd.Timestamp,
-    benchmark_df: pd.DataFrame
-) -> Optional[float]:
-    """
-    Find the closing price of the last trading day before a Saturday.
-    Tries Friday first, then Thursday if Friday not available.
-
-    Args:
-        saturday_date: The Saturday date to find prior trading day for
-        benchmark_df: DataFrame with benchmark prices
-
-    Returns:
-        Closing price or None if not found
-    """
-    # Try Friday
-    friday_date = saturday_date - pd.Timedelta(days=1)
-    friday_match = benchmark_df[benchmark_df['dt'] == friday_date]
-
-    if not friday_match.empty:
-        return friday_match.iloc[0]['close']
-
-    # Try Thursday
-    thursday_date = saturday_date - pd.Timedelta(days=2)
-    thursday_match = benchmark_df[benchmark_df['dt'] == thursday_date]
-
-    if not thursday_match.empty:
-        return thursday_match.iloc[0]['close']
-
-    return None
-
-
 def calculate_benchmark_returns(
     raw_data: pd.DataFrame,
     benchmark_data: pd.DataFrame
@@ -84,7 +50,7 @@ def calculate_benchmark_returns(
         benchmark_data: Benchmark price data with 'dt' and 'close' columns
 
     Returns:
-        Tuple of (DataFrame with 'benchmark' column added, error message)
+        DataFrame with 'benchmark' column added
     """
     df = raw_data.copy()
     benchmark_df = benchmark_data.copy()
@@ -92,30 +58,19 @@ def calculate_benchmark_returns(
     df['Date'] = pd.to_datetime(df['Date'])
     benchmark_df['dt'] = pd.to_datetime(benchmark_df['dt'])
 
-    df['benchmark'] = float('nan')
+    benchmark_df = benchmark_df.sort_values('dt').dropna(subset=['dt', 'close'])
 
-    unique_saturdays = df['Date'].unique()
+    unique_dates = pd.DataFrame({'Date': df['Date'].unique()}).sort_values('Date')
+    unique_dates['Prev_Date'] = unique_dates["Date"] - pd.Timedelta(days=7)
 
-    for saturday in unique_saturdays:
-        saturday_ts = pd.Timestamp(saturday)
+    current_prices = pd.merge_asof(unique_dates, benchmark_df[['dt', 'close']], left_on="Date", right_on="dt", direction="backward", tolerance=pd.Timedelta(days=4)).rename(columns={"close": "curr_price"})
 
-        current_price = find_prior_trading_day(saturday_ts, benchmark_df)
+    last_week_prices = pd.merge_asof(current_prices, benchmark_df[['dt', 'close']], left_on="Prev_Date", right_on="dt", direction="backward", tolerance= pd.Timedelta(days=4)).rename(columns={"close": "prev_price"})
 
-        if current_price is None:
-            continue
+    last_week_prices["benchmark"] = (last_week_prices["curr_price"] - last_week_prices["prev_price"]) / last_week_prices["prev_price"]
 
-        previous_saturday = saturday_ts - pd.Timedelta(days=7)
-        previous_price = find_prior_trading_day(previous_saturday, benchmark_df)
-
-        if previous_price is None:
-            continue
-
-        weekly_return = (current_price - previous_price) / previous_price
-
-        df.loc[df['Date'] == saturday, 'benchmark'] = weekly_return
-
-    return df, ""
-
+    result_df = df.merge(last_week_prices[['Date', 'benchmark']], on="Date", how="left")
+    return result_df
 
 def calculate_future_performance(
     raw_data: pd.DataFrame,

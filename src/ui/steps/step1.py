@@ -1,16 +1,13 @@
 import streamlit as st
-from pathlib import Path
 
 from src.core.context import get_state
 from src.services.processing import process_step1
-from src.core.utils import detect_file_type
 from src.core.validation import (
     check_required_fields,
     load_saved_settings,
     restore_session_defaults,
 )
 from src.ui.components import section_header
-from src.core.constants import FileType
 from src.core.constants import DEFAULT_BENCHMARK
 
 
@@ -30,7 +27,7 @@ def render() -> None:
     section_header("Data Sources")
 
     if state.is_internal_app:
-        # Internal app mode - file-system implementation
+        # Internal app - search file-system with factor list uid
         st.text_input(
             "Factor List UID",
             value=state.factor_list_uid or "",
@@ -38,44 +35,19 @@ def render() -> None:
             key="factor_list_uid"
         )
 
-        if state.files_verification_error:
-            st.error(state.files_verification_error)
-        elif not state.files_verified:
+        if not state.factor_list_uid:
             st.warning("No fl_id provided in URL")
+        elif not state.dataset_path:
+            st.error(f"Dataset file not found for: {state.factor_list_uid}")
     else:
-        # External app mode - file path inputs
-        dataset_path = st.session_state.get('dataset_path', '')
-        dataset_file = Path(dataset_path.strip()) if dataset_path.strip() else None
-        is_parquet = dataset_file and dataset_file.exists() and detect_file_type(dataset_file) == FileType.PARQUET
-
-        if is_parquet:
-            st.text_input(
+        # External app - dataset path input
+        st.text_input(
                 "Dataset Path",
                 placeholder="data/dataset.parquet",
                 key="dataset_path",
             )
-            st.caption(
+        st.caption(
                 "**Note:** Parquet files include formulas in metadata. Your dataset must contain 'Last Close' for price data."
-            )
-        else:
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.text_input(
-                    "Dataset Path",
-                    placeholder="data/dataset.parquet",
-                    key="dataset_path",
-                )
-
-            with col2:
-                st.text_input(
-                    "Formulas Path",
-                    placeholder="data/formulas.csv",
-                    key="formulas_path",
-                )
-
-            st.caption(
-                "**Note:** Your dataset must contain a column named 'Last Close' for price data. We support both CSV and Parquet file formats."
             )
 
     section_header("Configuration")

@@ -44,6 +44,3 @@ def fetch_benchmark_data(
         if "timeout" in eml or "connection" in eml:
             return None, "Connection error. Please check your internet connection"
         return None, f"Error: {error_msg}"
-
-
-

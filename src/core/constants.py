@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, TypedDict
 from enum import StrEnum
 
 
@@ -7,8 +7,15 @@ REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID", PRICE_COLUMN]
 DEFAULT_BENCHMARK: Final[str] = "SPY:USA"
 
 
-class FileType(StrEnum):
-    CSV = "csv"
-    PARQUET = "parquet"
+class JobStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+class JobProgress(TypedDict):
+    completed: int
+    total: int
+    current_factor: str
 
 

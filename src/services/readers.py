@@ -5,81 +5,7 @@ from typing import Optional, Dict, Any, Tuple, Union
 import pandas as pd
 import pyarrow.parquet as pq
 
-from src.core.constants import REQUIRED_COLUMNS, FileType
-
-
-class CSVDataReader:
-    def __init__(self, file_path: Union[str, Path]):
-        self.file_path = Path(file_path)
-
-    def validate(self) -> Tuple[bool, Optional[str]]:
-        df = self.read_columns(REQUIRED_COLUMNS, num_rows=0)
-        if df is None:
-            return False, "Missing required columns or unreadable file"
-        return True, None
-
-    def read_full(self) -> Optional[pd.DataFrame]:
-        #read entire csv file into memory
-        try:
-            return pd.read_csv(str(self.file_path))
-        except Exception:
-            return None
-
-    def read_columns(self, columns: list, num_rows: Optional[int] = None) -> Optional[pd.DataFrame]:
-        # read only selected columns from csv
-        try:
-            kwargs = {'usecols': columns}
-            if num_rows is not None:
-                kwargs['nrows'] = num_rows
-            return pd.read_csv(str(self.file_path), **kwargs)
-        except Exception:
-            return None
-
-    def read_preview(self, num_rows: int = 10) -> Optional[pd.DataFrame]:
-        # read preview of csv file (first and last N rows)
-        try:
-            with self.file_path.open('r') as f:
-                total_rows = sum(1 for _ in f) - 1
-            # If file has fewer rows than 2*num_rows, return all rows
-            if total_rows <= num_rows * 2:
-                return pd.read_csv(str(self.file_path))
-
-            first_rows = pd.read_csv(str(self.file_path), nrows=num_rows)
-
-            skip_rows = total_rows - num_rows
-            last_rows = pd.read_csv(str(self.file_path), skiprows=range(1, skip_rows + 1))
-
-            last_rows.index = range(total_rows - num_rows, total_rows)
-
-            return pd.concat([first_rows, last_rows], ignore_index=False)
-        except Exception:
-            return None
-
-    def get_metadata(self) -> Dict[str, Any]:
-        # get metadata like number of rows, columns, etc.
-        try:
-            df = self.read_full()
-            if df is None:
-                return {'valid': False, 'error': 'Failed to read file'}
-            unique_dates = None
-            if 'Date' in df.columns:
-                unique_dates = pd.to_datetime(df['Date']).nunique()
-            return {
-                'valid': True,
-                'num_rows': len(df),
-                'num_columns': len(df.columns),
-                'columns': df.columns.tolist(),
-                'unique_dates': unique_dates
-            }
-        except Exception as e:
-            return {'valid': False, 'error': str(e)}
-
-    def get_column_names(self) -> list:
-        try:
-            header_df = pd.read_csv(str(self.file_path), nrows=0)
-            return header_df.columns.tolist()
-        except Exception:
-            return []
+from src.core.constants import REQUIRED_COLUMNS
 
 
 class ParquetDataReader:
@@ -185,10 +111,4 @@ class ParquetDataReader:
             return df[['formula', 'name', 'tag', 'Normalization']]
         except Exception:
             return None
-
-
-def get_data_reader(file_path: Union[str, Path], file_type: FileType) -> Union[CSVDataReader, ParquetDataReader]:
-    reader_map = {FileType.CSV: CSVDataReader, FileType.PARQUET: ParquetDataReader}
-    return reader_map[file_type](Path(file_path))
-
 

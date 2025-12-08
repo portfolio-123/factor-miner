@@ -7,7 +7,6 @@ from datetime import datetime
 
 
 from typing import Set, Optional
-from src.core.constants import FileType
 
 
 @dataclass
@@ -20,23 +19,16 @@ class AppState:
     is_internal_app: bool = False
     factor_list_uid: Optional[str] = None
 
-    # internal app file verification state
-    files_verified: bool = False
-    files_verification_error: Optional[str] = None
-
     # data state
     benchmark_data: Optional[pd.DataFrame] = None
     benchmark_ticker: Optional[str] = None
     api_id: Optional[str] = None
     api_key: Optional[str] = None
 
-    file_type: Optional[FileType] = None
     dataset_path: Optional[Path] = None
-    formulas_path: Optional[Path] = None
     formulas_data: Optional[pd.DataFrame] = None
     # original user-entered paths (for form restoration when going back to step 1)
     dataset_path_input: Optional[str] = None
-    formulas_path_input: Optional[str] = None
 
     # calculation parameters
     min_alpha: float = 0.5

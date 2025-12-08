@@ -4,8 +4,8 @@ from pathlib import Path
 import streamlit as st
 
 from src.core.context import get_state
-from src.core.utils import detect_file_type, get_local_storage
-from src.core.constants import FileType, DEFAULT_BENCHMARK
+from src.core.utils import get_local_storage
+from src.core.constants import DEFAULT_BENCHMARK
 
 
 def check_required_fields() -> bool:
@@ -15,19 +15,11 @@ def check_required_fields() -> bool:
     api_id = st.session_state.get('api_id', '')
 
     if state.is_internal_app:
-        return all([api_key.strip(), api_id.strip()]) and state.files_verified
+        return all([api_key.strip(), api_id.strip()]) and state.dataset_path is not None
     else:
         dataset = st.session_state.get('dataset_path', '')
-        dataset_path = Path(dataset.strip()) if dataset.strip() else None
-        is_parquet = dataset_path and dataset_path.exists() and detect_file_type(dataset_path) == FileType.PARQUET
 
-        if is_parquet:
-            # Parquet files have formulas embedded in metadata
-            return all([dataset.strip(), api_key.strip(), api_id.strip()])
-        else:
-            # CSV files require separate formulas file
-            formulas = st.session_state.get('formulas_path', '')
-            return all([dataset.strip(), formulas.strip(), api_key.strip(), api_id.strip()])
+        return all([dataset.strip(), api_key.strip(), api_id.strip()])
 
 
 def validate_inputs() -> tuple[bool, str]:
@@ -38,8 +30,8 @@ def validate_inputs() -> tuple[bool, str]:
     api_id = st.session_state.get('api_id', '')
 
     if state.is_internal_app:
-        if not state.files_verified:
-            return False, state.files_verification_error or "Files not verified"
+        if state.dataset_path is None:
+            return False, "Dataset file not found"
 
         if not api_key.strip():
             return False, "API Key is required"
@@ -61,18 +53,6 @@ def validate_inputs() -> tuple[bool, str]:
             dataset_file = dataset_file.resolve()
         if not dataset_file.exists():
             return False, f"Dataset file not found: {dataset_path}"
-
-        # Only validate formulas path for CSV files (parquet has embedded metadata)
-        if detect_file_type(dataset_file) != FileType.PARQUET:
-            formulas_path = st.session_state.get('formulas_path', '')
-            if not formulas_path.strip():
-                return False, "Formulas path is required for CSV datasets"
-
-            formulas_file = Path(formulas_path.strip())
-            if not formulas_file.is_absolute():
-                formulas_file = formulas_file.resolve()
-            if not formulas_file.exists():
-                return False, f"Formulas file not found: {formulas_path}"
 
     return True, ""
 
@@ -104,5 +84,3 @@ def restore_session_defaults(state) -> None:
     if not state.is_internal_app:
         if 'dataset_path' not in st.session_state and state.dataset_path_input:
             st.session_state['dataset_path'] = state.dataset_path_input
-        if 'formulas_path' not in st.session_state and state.formulas_path_input:
-            st.session_state['formulas_path'] = state.formulas_path_input

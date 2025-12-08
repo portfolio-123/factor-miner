@@ -1,67 +1,33 @@
 import streamlit as st
 import pandas as pd
 import time
-import uuid
 
 from src.core.context import get_state, update_state
-from src.core.utils import format_date, serialize_dataframe
+from src.core.utils import format_date
 from src.ui.components import (
     section_header,
     render_formulas_grid,
     render_dataset_preview
 )
-from src.services.readers import get_data_reader
-from src.workers.manager import (
-    read_job,
-    delete_job,
-    start_analysis_job,
-    get_job_results,
-)
+from src.services.readers import ParquetDataReader
+from src.services.processing import start_step2_analysis, process_step2_completion
+from src.workers.manager import read_job, delete_job
+from src.core.constants import JobStatus
 
 
 def _on_run_analysis() -> None:
-    state = get_state()
     st.session_state['step2_error'] = None
-
-    # Use factor_list_uid for internal mode; generate a unique ID for external mode
-    job_id = state.factor_list_uid or uuid.uuid4().hex
-
-    try:
-        params = {
-            'top_pct': state.top_x_pct,
-            'bottom_pct': state.bottom_x_pct,
-            'min_alpha': state.min_alpha,
-            'benchmark_data': serialize_dataframe(state.benchmark_data),
-            'benchmark_ticker': state.benchmark_ticker,
-            'dataset_path': str(state.dataset_path) if state.dataset_path else None,
-            'file_type': state.file_type.value if state.file_type else None,
-        }
-        start_analysis_job(job_id, params)
-        update_state(current_job_id=job_id)
+    _, error = start_step2_analysis()
+    if error:
+        st.session_state['step2_error'] = error
+    else:
         st.rerun()
-    except Exception as e:
-        st.session_state['step2_error'] = f"Error starting analysis: {str(e)}"
 
 
 def _on_job_completed(job_data: dict) -> None:
-    state = get_state()
-
-    try:
-        metrics_df, corr_matrix = get_job_results(job_data)
-
-        state.completed_steps.add(2)
-        state.completed_steps.add(3)
-        update_state(
-            all_metrics=metrics_df,
-            all_corr_matrix=corr_matrix,
-            current_step=3,
-            current_job_id=None
-        )
-    except Exception as e:
-        st.session_state['step2_error'] = f"Error loading results: {str(e)}"
-        delete_job(state.current_job_id)
-        update_state(current_job_id=None)
-
+    error = process_step2_completion(job_data)
+    if error:
+        st.session_state['step2_error'] = error
     st.rerun()
 
 
@@ -71,19 +37,6 @@ def _on_job_error(job_id: str, error_msg: str) -> None:
     delete_job(job_id)
     update_state(current_job_id=None)
     st.rerun()
-
-def _calculate_dataset_stats(preview_df: pd.DataFrame, metadata: dict) -> dict:
-    actual_row_count = metadata.get('num_rows', len(preview_df))
-    unique_dates = metadata.get('unique_dates')
-    dates = pd.to_datetime(preview_df['Date'])
-
-    return {
-        'num_rows': actual_row_count,
-        'num_columns': len(preview_df.columns),
-        'num_dates': unique_dates if unique_dates is not None else dates.nunique(),
-        'min_date': format_date(dates.min()),
-        'max_date': format_date(dates.max()),
-    }
 
 
 def _render_job_progress(job_data: dict) -> None:
@@ -108,7 +61,7 @@ def _render_job_progress(job_data: dict) -> None:
         else:
             st.info("Starting worker process...")
 
-    # Poll every 0.5 seconds for more responsive updates
+    # show updates every .5 seconds
     time.sleep(0.5)
     st.rerun()
 
@@ -136,7 +89,7 @@ def _render_dataset_statistics(stats: dict, benchmark: str) -> None:
 def _render_review_content() -> None:
     state = get_state()
 
-    reader = get_data_reader(state.dataset_path, file_type=state.file_type)
+    reader = ParquetDataReader(state.dataset_path)
     preview_df = reader.read_preview(num_rows=10)
     metadata = reader.get_metadata()
 
@@ -144,7 +97,16 @@ def _render_review_content() -> None:
         st.error("No data available for preview")
         return
 
-    stats = _calculate_dataset_stats(preview_df, metadata)
+    actual_row_count = metadata.get('num_rows', len(preview_df))
+    unique_dates = metadata.get('unique_dates')
+    dates = pd.to_datetime(preview_df['Date'])
+    stats = {
+        'num_rows': actual_row_count,
+        'num_columns': len(preview_df.columns),
+        'num_dates': unique_dates if unique_dates is not None else dates.nunique(),
+        'min_date': format_date(dates.min()),
+        'max_date': format_date(dates.max()),
+    }
     _render_dataset_statistics(stats, state.benchmark_ticker)
 
     tab1, tab2 = st.tabs(["Formulas", "Dataset Preview"])
@@ -188,10 +150,10 @@ def render() -> None:
 
     status = job_data['status']
 
-    if status == 'completed':
+    if status == JobStatus.COMPLETED:
         _on_job_completed(job_data)
 
-    elif status == 'error':
+    elif status == JobStatus.ERROR:
         _on_job_error(job_id, job_data.get('error', ''))
 
     else:

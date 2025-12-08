@@ -1,13 +1,12 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any
 from io import StringIO
 import os
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 import pandas as pd
 
-from src.core.constants import FileType
 
 def get_url_params(*keys: str) -> tuple:
     try:
@@ -25,43 +24,20 @@ def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
     except Exception:
         return 'N/A'
 
-
-def detect_file_type(file_path: Path) -> FileType:
-    """Detect file type by reading magic bytes."""
-    try:
-        with open(file_path, 'rb') as f:
-            magic = f.read(4)
-            if magic == b'PAR1':
-                return FileType.PARQUET
-    except Exception:
-        pass
-    return FileType.CSV
-
-
-def locate_factor_list_files(fl_id: str) -> Tuple[Optional[Path], Optional[Path], Optional[str], Optional[str]]:
+def locate_factor_list_file(fl_id: str) -> Path:
     base_dir = os.getenv('FACTOR_LIST_DIR')
     if not base_dir:
-        return None, None, "FACTOR_LIST_DIR environment variable not set", None
+        raise ValueError("FACTOR_LIST_DIR environment variable not set")
 
     base_path = Path(base_dir)
     if not base_path.exists():
-        return None, None, f"FACTOR_LIST_DIR does not exist: {base_dir}", None
+        raise ValueError(f"FACTOR_LIST_DIR does not exist: {base_dir}")
 
-    # Dataset file:
-    dataset_path = base_path / fl_id
-    if not dataset_path.exists():
-        return None, None, f"Dataset file not found: {dataset_path}", None
+    path = base_path / fl_id
+    if not path.exists():
+        raise FileNotFoundError(f"Dataset file not found: {path}")
 
-    file_type = detect_file_type(dataset_path)
-
-    if file_type == FileType.PARQUET:
-        formulas_path = None
-    else:
-        formulas_path = base_path / f"{fl_id}_meta"
-        if not formulas_path.exists():
-            return None, None, f"Formulas file not found: {formulas_path}", None
-
-    return dataset_path, formulas_path, None, file_type
+    return path
 
 
 def get_local_storage():

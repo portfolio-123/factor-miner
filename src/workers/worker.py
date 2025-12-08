@@ -10,10 +10,11 @@ from dotenv import load_dotenv
 load_dotenv()
 from src.core.constants import PRICE_COLUMN
 from src.core.constants import REQUIRED_COLUMNS
+from src.core.constants import JobStatus
 
-from src.core.utils import locate_factor_list_files, deserialize_dataframe, serialize_dataframe
+from src.core.utils import deserialize_dataframe, serialize_dataframe
 from src.workers.manager import read_job, update_job
-from src.services.readers import get_data_reader
+from src.services.readers import ParquetDataReader
 from src.core.calculations import (
     calculate_benchmark_returns,
     calculate_future_performance,
@@ -21,7 +22,6 @@ from src.core.calculations import (
     calculate_factor_metrics,
     calculate_correlation_matrix,
 )
-from src.core.constants import FileType
 
 
 def log(message: str) -> None:
@@ -33,31 +33,7 @@ def log(message: str) -> None:
 def run_analysis(job_id: str, params: dict) -> dict:
     log("Starting analysis...")
 
-    # internal mode: locate by job_id (factor_list_uid)
-    # exteral mode: use dataset_path/file_type provided in params
-    dataset_path = params.get('dataset_path')
-    file_type = params.get('file_type')
-    if isinstance(file_type, str):
-        try:
-            file_type = FileType(file_type)
-        except ValueError:
-            file_type = None
-
-    if dataset_path:
-        # external mode
-        from pathlib import Path as _Path
-        dataset_path = _Path(dataset_path)
-        if file_type is None:
-            # detect if not provided
-            from src.core.utils import detect_file_type as _detect_file_type
-            file_type = _detect_file_type(dataset_path)
-        if not dataset_path.exists():
-            raise ValueError(f"Dataset file not found: {dataset_path}")
-    else:
-        # internal mode
-        dataset_path, _, error, file_type = locate_factor_list_files(job_id)
-        if error or not dataset_path:
-            raise ValueError(f"Could not locate dataset: {error}")
+    dataset_path = params['dataset_path']  # Already resolved before job was started
 
     top_pct = params['top_pct']
     bottom_pct = params['bottom_pct']
@@ -69,19 +45,19 @@ def run_analysis(job_id: str, params: dict) -> dict:
     # Progress callback to update job file
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
         log(f"Progress: {completed}/{total} factors - {current_factor}")
-        update_job(job_id, status="running", progress={
+        update_job(job_id, status=JobStatus.RUNNING, progress={
             "completed": completed,
             "total": total,
             "current_factor": current_factor
         })
 
-    reader = get_data_reader(dataset_path, file_type=file_type)
+    reader = ParquetDataReader(dataset_path)
 
     columns = reader.get_column_names()
     excluded_columns = REQUIRED_COLUMNS + ['benchmark', 'Future Perf']
     factor_columns = [col for col in columns if col not in excluded_columns]
 
-    update_job(job_id, status="running", progress={
+    update_job(job_id, status=JobStatus.RUNNING, progress={
         "completed": 0,
         "total": len(factor_columns),
         "current_factor": ""
@@ -104,7 +80,7 @@ def run_analysis(job_id: str, params: dict) -> dict:
     raw_data = reader.read_columns(['Date'])
 
     log("Calculating benchmark returns...")
-    raw_data, _ = calculate_benchmark_returns(raw_data, benchmark_data)
+    raw_data = calculate_benchmark_returns(raw_data, benchmark_data)
 
     if results_df.empty:
         raise ValueError("No results from factor analysis")
@@ -134,19 +110,19 @@ def main():
             log(f"Job {job_id} not found")
             sys.exit(1)
 
-        update_job(job_id, status="running")
+        update_job(job_id, status=JobStatus.RUNNING)
         log("Status updated to running")
 
         params = job_data['params']
         results = run_analysis(job_id, params)
 
-        update_job(job_id, status="completed", results=results)
+        update_job(job_id, status=JobStatus.COMPLETED, results=results)
         log("Job completed successfully")
 
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
         log(f"Error: {error_msg}")
-        update_job(job_id, status="error", error=error_msg)
+        update_job(job_id, status=JobStatus.ERROR, error=error_msg)
         sys.exit(1)
 
 
