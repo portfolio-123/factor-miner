@@ -3,14 +3,12 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.services.readers import ParquetDataReader
 from src.core.context import get_state, update_state, add_debug_log
-from src.core.utils import get_url_params, locate_factor_list_file, deserialize_dataframe
-from src.workers.manager import read_job
+from src.core.utils import get_url_params, locate_factor_list_file
+from src.core.job_restore import restore_job_state
 from src.ui.components import header_with_navigation
 from src.ui.steps import render_step1, render_step2, render_step3
 from src.ui.styles import apply_custom_styles
-from src.core.constants import JobStatus
 
 load_dotenv()
 
@@ -33,7 +31,7 @@ def initialize_app() -> None:
     if is_internal_app:
         add_debug_log("Running in internal app mode")
 
-        fl_id, benchmark = get_url_params('fl_id', 'benchmark')
+        fl_id = get_url_params('fl_id')
 
         if fl_id:
             add_debug_log(f"Factor list ID from URL: {fl_id}")
@@ -42,57 +40,14 @@ def initialize_app() -> None:
             try:
                 dataset_path = locate_factor_list_file(fl_id)
                 update_state(dataset_path=dataset_path)
+                restore_job_state(fl_id, dataset_path)
             except (ValueError, FileNotFoundError) as e:
                 add_debug_log(f"File verification failed: {e}")
-                # dataset_path stays None, step1 will show the error
-
-            job_data = read_job(fl_id) if get_state().dataset_path else None
-            if job_data:
-                params = job_data['params']
-                state = get_state()
-
-                if job_data['status'] in (JobStatus.PENDING, JobStatus.RUNNING):
-                    # Job still running - restore step 2 state that shows progress
-                    add_debug_log(f"Found running job for {fl_id}, status: {job_data['status']}")
-
-                    formulas_data = ParquetDataReader(state.dataset_path).get_formulas_from_metadata()
-
-                    state.completed_steps.add(1)
-                    update_state(
-                        current_job_id=fl_id,
-                        current_step=2,
-                        benchmark_ticker=params.get('benchmark_ticker'),
-                        formulas_data=formulas_data,
-                    )
-
-                elif job_data['status'] == JobStatus.COMPLETED:
-                    add_debug_log(f"Found completed job for {fl_id}, loading results")
-
-                    try:
-                        results = job_data['results']
-                        metrics_df = deserialize_dataframe(results['all_metrics'])
-                        corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
-
-                        formulas_data = ParquetDataReader(state.dataset_path).get_formulas_from_metadata()
-
-                        state.completed_steps.add(1)
-                        state.completed_steps.add(2)
-                        state.completed_steps.add(3)
-                        update_state(
-                            current_step=3,
-                            benchmark_ticker=params.get('benchmark_ticker'),
-                            formulas_data=formulas_data,
-                            all_metrics=metrics_df,
-                            all_corr_matrix=corr_matrix,
-                            min_alpha=params.get('min_alpha', 0.5),
-                            top_x_pct=params.get('top_pct', 20.0),
-                            bottom_x_pct=params.get('bottom_pct', 20.0),
-                        )
-                    except Exception as e:
-                        add_debug_log(f"Error loading completed job results: {e}")
     else:
+        #TODO: think how to handle external app. we don't know the dataset path until they add it in step 1 form. wait until the results redesign to support multiple results.
         add_debug_log("Running in external app mode")
 
+    # to avoid re-initialization if it has already been done
     st.session_state.initialized = True
     add_debug_log("Application initialized")
 

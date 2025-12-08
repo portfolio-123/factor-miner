@@ -29,30 +29,20 @@ def validate_inputs() -> tuple[bool, str]:
     api_key = st.session_state.get('api_key', '')
     api_id = st.session_state.get('api_id', '')
 
+    if not api_key.strip():
+        return False, "API Key is required"
+    if not api_id.strip():
+        return False, "API ID is required"
+
     if state.is_internal_app:
         if state.dataset_path is None:
             return False, "Dataset file not found"
-
-        if not api_key.strip():
-            return False, "API Key is required"
-        if not api_id.strip():
-            return False, "API ID is required"
     else:
-        dataset_path = st.session_state.get('dataset_path', '')
-
-        if not dataset_path.strip():
+        dataset_path = st.session_state.get('dataset_path', '').strip()
+        if not dataset_path:
             return False, "Dataset path is required"
-        if not api_key.strip():
-            return False, "API Key is required"
-        if not api_id.strip():
-            return False, "API ID is required"
-
-        # Validate dataset file exists
-        dataset_file = Path(dataset_path.strip())
-        if not dataset_file.is_absolute():
-            dataset_file = dataset_file.resolve()
-        if not dataset_file.exists():
-            return False, f"Dataset file not found: {dataset_path}"
+        if not Path(dataset_path).resolve().exists():
+            return False, f"Dataset file not found"
 
     return True, ""
 
