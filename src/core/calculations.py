@@ -43,7 +43,7 @@ def calculate_benchmark_returns(
     benchmark_data: pd.DataFrame
 ) -> Tuple[pd.DataFrame, str]:
     """
-    Calculate weekly benchmark returns for each date in the dataset.
+    Calculate weekly benchmark returns for each date in the dataset. Go back 7 days from the date to get the previous week's price.
 
     Args:
         raw_data: Dataset with 'Date' column
@@ -77,8 +77,8 @@ def calculate_future_performance(
     price_column: str,
 ) -> pd.DataFrame:
     """
-    Calculate future performance for each stock (next week return).
-
+    Add a column "future performance" to the dataframe, which is the return of the next week for that same stock.
+    (e.g. 0.07, or 7%)
     Args:
         raw_data: DataFrame with Date, Ticker, price columns
         price_column: Name of the price column
@@ -98,20 +98,20 @@ def calculate_future_performance(
     df['Next_Date'] = df.groupby('Ticker')['Date'].shift(-1)
     df['Next_Price'] = df.groupby('Ticker')[price_column].shift(-1)
 
-    # calculate return only where conditions are true
+    # calculate return only where there is a price and next price
     valid_mask = (
         (df[price_column].notna()) &
-        (df[price_column] != 0) &
         (df['Next_Price'].notna())
     )
 
+    # only add future perf column for valid rows
     df['Future Perf'] = float('nan')
     df.loc[valid_mask, 'Future Perf'] = (
         (df.loc[valid_mask, 'Next_Price'] - df.loc[valid_mask, price_column]) /
         df.loc[valid_mask, price_column]
     )
 
-    # clean up temporary columns
+    # drop temporary columns
     df = df.drop(columns=['Next_Date', 'Next_Price', price_column])
 
     return df
@@ -119,9 +119,8 @@ def calculate_future_performance(
 
 def analyze_factors(
     future_perf_df: pd.DataFrame,
+    reader: ParquetDataReader,
     *,
-    df: Optional[pd.DataFrame] = None,
-    reader: Optional[ParquetDataReader] = None,
     factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
     bottom_pct: float = 30.0,
@@ -129,12 +128,12 @@ def analyze_factors(
 ) -> pd.DataFrame:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
-    For Parquet files, reads factors one by one to reduce memory usage.
+    Reads factors one by one from Parquet to reduce memory usage.
 
     Args:
-        df: DataFrame with factor columns (for CSV files, without Future Perf)
         future_perf_df: Pre-calculated future performance (Date, Ticker, Future Perf)
-        factor_columns: List of factor columns to analyze (for Parquet files)
+        reader: ParquetDataReader for streaming factor data
+        factor_columns: List of factor columns to analyze (auto-detected if None)
         top_pct: Percentage of top stocks to include (default: 30.0)
         bottom_pct: Percentage of bottom stocks to include (default: 30.0)
         progress_fn: Optional callback (completed, total, current_factor) for progress updates
@@ -142,91 +141,68 @@ def analyze_factors(
     Returns:
         DataFrame with factor analysis results (Date, factor, ret)
     """
+
     future_perf_df = future_perf_df.copy()
     future_perf_df['Date'] = pd.to_datetime(future_perf_df['Date'])
     future_perf_df['Future Perf'] = pd.to_numeric(future_perf_df['Future Perf'], errors='coerce')
 
+    total_factors = len(factor_columns)
     results: List[dict] = []
-    excluded_common = REQUIRED_COLUMNS
 
-    if reader is not None:
-        if factor_columns is None:
-            columns = reader.get_column_names()
-            factor_columns = [c for c in columns if c not in excluded_common]
-        total_factors = len(factor_columns)
+    for idx, col in enumerate(factor_columns, 1):
+        # TODO: always reading date and ticker again, find a way to read them once and merge with the factor col individually?
+        factor_df = reader.read_columns(['Date', 'Ticker', col])
+        factor_df['Date'] = pd.to_datetime(factor_df['Date'])
+        factor_df[col] = pd.to_numeric(factor_df[col], errors='coerce')
 
-        for idx, col in enumerate(factor_columns, 1):
-            factor_df = reader.read_columns(['Date', 'Ticker', col])
-            factor_df['Date'] = pd.to_datetime(factor_df['Date'])
-            factor_df[col] = pd.to_numeric(factor_df[col], errors='coerce')
+        merged = factor_df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
 
-            merged_df = factor_df.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
-            merged_df['Future Perf'] = pd.to_numeric(merged_df['Future Perf'], errors='coerce')
+        factor_results = _analyze_factor_by_date(merged, col, top_pct, bottom_pct)
+        results.extend(factor_results)
 
-            for date, group in merged_df.groupby('Date', sort=False):
-                group = group.dropna(subset=[col, 'Future Perf'])
-                if group.empty:
-                    continue
+        if progress_fn:
+            progress_fn(idx, total_factors, col)
 
-                n = len(group)
-                top_n = int(n * (top_pct / 100.0))
-                bottom_n = int(n * (bottom_pct / 100.0))
-                if top_n == 0 or bottom_n == 0:
-                    continue
-
-                group_sorted = group.sort_values(by=col, ascending=False)
-                top_sum = group_sorted['Future Perf'].iloc[:top_n].sum()
-                bottom_sum = group_sorted['Future Perf'].iloc[-bottom_n:].sum()
-                value = (top_sum - bottom_sum) / (top_n + bottom_n)
-
-                results.append({'Date': pd.to_datetime(date), 'factor': col, 'ret': value})
-
-            if progress_fn:
-                progress_fn(idx, total_factors, col)
-    else:
-        if df is None:
-            return pd.DataFrame(columns=['Date', 'factor', 'ret'])
-
-        df_local = df.copy()
-        df_local['Date'] = pd.to_datetime(df_local['Date'])
-        merged_df = df_local.merge(future_perf_df, on=['Date', 'Ticker'], how='inner')
-        merged_df['Future Perf'] = pd.to_numeric(merged_df['Future Perf'], errors='coerce')
-
-        excluded_columns = excluded_common + ['benchmark', 'Future Perf']
-        numeric_columns = merged_df.select_dtypes(include=[np.number]).columns.tolist()
-        factors = [c for c in numeric_columns if c not in excluded_columns]
-
-        total_factors = len(factors)
-        for idx, col in enumerate(factors, 1):
-            if col not in merged_df.columns:
-                continue
-
-            merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce')
-
-            for date, group in merged_df.groupby('Date', sort=False):
-                group = group.dropna(subset=[col, 'Future Perf'])
-                if group.empty:
-                    continue
-
-                n = len(group)
-                top_n = int(n * (top_pct / 100.0))
-                bottom_n = int(n * (bottom_pct / 100.0))
-                if top_n == 0 or bottom_n == 0:
-                    continue
-
-                group_sorted = group.sort_values(by=col, ascending=False)
-                top_sum = group_sorted['Future Perf'].iloc[:top_n].sum()
-                bottom_sum = group_sorted['Future Perf'].iloc[-bottom_n:].sum()
-                value = (top_sum - bottom_sum) / (top_n + bottom_n)
-
-                results.append({'Date': pd.to_datetime(date), 'factor': col, 'ret': value})
-
-            if progress_fn:
-                progress_fn(idx, total_factors, col)
-
-    if not results:
-        return pd.DataFrame(columns=['Date', 'factor', 'ret'])
     return pd.DataFrame(results)
+
+
+def _analyze_factor_by_date(
+    merged_df: pd.DataFrame,
+    factor_col: str,
+    top_pct: float,
+    bottom_pct: float
+) -> List[dict]:
+    def calc_return(group: pd.DataFrame) -> float:
+        # discard rows with missing values
+        valid = group[[factor_col, 'Future Perf']].dropna()
+        n = len(valid)
+        # calculate top and bottom n
+        top_n = int(n * (top_pct / 100.0))
+        bottom_n = int(n * (bottom_pct / 100.0))
+
+        if top_n == 0 or bottom_n == 0:
+            return np.nan
+
+        values = valid[factor_col].values
+        perf = valid['Future Perf'].values
+
+        # grab top n indices
+        top_idx = np.argpartition(values, -top_n)[-top_n:]
+        # grab bottom n indices
+        bottom_idx = np.argpartition(values, bottom_n)[:bottom_n]
+
+        # calculate return
+        return (perf[top_idx].sum() - perf[bottom_idx].sum()) / (top_n + bottom_n)
+
+
+    # group by date to compare
+    results = merged_df.groupby('Date', sort=False).apply(
+        calc_return, include_groups=False
+    )
+
+    valid_results = results.dropna()
+    return [{'Date': date, 'factor': factor_col, 'ret': val}
+            for date, val in valid_results.items()]
 
 
 def calculate_factor_metrics(
