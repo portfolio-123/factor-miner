@@ -86,7 +86,7 @@ def apply_custom_styles() -> None:
         padding: 10px 20px !important;
         font-size: 14px !important;
         font-weight: 500 !important;
-        height: 42px !important;
+        height: 40px !important;
         position: relative;
         clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
     }
@@ -136,7 +136,7 @@ def apply_custom_styles() -> None:
         padding: 10px 20px !important;
         font-size: 14px !important;
         font-weight: 500 !important;
-        height: 42px !important;
+        height: 40px !important;
     }
 
     /* ===== Loading Spinner Button ===== */
@@ -158,7 +158,7 @@ def apply_custom_styles() -> None:
         width: 100%;
         opacity: 0.8;
         cursor: not-allowed;
-        height: 42px;
+        height: 40px;
         box-sizing: border-box;
     }
 

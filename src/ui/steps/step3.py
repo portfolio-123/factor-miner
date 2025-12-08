@@ -60,12 +60,28 @@ def render() -> None:
     display_df = render_results_table(best_features, state.all_metrics, state.formulas_data)
 
     if display_df is not None and not display_df.empty:
-        col1, _, col3, col4 = st.columns([1, 1, 1, 1])
+        col1, _, col3, col4 = st.columns([1, 2, 1, 1])
 
-        # tab delimited for copy to clipboard
+        # tab delimited for copy to clipboard (without Formula)
         csv_to_copy = display_df.to_csv(index=False, sep='\t')
-        # comma delimited for file download
-        csv_to_download = display_df.to_csv(index=False)
+
+        # comma delimited for file download (with Formula in second position)
+        download_df = display_df.copy()
+        if state.formulas_data is not None and 'name' in state.formulas_data.columns:
+            formulas_lookup = state.formulas_data[['name', 'formula']].drop_duplicates(subset=['name'])
+            download_df = download_df.merge(
+                formulas_lookup,
+                left_on='Factor',
+                right_on='name',
+                how='left'
+            ).drop(columns=['name'])
+            download_df = download_df.rename(columns={'formula': 'Formula'})
+            # Reorder columns: Factor, Formula, then the rest
+            cols = download_df.columns.tolist()
+            cols.remove('Formula')
+            cols.insert(1, 'Formula')
+            download_df = download_df[cols]
+        csv_to_download = download_df.to_csv(index=False)
 
         with col1:
             if  st.button("New Analysis", type="tertiary", use_container_width=True) and state.factor_list_uid:
@@ -83,12 +99,59 @@ def render() -> None:
                 )
                 st.rerun()
         
+        # TODO: horrible way to add a copy button. search for a streamlit library or more native solution
+        csv_escaped = csv_to_copy.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
+
         with col3:
-            components.html(f"""
-                <button onclick="navigator.clipboard.writeText('{csv_to_copy}')">
-                    Copy to Clipboard
-                </button>
-            """, height=0, width=0)
+            st.button("Copy to Clipboard", key="copy_clipboard_btn", type="secondary", use_container_width=True)
+
+        components.html(f"""
+            <script>
+                const csvData = '{csv_escaped}';
+
+                function copyToClipboard(text) {{
+                    const textarea = window.parent.document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    window.parent.document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    window.parent.document.execCommand('copy');
+                    window.parent.document.body.removeChild(textarea);
+                }}
+
+                function attachCopyHandler() {{
+                    const buttons = window.parent.document.querySelectorAll('button');
+                    for (const btn of buttons) {{
+                        const text = btn.textContent.trim();
+                        if (text === 'Copy to Clipboard') {{
+                            if (btn._copyHandlerAttached) return;
+                            btn._copyHandlerAttached = true;
+
+                            btn.addEventListener('click', function(e) {{
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                copyToClipboard(csvData);
+
+                                // Find the text element inside the button and change it
+                                const textEl = btn.querySelector('p') || btn;
+                                textEl.textContent = 'Copied!';
+                                setTimeout(() => {{
+                                    textEl.textContent = 'Copy to Clipboard';
+                                }}, 1000);
+                            }});
+                            break;
+                        }}
+                    }}
+                }}
+
+                attachCopyHandler();
+                const observer = new MutationObserver(attachCopyHandler);
+                observer.observe(window.parent.document.body, {{ childList: true, subtree: true }});
+            </script>
+        """, height=0)
 
         with col4:
             st.download_button(
