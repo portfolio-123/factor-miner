@@ -11,16 +11,19 @@ from src.ui.components import section_header
 from src.core.constants import DEFAULT_BENCHMARK
 
 
+def _apply_saved_settings() -> None:
+    """Callback to apply saved API credentials. Runs before rerender."""
+    saved = load_saved_settings()
+    for key in ('api_key', 'api_id'):
+        if saved.get(key) is not None:
+            st.session_state[key] = saved[key]
+    st.session_state['step1_error'] = None
+
+
 def render() -> None:
     state = get_state()
     saved = load_saved_settings()
     has_saved = bool(saved.get('api_key') or saved.get('api_id'))
-
-    if st.session_state.pop('_apply_saved_settings', False):
-        for key in ('api_key', 'api_id'):
-            if saved.get(key) is not None:
-                st.session_state[key] = saved[key]
-        st.session_state['step1_error'] = None
 
     restore_session_defaults(state)
 
@@ -113,10 +116,7 @@ def render() -> None:
     col1, col2, col3 = st.columns([2, 1, 1])
     with col2:
         if has_saved:
-            if st.button("Use saved settings", width='stretch'):
-                # set flag to apply settings on next render (before widgets are created)
-                st.session_state['_apply_saved_settings'] = True
-                st.rerun()
+            st.button("Use saved settings", width='stretch', on_click=_apply_saved_settings)
     with col3:
         is_loading = st.session_state.get('step1_loading', False)
 

@@ -6,6 +6,7 @@ from typing import Optional
 import streamlit as st
 
 from src.core.context import get_state, update_state, add_debug_log
+from src.core.types import AnalysisParams
 from src.core.utils import get_local_storage, serialize_dataframe
 from src.core.validation import validate_inputs
 from src.services.p123_client import fetch_benchmark_data
@@ -40,9 +41,10 @@ def process_step1() -> bool:
             dataset_file = state.dataset_path
         else:
             dataset_path = st.session_state.get('dataset_path', '').strip()
-            dataset_file = Path(dataset_path)
-            if not dataset_file.is_absolute():
-                dataset_file = dataset_file.resolve()
+            path = Path(dataset_path)
+            if not path.is_absolute():
+                path = path.resolve()
+            dataset_file = str(path)
 
         add_debug_log(f"Dataset file: {dataset_file}")
     
@@ -125,15 +127,15 @@ def start_step2_analysis() -> str:
     job_id = state.factor_list_uid or uuid.uuid4().hex
 
     try:
-        params = {
-            'top_pct': state.top_x_pct,
-            'bottom_pct': state.bottom_x_pct,
-            'min_alpha': state.min_alpha,
-            'benchmark_data': serialize_dataframe(state.benchmark_data),
-            'benchmark_ticker': state.benchmark_ticker,
-            'dataset_path': str(state.dataset_path) if state.dataset_path else None,
-        }
-        start_analysis_job(job_id, params)
+        params = AnalysisParams(
+            top_pct=state.top_x_pct,
+            bottom_pct=state.bottom_x_pct,
+            min_alpha=state.min_alpha,
+            benchmark_data=serialize_dataframe(state.benchmark_data),
+            benchmark_ticker=state.benchmark_ticker,
+            dataset_path=state.dataset_path,
+        )
+        start_analysis_job(job_id, params.model_dump())
         update_state(current_job_id=job_id)
         return job_id, None
     except Exception as e:

@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from pathlib import Path
 from typing import Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -25,7 +24,7 @@ class AppState:
     api_id: Optional[str] = None
     api_key: Optional[str] = None
 
-    dataset_path: Optional[Path] = None
+    dataset_path: Optional[str] = None
     formulas_data: Optional[pd.DataFrame] = None
     # original user-entered paths (for form restoration when going back to step 1)
     dataset_path_input: Optional[str] = None

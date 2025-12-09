@@ -1,4 +1,3 @@
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from io import StringIO
@@ -6,15 +5,6 @@ import os
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 import pandas as pd
-
-
-def get_url_params(*keys: str) -> tuple:
-    try:
-        params = st.query_params
-        return tuple(params.get(key, None) for key in keys)
-    except Exception:
-        return (None,) * len(keys)
-
 
 def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
     try:
@@ -24,7 +14,7 @@ def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
     except Exception:
         return 'N/A'
 
-def locate_factor_list_file(fl_id: str) -> Path:
+def locate_factor_list_file(fl_id: str) -> str:
     base_dir = os.getenv('FACTOR_LIST_DIR')
     if not base_dir:
         raise ValueError("FACTOR_LIST_DIR environment variable not set")
@@ -37,7 +27,7 @@ def locate_factor_list_file(fl_id: str) -> Path:
     if not path.exists():
         raise FileNotFoundError(f"Dataset file not found: {path}")
 
-    return path
+    return str(path)
 
 
 def get_local_storage():

@@ -11,6 +11,7 @@ load_dotenv()
 from src.core.constants import PRICE_COLUMN
 from src.core.constants import REQUIRED_COLUMNS
 from src.core.constants import JobStatus
+from src.core.types import AnalysisParams
 
 from src.core.utils import deserialize_dataframe, serialize_dataframe
 from src.workers.manager import read_job, update_job, append_job_log
@@ -34,17 +35,12 @@ def log(message: str) -> None:
         append_job_log(_job_id, formatted)
 
 
-def run_analysis(job_id: str, params: dict) -> dict:
+def run_analysis(job_id: str, params: AnalysisParams) -> dict:
     log("Starting analysis...")
 
-    dataset_path = params['dataset_path']  # Already resolved before job was started
+    benchmark_data = deserialize_dataframe(params.benchmark_data)
 
-    top_pct = params['top_pct']
-    bottom_pct = params['bottom_pct']
-
-    benchmark_data = deserialize_dataframe(params['benchmark_data'])
-
-    log(f"Processing dataset: {dataset_path}")
+    log(f"Processing dataset: {params.dataset_path}")
 
     # Progress callback to update job file
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
@@ -55,9 +51,9 @@ def run_analysis(job_id: str, params: dict) -> dict:
             "current_factor": current_factor
         })
 
-    reader = ParquetDataReader(dataset_path)
+    reader = ParquetDataReader(params.dataset_path)
 
-    columns = reader.get_column_names()
+    columns = reader._parquet_file.schema_arrow.names
     excluded_columns = REQUIRED_COLUMNS + ['benchmark', 'Future Perf']
     factor_columns = [col for col in columns if col not in excluded_columns]
 
@@ -77,8 +73,8 @@ def run_analysis(job_id: str, params: dict) -> dict:
         future_perf_df,
         reader,
         factor_columns=factor_columns,
-        top_pct=top_pct,
-        bottom_pct=bottom_pct,
+        top_pct=params.top_pct,
+        bottom_pct=params.bottom_pct,
         progress_fn=on_progress
     )
     raw_data = reader.read_columns(['Date'])
@@ -118,7 +114,7 @@ def main():
         update_job(_job_id, status=JobStatus.RUNNING)
         log("Status updated to running")
 
-        params = job_data['params']
+        params = AnalysisParams(**job_data['params'])
         results = run_analysis(_job_id, params)
 
         update_job(_job_id, status=JobStatus.COMPLETED, results=results)

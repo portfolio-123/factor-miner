@@ -12,16 +12,14 @@ from src.ui.components import (
 from src.services.readers import ParquetDataReader
 from src.services.processing import start_step2_analysis, process_step2_completion, _merge_worker_logs
 from src.workers.manager import read_job, delete_job
-from src.core.constants import JobStatus
 
 
 def _on_run_analysis() -> None:
+    """Callback for Run Analysis button. Streamlit handles rerun automatically."""
     st.session_state['step2_error'] = None
     _, error = start_step2_analysis()
     if error:
         st.session_state['step2_error'] = error
-    else:
-        st.rerun()
 
 
 def _on_job_completed(job_data: dict) -> None:
@@ -82,8 +80,7 @@ def _render_review_content() -> None:
 
     _, _, col3 = st.columns([2, 1, 1])
     with col3:
-        if st.button("Run Analysis", type="primary", use_container_width=True):
-            _on_run_analysis()
+        st.button("Run Analysis", type="primary", use_container_width=True, on_click=_on_run_analysis)
 
 def render() -> None:
     state = get_state()
@@ -99,22 +96,13 @@ def render() -> None:
             _render_review_content()
         return
 
+    # Quick check if job exists (handles edge case of deleted job)
     job_data = read_job(job_id)
-
     if job_data is None:
         update_state(current_job_id=None)
         st.rerun()
 
-    status = job_data['status']
-
-    if status == JobStatus.COMPLETED:
-        _on_job_completed(job_data)
-
-    elif status == JobStatus.ERROR:
-        _on_job_error(job_id, job_data)
-
-    else:
-        # job running - clear review content and show only progress UI
-        content_placeholder.empty()
-        with progress_placeholder.container():
-            render_job_progress(job_data)
+    # Job running - fragment handles status checking, callbacks, and auto-polling
+    content_placeholder.empty()
+    with progress_placeholder.container():
+        render_job_progress(job_id, _on_job_completed, _on_job_error)

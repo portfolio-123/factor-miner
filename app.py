@@ -4,10 +4,10 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from src.core.context import get_state, update_state, add_debug_log
-from src.core.utils import get_url_params, locate_factor_list_file
+from src.core.utils import locate_factor_list_file
 from src.core.job_restore import restore_job_state
 from src.ui.components import header_with_navigation
-from src.ui.steps import render_step1, render_step2, render_step3
+from src.ui.steps import render_step
 from src.ui.styles import apply_custom_styles
 
 load_dotenv()
@@ -31,7 +31,7 @@ def initialize_app() -> None:
     if is_internal_app:
         add_debug_log("Running in internal app mode")
 
-        fl_id = get_url_params('fl_id')
+        fl_id = st.query_params.get('fl_id', None)
 
         if fl_id:
             add_debug_log(f"Factor list ID from URL: {fl_id}")
@@ -40,7 +40,7 @@ def initialize_app() -> None:
             try:
                 dataset_path = locate_factor_list_file(fl_id)
                 update_state(dataset_path=dataset_path)
-                restore_job_state(fl_id, dataset_path)
+                restore_job_state(fl_id)
             except (ValueError, FileNotFoundError) as e:
                 add_debug_log(f"File verification failed: {e}")
     else:
@@ -59,25 +59,9 @@ def main() -> None:
 
     state = get_state()
 
-    selected_step = header_with_navigation()
+    header_with_navigation()
 
-    if selected_step != state.current_step:
-        available_steps = [1]
-        if 1 in state.completed_steps:
-            available_steps.append(2)
-        if 2 in state.completed_steps:
-            available_steps.append(3)
-
-        if selected_step in available_steps:
-            update_state(current_step=selected_step)
-            st.rerun()
-
-    if state.current_step == 1:
-        render_step1()
-    elif state.current_step == 2:
-        render_step2()
-    elif state.current_step == 3:
-        render_step3()
+    render_step(state.current_step)
 
 
 if __name__ == "__main__":

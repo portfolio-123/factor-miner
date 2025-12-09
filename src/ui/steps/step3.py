@@ -7,7 +7,8 @@ from src.core.calculations import select_best_features
 from src.workers.manager import delete_job
 
 
-def render() -> None:
+@st.fragment
+def _render_filter_and_results() -> None:
     state = get_state()
 
     section_header("Filter Parameters")
@@ -59,108 +60,116 @@ def render() -> None:
 
     display_df = render_results_table(best_features, state.all_metrics, state.formulas_data)
 
-    if display_df is not None and not display_df.empty:
-        col1, _, col3, col4 = st.columns([1, 2, 1, 1])
+    _render_action_buttons(state, display_df)
 
-        # tab delimited for copy to clipboard (without Formula)
-        csv_to_copy = display_df.to_csv(index=False, sep='\t')
 
-        # comma delimited for file download (with Formula in second position)
-        download_df = display_df.copy()
-        if state.formulas_data is not None and 'name' in state.formulas_data.columns:
-            formulas_lookup = state.formulas_data[['name', 'formula']].drop_duplicates(subset=['name'])
-            download_df = download_df.merge(
-                formulas_lookup,
-                left_on='Factor',
-                right_on='name',
-                how='left'
-            ).drop(columns=['name'])
-            download_df = download_df.rename(columns={'formula': 'Formula'})
-            # Reorder columns: Factor, Formula, then the rest
-            cols = download_df.columns.tolist()
-            cols.remove('Formula')
-            cols.insert(1, 'Formula')
-            download_df = download_df[cols]
-        csv_to_download = download_df.to_csv(index=False)
+def _render_action_buttons(state, display_df) -> None:
+    if display_df is None or display_df.empty:
+        return
 
-        with col1:
-            if  st.button("New Analysis", type="tertiary", use_container_width=True) and state.factor_list_uid:
-                delete_job(state.factor_list_uid)
-                add_debug_log(f"Deleted job {state.factor_list_uid} for new analysis")
+    col1, _, col3, col4 = st.columns([1, 2, 1, 1])
 
-                # Reset state to step 1
-                state.completed_steps.clear()
-                state.completed_steps.add(1)
-                update_state(
-                    current_step=1,
-                    current_job_id=None,
-                    all_metrics=None,
-                    all_corr_matrix=None,
-                )
-                st.rerun()
-        
-        # TODO: horrible way to add a copy button. search for a streamlit library or more native solution
-        csv_escaped = csv_to_copy.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
+    # tab delimited for copy to clipboard (without Formula)
+    csv_to_copy = display_df.to_csv(index=False, sep='\t')
 
-        with col3:
-            st.button("Copy to Clipboard", key="copy_clipboard_btn", type="secondary", use_container_width=True)
+    # comma delimited for file download (with Formula in second position)
+    download_df = display_df.copy()
+    if state.formulas_data is not None and 'name' in state.formulas_data.columns:
+        formulas_lookup = state.formulas_data[['name', 'formula']].drop_duplicates(subset=['name'])
+        download_df = download_df.merge(
+            formulas_lookup,
+            left_on='Factor',
+            right_on='name',
+            how='left'
+        ).drop(columns=['name'])
+        download_df = download_df.rename(columns={'formula': 'Formula'})
+        # Reorder columns: Factor, Formula, then the rest
+        cols = download_df.columns.tolist()
+        cols.remove('Formula')
+        cols.insert(1, 'Formula')
+        download_df = download_df[cols]
+    csv_to_download = download_df.to_csv(index=False)
 
-        components.html(f"""
-            <script>
-                const csvData = '{csv_escaped}';
+    with col1:
+        if st.button("New Analysis", type="tertiary", use_container_width=True) and state.factor_list_uid:
+            delete_job(state.factor_list_uid)
+            add_debug_log(f"Deleted job {state.factor_list_uid} for new analysis")
 
-                function copyToClipboard(text) {{
-                    const textarea = window.parent.document.createElement('textarea');
-                    textarea.value = text;
-                    textarea.style.position = 'fixed';
-                    textarea.style.opacity = '0';
-                    window.parent.document.body.appendChild(textarea);
-                    textarea.focus();
-                    textarea.select();
-                    window.parent.document.execCommand('copy');
-                    window.parent.document.body.removeChild(textarea);
-                }}
+            # Reset state to step 1
+            state.completed_steps.clear()
+            state.completed_steps.add(1)
+            update_state(
+                current_step=1,
+                current_job_id=None,
+                all_metrics=None,
+                all_corr_matrix=None,
+            )
+            st.rerun()
 
-                function attachCopyHandler() {{
-                    const buttons = window.parent.document.querySelectorAll('button');
-                    for (const btn of buttons) {{
-                        const text = btn.textContent.trim();
-                        if (text === 'Copy to Clipboard') {{
-                            if (btn._copyHandlerAttached) return;
-                            btn._copyHandlerAttached = true;
+    # TODO: horrible way to add a copy button. search for a streamlit library or more native solution
+    csv_escaped = csv_to_copy.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
 
-                            btn.addEventListener('click', function(e) {{
-                                e.preventDefault();
-                                e.stopPropagation();
+    with col3:
+        st.button("Copy to Clipboard", key="copy_clipboard_btn", type="secondary", use_container_width=True)
 
-                                copyToClipboard(csvData);
+    components.html(f"""
+        <script>
+            const csvData = '{csv_escaped}';
 
-                                // Find the text element inside the button and change it
-                                const textEl = btn.querySelector('p') || btn;
-                                textEl.textContent = 'Copied!';
-                                setTimeout(() => {{
-                                    textEl.textContent = 'Copy to Clipboard';
-                                }}, 1000);
-                            }});
-                            break;
-                        }}
+            function copyToClipboard(text) {{
+                const textarea = window.parent.document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                window.parent.document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                window.parent.document.execCommand('copy');
+                window.parent.document.body.removeChild(textarea);
+            }}
+
+            function attachCopyHandler() {{
+                const buttons = window.parent.document.querySelectorAll('button');
+                for (const btn of buttons) {{
+                    const text = btn.textContent.trim();
+                    if (text === 'Copy to Clipboard') {{
+                        if (btn._copyHandlerAttached) return;
+                        btn._copyHandlerAttached = true;
+
+                        btn.addEventListener('click', function(e) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            copyToClipboard(csvData);
+
+                            // Find the text element inside the button and change it
+                            const textEl = btn.querySelector('p') || btn;
+                            textEl.textContent = 'Copied!';
+                            setTimeout(() => {{
+                                textEl.textContent = 'Copy to Clipboard';
+                            }}, 1000);
+                        }});
+                        break;
                     }}
                 }}
+            }}
 
-                attachCopyHandler();
-                const observer = new MutationObserver(attachCopyHandler);
-                observer.observe(window.parent.document.body, {{ childList: true, subtree: true }});
-            </script>
-        """, height=0)
+            attachCopyHandler();
+            const observer = new MutationObserver(attachCopyHandler);
+            observer.observe(window.parent.document.body, {{ childList: true, subtree: true }});
+        </script>
+    """, height=0)
 
-        with col4:
-            st.download_button(
-                type="primary",
-                label="Download CSV",
-                data=csv_to_download,
-                file_name=f"{state.factor_list_uid}_best_features.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        
-       
+    with col4:
+        st.download_button(
+            type="primary",
+            label="Download CSV",
+            data=csv_to_download,
+            file_name=f"{state.factor_list_uid}_best_features.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+
+def render() -> None:
+    _render_filter_and_results()

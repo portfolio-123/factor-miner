@@ -1,11 +1,16 @@
 import streamlit as st
 import pandas as pd
-import time
-from typing import Optional
+from typing import Optional, Callable
 import re
-from src.core.context import get_state, clear_debug_logs
+from src.core.context import get_state, update_state, clear_debug_logs
+from src.workers.manager import read_job
+from src.core.constants import JobStatus
 
-def header_with_navigation() -> int:
+def _navigate_to(step: int) -> None:
+    update_state(current_step=step)
+
+
+def header_with_navigation() -> None:
     state = get_state()
 
     steps = [
@@ -13,8 +18,6 @@ def header_with_navigation() -> int:
         (2, "Review"),
         (3, "Results")
     ]
-
-    selected_step = state.current_step
 
     # Create header row: brand on left, breadcrumb in middle, logs button on right
     col_brand, col_nav, col_logs = st.columns([2.5, 4, 0.8])
@@ -37,10 +40,15 @@ def header_with_navigation() -> int:
 
             with btn_cols[i]:
                 btn_type = "primary" if is_current else "secondary"
-                if st.button(step_name, key=f"step_btn_{step_num}", type=btn_type,
-                           disabled=not is_available, width='stretch'):
-                    if is_available:
-                        selected_step = step_num
+                st.button(
+                    step_name,
+                    key=f"step_btn_{step_num}",
+                    type=btn_type,
+                    disabled=not is_available,
+                    width='stretch',
+                    on_click=_navigate_to if is_available else None,
+                    args=(step_num,) if is_available else None
+                )
 
     with col_logs:
         if st.button("Logs", key="debug_btn", width='stretch'):
@@ -49,41 +57,43 @@ def header_with_navigation() -> int:
     if st.session_state.get('show_debug_modal', False):
         _show_debug_modal()
 
-    return selected_step
-
 
 @st.dialog("Debug Logs", width="large")
 def _show_debug_modal():
     # reset flag immediately - dialog is already open, so dismissing it won't retrigger
     st.session_state.show_debug_modal = False
-    state = get_state()
 
-    if state.debug_logs:
-        log_lines = []
-        for log in state.debug_logs[-100:]:
-            # color the timestamp in blue
-            formatted = re.sub(
-                r'(\[.*?\])',
-                r'<span style="color: #2196F3;">\1</span>',
-                log
+    @st.fragment
+    def _logs_content():
+        state = get_state()
+
+        if state.debug_logs:
+            log_lines = []
+            for log in state.debug_logs[-100:]:
+                # color the timestamp in blue
+                formatted = re.sub(
+                    r'(\[.*?\])',
+                    r'<span style="color: #2196F3;">\1</span>',
+                    log
+                )
+                log_lines.append(formatted)
+            log_html = "<br>".join(log_lines)
+            st.markdown(
+                f'<div style="font-family: monospace; font-size: 13px; '
+                f'background: #f5f5f5; color: #333; padding: 12px; '
+                f'border-radius: 4px; max-height: 400px; overflow-y: auto; '
+                f'margin-bottom: 16px;">'
+                f'{log_html}</div>',
+                unsafe_allow_html=True
             )
-            log_lines.append(formatted)
-        log_html = "<br>".join(log_lines)
-        st.markdown(
-            f'<div style="font-family: monospace; font-size: 13px; '
-            f'background: #f5f5f5; color: #333; padding: 12px; '
-            f'border-radius: 4px; max-height: 400px; overflow-y: auto; '
-            f'margin-bottom: 16px;">'
-            f'{log_html}</div>',
-            unsafe_allow_html=True
-        )
 
-    _, col1 = st.columns([6,1])
-    with col1:
-        if st.button("Clear Logs", key="modal_clear_logs", width='stretch', type="primary"):
-            clear_debug_logs()
-            st.session_state.show_debug_modal = True  # Keep dialog open
-            st.rerun()
+        _, col1 = st.columns([6,1])
+        with col1:
+            if st.button("Clear Logs", key="modal_clear_logs", width='stretch', type="primary"):
+                clear_debug_logs()
+                st.rerun()
+
+    _logs_content()
 
 
 def section_header(title: str) -> None:
@@ -96,7 +106,23 @@ def section_header(title: str) -> None:
     """, unsafe_allow_html=True)
 
 
-def render_job_progress(job_data: dict) -> None:
+@st.fragment(run_every="0.5s")
+def render_job_progress(job_id: str, on_complete: Callable, on_error: Callable) -> None:
+    job_data = read_job(job_id)
+
+    if job_data is None:
+        return
+
+    status = job_data.get('status')
+
+    if status == JobStatus.COMPLETED:
+        on_complete(job_data)
+        return
+
+    if status == JobStatus.ERROR:
+        on_error(job_id, job_data)
+        return
+
     progress = job_data.get('progress', {})
     completed = progress.get('completed', 0)
     total = progress.get('total', 0)
@@ -117,10 +143,6 @@ def render_job_progress(job_data: dict) -> None:
             st.info(f"Analyzing: **{current_factor}**")
         else:
             st.info("Starting worker process...")
-
-    # show updates every .5 seconds
-    time.sleep(0.5)
-    st.rerun()
 
 
 def render_dataset_statistics(stats: dict, benchmark: str) -> None:
