@@ -63,19 +63,11 @@ def _render_filter_and_results() -> None:
     _render_action_buttons(state, display_df)
 
 
-def _render_action_buttons(state, display_df) -> None:
-    if display_df is None or display_df.empty:
-        return
-
-    col1, _, col3, col4 = st.columns([1, 2, 1, 1])
-
-    # tab delimited for copy to clipboard (without Formula)
-    csv_to_copy = display_df.to_csv(index=False, sep='\t')
-
-    # comma delimited for file download (with Formula in second position)
+def _prepare_download_csv(display_df, formulas_data):
     download_df = display_df.copy()
-    if state.formulas_data is not None and 'name' in state.formulas_data.columns:
-        formulas_lookup = state.formulas_data[['name', 'formula']].drop_duplicates(subset=['name'])
+
+    if formulas_data is not None and 'name' in formulas_data.columns:
+        formulas_lookup = formulas_data[['name', 'formula']].drop_duplicates(subset=['name'])
         download_df = download_df.merge(
             formulas_lookup,
             left_on='Factor',
@@ -88,7 +80,21 @@ def _render_action_buttons(state, display_df) -> None:
         cols.remove('Formula')
         cols.insert(1, 'Formula')
         download_df = download_df[cols]
-    csv_to_download = download_df.to_csv(index=False)
+
+    return download_df.to_csv(index=False)
+
+
+def _render_action_buttons(state, display_df) -> None:
+    if display_df is None or display_df.empty:
+        return
+
+    col1, _, col3, col4 = st.columns([1, 2, 1, 1])
+
+    # tab delimited for copy to clipboard (without Formula)
+    csv_to_copy = display_df.to_csv(index=False, sep='\t')
+
+    # comma delimited for file download (with Formula in second position)
+    csv_to_download = _prepare_download_csv(display_df, state.formulas_data)
 
     with col1:
         if st.button("New Analysis", type="tertiary", use_container_width=True) and state.factor_list_uid:

@@ -19,6 +19,8 @@ st.set_page_config(
 )
 
 def initialize_app() -> None:
+    apply_custom_styles()
+
     if 'initialized' in st.session_state:
         return
 
@@ -53,7 +55,6 @@ def initialize_app() -> None:
 
 
 def main() -> None:
-    apply_custom_styles()
 
     initialize_app()
 
