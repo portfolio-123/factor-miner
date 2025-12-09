@@ -86,14 +86,9 @@ def render() -> None:
     state = get_state()
     job_id = state.current_job_id
 
-    content_placeholder = st.empty()
-    progress_placeholder = st.empty()
-
-    # No active job - show review content
+    # No active job - show review content directly (no placeholders)
     if not job_id:
-        progress_placeholder.empty()
-        with content_placeholder.container():
-            _render_review_content()
+        _render_review_content()
         return
 
     # Quick check if job exists (handles edge case of deleted job)
@@ -103,6 +98,4 @@ def render() -> None:
         st.rerun()
 
     # Job running - fragment handles status checking, callbacks, and auto-polling
-    content_placeholder.empty()
-    with progress_placeholder.container():
-        render_job_progress(job_id, _on_job_completed, _on_job_error)
+    render_job_progress(job_id, _on_job_completed, _on_job_error)
