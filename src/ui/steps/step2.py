@@ -6,12 +6,12 @@ from src.core.utils import format_date
 from src.ui.components import (
     render_formulas_grid,
     render_dataset_preview,
-    render_job_progress,
     render_dataset_statistics
 )
+from src.workers.manager import read_job, delete_job
+from src.core.constants import JobStatus
 from src.services.readers import ParquetDataReader
 from src.services.processing import start_step2_analysis, process_step2_completion, _merge_worker_logs
-from src.workers.manager import read_job, delete_job
 
 
 def _on_run_analysis() -> None:
@@ -39,6 +39,45 @@ def _on_job_error(job_id: str, job_data: dict) -> None:
     delete_job(job_id)
     update_state(current_job_id=None)
     st.rerun()
+
+
+@st.fragment(run_every="0.5s")
+def _render_job_progress(job_id: str) -> None:
+    job_data = read_job(job_id)
+
+    if job_data is None:
+        return
+
+    status = job_data.get('status')
+
+    if status == JobStatus.COMPLETED:
+        _on_job_completed(job_data)
+        return
+
+    if status == JobStatus.ERROR:
+        _on_job_error(job_id, job_data)
+        return
+
+    progress = job_data.get('progress', {})
+    completed = progress.get('completed', 0)
+    total = progress.get('total', 0)
+    current_factor = progress.get('current_factor', '')
+
+    _, center_col, _ = st.columns([1, 2, 1])
+
+    with center_col:
+        st.space(100)
+        st.subheader("Running Factor Analysis")
+
+        if total > 0:
+            st.progress(completed / total, text=f"{completed} / {total} factors analyzed")
+        else:
+            st.progress(0, text="Initializing...")
+
+        if current_factor:
+            st.info(f"Analyzing: **{current_factor}**")
+        else:
+            st.info("Starting worker process...")
 
 
 def _render_review_content() -> None:
@@ -91,11 +130,9 @@ def render() -> None:
         _render_review_content()
         return
 
-    # Quick check if job exists (handles edge case of deleted job)
     job_data = read_job(job_id)
     if job_data is None:
         update_state(current_job_id=None)
         st.rerun()
 
-    # Job running - fragment handles status checking, callbacks, and auto-polling
-    render_job_progress(job_id, _on_job_completed, _on_job_error)
+    _render_job_progress(job_id)

@@ -1,10 +1,8 @@
 import streamlit as st
 import pandas as pd
-from typing import Optional, Callable
+from typing import Optional
 import re
 from src.core.context import get_state, update_state, clear_debug_logs
-from src.workers.manager import read_job
-from src.core.constants import JobStatus
 
 def _navigate_to(step: int) -> None:
     update_state(current_step=step)
@@ -104,45 +102,6 @@ def section_header(title: str) -> None:
             {title}
         </div>
     """, unsafe_allow_html=True)
-
-
-@st.fragment(run_every="0.5s")
-def render_job_progress(job_id: str, on_complete: Callable, on_error: Callable) -> None:
-    job_data = read_job(job_id)
-
-    if job_data is None:
-        return
-
-    status = job_data.get('status')
-
-    if status == JobStatus.COMPLETED:
-        on_complete(job_data)
-        return
-
-    if status == JobStatus.ERROR:
-        on_error(job_id, job_data)
-        return
-
-    progress = job_data.get('progress', {})
-    completed = progress.get('completed', 0)
-    total = progress.get('total', 0)
-    current_factor = progress.get('current_factor', '')
-
-    _, center_col, _ = st.columns([1, 2, 1])
-
-    with center_col:
-        st.space(100)
-        st.subheader("Running Factor Analysis")
-
-        if total > 0:
-            st.progress(completed / total, text=f"{completed} / {total} factors analyzed")
-        else:
-            st.progress(0, text="Initializing...")
-
-        if current_factor:
-            st.info(f"Analyzing: **{current_factor}**")
-        else:
-            st.info("Starting worker process...")
 
 
 def render_dataset_statistics(stats: dict, benchmark: str) -> None:
