@@ -1,5 +1,6 @@
 import json
-import uuid
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -124,7 +125,21 @@ def process_step1() -> bool:
 
 def start_step2_analysis() -> str:
     state = get_state()
-    job_id = state.factor_list_uid or uuid.uuid4().hex
+    
+    fl_id = state.factor_list_uid
+
+    dataset_ts = None
+    if state.dataset_path and os.path.exists(state.dataset_path):
+        try:
+            ts = os.path.getctime(state.dataset_path)
+            dataset_ts = str(int(ts))
+        except Exception:
+            pass
+            
+    job_ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # fl_id/dataset_ts/job_ts
+    job_id = f"{fl_id}/{dataset_ts}/{job_ts}"
 
     try:
         params = AnalysisParams(
@@ -170,5 +185,3 @@ def process_step2_completion(job_data: dict) -> Optional[str]:
         delete_job(state.current_job_id)
         update_state(current_job_id=None)
         return f"Error loading results: {str(e)}"
-
-

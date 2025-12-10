@@ -8,4 +8,4 @@ __pycache__
 .env.test.local
 .env.production.local
 
-data/jobs/
+data/integrations/*

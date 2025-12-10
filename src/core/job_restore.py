@@ -1,16 +1,37 @@
+import pandas as pd
+from pathlib import Path
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus
 from src.core.types import AnalysisParams
 from src.services.readers import ParquetDataReader
-from src.workers.manager import read_job
+from src.workers.manager import read_job, JOBS_DIR
+
+
+def _load_formulas(params: AnalysisParams, job_id: str) -> pd.DataFrame:
+    try:
+        job_path_rel = job_id if job_id.endswith('.json') else f"{job_id}.json"
+        job_full_path = JOBS_DIR / job_path_rel
+        
+        formulas_csv = job_full_path.parent / "formulas.csv"
+        
+        if formulas_csv.exists():
+            add_debug_log("Loading formulas from backup CSV")
+            return pd.read_csv(formulas_csv)
+        else:
+            add_debug_log(f"Formulas backup not found at {formulas_csv}")
+            
+    except Exception as e:
+        add_debug_log(f"Warning: Could not read formulas backup: {e}")
+
+    return None
 
 
 def restore_running_job(job_id: str, params: AnalysisParams) -> None:
     """Restore UI state for PENDING/RUNNING jobs (step 2)."""
     add_debug_log(f"Found running job for {job_id}, restoring step 2 state")
 
-    formulas_data = ParquetDataReader(params.dataset_path).get_formulas_from_metadata()
+    formulas_data = _load_formulas(params, job_id)
 
     state = get_state()
     state.completed_steps.add(1)
@@ -31,7 +52,7 @@ def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -
         metrics_df = deserialize_dataframe(results['all_metrics'])
         corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
 
-        formulas_data = ParquetDataReader(params.dataset_path).get_formulas_from_metadata()
+        formulas_data = _load_formulas(params, job_id)
 
         state = get_state()
         state.completed_steps.add(1)

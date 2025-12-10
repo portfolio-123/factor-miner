@@ -1,22 +1,44 @@
 import json
 import subprocess
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import pandas as pd
+from dotenv import load_dotenv
 
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus, JobProgress
+from src.services.readers import ParquetDataReader
 
-# Jobs directory: project_root/data/jobs
-# TODO: add env variable for this?
-JOBS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "jobs"
+load_dotenv()
+
+factor_list_dir_env = os.getenv('FACTOR_LIST_DIR')
+if factor_list_dir_env:
+    JOBS_DIR = Path(factor_list_dir_env) / "integrations"
+
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_job_path(job_id: str) -> Path:
-    return JOBS_DIR / f"{job_id}.json"
+    if not job_id.endswith('.json'):
+        return JOBS_DIR / f"{job_id}.json"
+    return JOBS_DIR / job_id
+
+
+def ensure_formulas_backup(job_dir: Path, dataset_path: str) -> None:
+    formulas_path = job_dir / "formulas.csv"
+    if formulas_path.exists():
+        return
+
+    try:
+        reader = ParquetDataReader(dataset_path)
+        formulas_df = reader.get_formulas_from_metadata()
+        if formulas_df is not None:
+            formulas_df.to_csv(formulas_path, index=False)
+    except Exception as e:
+        print(f"Error backing up formulas: {e}")
 
 
 def create_job(job_id: str, params: Dict[str, Any]) -> Path:
@@ -32,6 +54,12 @@ def create_job(job_id: str, params: Dict[str, Any]) -> Path:
     }
 
     job_path = _get_job_path(job_id)
+    
+    # ensure directory for the dataset version exists
+    job_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    ensure_formulas_backup(job_path.parent, params['dataset_path'])
+
     with open(job_path, 'w') as f:
         json.dump(job_data, f, indent=2)
 
@@ -105,11 +133,42 @@ def delete_job(job_id: str) -> bool:
     job_path = _get_job_path(job_id)
 
     if job_path.exists():
-        # just remove file
         job_path.unlink()
         return True
 
     return False
+
+
+def list_jobs(fl_id: str) -> List[Dict[str, Any]]:
+    fl_dir = JOBS_DIR / fl_id
+    if not fl_dir.exists():
+        return []
+    
+    jobs = []
+    for dataset_dir in fl_dir.iterdir():
+        if not dataset_dir.is_dir():
+            continue
+            
+        dataset_version = dataset_dir.name
+        
+        for job_file in dataset_dir.glob("*.json"):
+            try:
+                with open(job_file, 'r') as f:
+                    job_data = json.load(f)
+                
+                jobs.append({
+                    "id": job_data.get("id"),
+                    "created_at": job_data.get("created_at"),
+                    "status": job_data.get("status"),
+                    "dataset_version": dataset_version,
+                    "params": job_data.get("params"),
+                })
+            except Exception:
+                continue
+    
+    # sort by creation. newest first
+    jobs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return jobs
 
 
 def start_analysis_job(job_id: str, params: Dict[str, Any]) -> str:
@@ -134,5 +193,3 @@ def get_job_results(job_data: Dict[str, Any]) -> tuple[pd.DataFrame, pd.DataFram
     metrics_df = deserialize_dataframe(results['all_metrics'])
     corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
     return metrics_df, corr_matrix
-
-

@@ -12,13 +12,14 @@ def header_with_navigation() -> None:
     state = get_state()
 
     steps = [
+        (0, "History"),
         (1, "Settings"),
         (2, "Review"),
         (3, "Results")
     ]
 
     # Create header row: brand on left, breadcrumb in middle, logs button on right
-    col_brand, col_nav, col_logs = st.columns([2.5, 4, 0.8])
+    col_brand, col_nav, col_logs = st.columns([2.5, 4.5, 0.8])
 
     with col_brand:
         st.markdown("""
@@ -30,11 +31,19 @@ def header_with_navigation() -> None:
 
     # Build arrow breadcrumb navigation with clickable buttons
     with col_nav:
-        btn_cols = st.columns([1, 1, 1])
+        btn_cols = st.columns([1, 1, 1, 1])
 
         for i, (step_num, step_name) in enumerate(steps):
             is_current = step_num == state.current_step
-            is_available = step_num == 1 or (step_num - 1) in state.completed_steps
+            
+            is_available = True
+            if step_num == 0:
+                is_available = bool(state.factor_list_uid)
+            elif step_num > 1:
+                is_available = (step_num - 1) in state.completed_steps
+            
+            if step_num == 1:
+                is_available = True
 
             with btn_cols[i]:
                 btn_type = "primary" if is_current else "secondary"
