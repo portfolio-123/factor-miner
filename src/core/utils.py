@@ -1,10 +1,20 @@
 from pathlib import Path
 from typing import Any
 from io import StringIO
+from datetime import datetime
 import os
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 import pandas as pd
+
+
+def format_timestamp(ts_str: str) -> str:
+    try:
+        ts = float(ts_str)
+        return datetime.fromtimestamp(ts).strftime("%b %d, %Y at %I:%M %p")
+    except (ValueError, TypeError):
+        return f"Version: {ts_str}"
+
 
 def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
     try:

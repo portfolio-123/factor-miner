@@ -176,5 +176,120 @@ def apply_custom_styles() -> None:
         overflow-y: auto;
     }
 
+    /* ===== Step 0 / History Page Styles ===== */
+    div[data-testid="stVerticalBlockBorderWrapper"] > div {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    /* Reduce divider margins */
+    div[data-testid="stElementContainer"]:has(hr) {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+    hr {
+        margin: 0.25rem 0 0.5rem 0 !important;
+    }
+
+    /* Job card link styling */
+    a.job-card-link {
+        display: block !important;
+        text-decoration: none !important;
+        color: inherit !important;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        transition: all 0.2s ease;
+        background-color: white;
+    }
+    a.job-card-link:hover {
+        border-color: #2196F3 !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+        text-decoration: none !important;
+        color: inherit !important;
+    }
+    /* Ensure content inside link inherits color */
+    a.job-card-link * {
+        color: inherit;
+    }
+
+    /* ===== Dataset Info Styles ===== */
+    .dataset-info-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 24px;
+        margin-bottom: 12px;
+    }
+    .dataset-info-group {
+        display: flex;
+        gap: 24px;
+    }
+    .dataset-info-divider {
+        width: 1px;
+        background: #dee2e6;
+        align-self: stretch;
+        margin: 0 8px;
+    }
+    .dataset-info-item .label {
+        font-size: 11px;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+    .dataset-info-item .value {
+        font-size: 14px;
+        font-weight: 500;
+        color: #212529;
+    }
+    .dataset-info-item .value.muted {
+        color: #6c757d;
+    }
+
+    /* ===== Job Card Content Styles ===== */
+    .job-card-content {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        padding: 12px 16px;
+    }
+    .job-card-date {
+        font-size: 14px;
+        font-weight: 600;
+        color: #212529;
+        white-space: nowrap;
+    }
+    .job-card-params {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        flex: 1;
+    }
+    .job-card-param {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .job-card-param .label {
+        font-size: 11px;
+        color: #64748b;
+        text-transform: uppercase;
+    }
+    .job-card-param .value {
+        font-size: 13px;
+        font-weight: 500;
+        color: #333;
+    }
+    .job-card-status {
+        padding: 3px 9px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: capitalize;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+    }
+
 </style>
     """, unsafe_allow_html=True)
