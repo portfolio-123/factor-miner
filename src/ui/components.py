@@ -11,55 +11,64 @@ def _navigate_to(step: int) -> None:
 def header_with_navigation() -> None:
     state = get_state()
 
-    steps = [
-        (0, "History"),
-        (1, "Settings"),
-        (2, "Review"),
-        (3, "Results")
-    ]
+    
+    if state.page == "history":
 
-    # Create header row: brand on left, breadcrumb in middle, logs button on right
-    col_brand, col_nav, col_logs = st.columns([2.5, 4.5, 0.8])
+        col_brand, col_nav, col_logs = st.columns([2.5, 4.5, 0.8])
+        with col_brand:
+            st.markdown("""
+                <div style="padding: 5px 0; display: flex; flex-direction: column;">
+                    <span style="font-size: 24px; font-weight: 700; color: #333;">Portfolio123</span>
+                    <span style="font-size: 16px; font-weight: 400; color: #666;">Factor Evaluator</span>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col_logs:
+            if st.button("Logs", key="debug_btn", width='stretch'):
+                st.session_state.show_debug_modal = True
 
-    with col_brand:
-        st.markdown("""
-            <div style="padding: 5px 0; display: flex; flex-direction: column;">
-                <span style="font-size: 24px; font-weight: 700; color: #333;">Portfolio123</span>
-                <span style="font-size: 16px; font-weight: 400; color: #666;">Factor Evaluator</span>
-            </div>
-        """, unsafe_allow_html=True)
+    else:
+        col_brand, col_nav, col_logs = st.columns([2.5, 4.5, 0.8])
+        
+        with col_brand:
+            if st.button("Back", type="secondary"):
+                update_state(page="history", current_job_id=None)
+                st.rerun()
 
-    # Build arrow breadcrumb navigation with clickable buttons
-    with col_nav:
-        btn_cols = st.columns([1, 1, 1, 1])
+        with col_nav:
+            btn_cols = st.columns([1, 1, 1])
 
-        for i, (step_num, step_name) in enumerate(steps):
-            is_current = step_num == state.current_step
-            
-            is_available = True
-            if step_num == 0:
-                is_available = bool(state.factor_list_uid)
-            elif step_num > 1:
-                is_available = (step_num - 1) in state.completed_steps
-            
-            if step_num == 1:
+            nav_steps = [
+                (1, "Settings"),
+                (2, "Review"),
+                (3, "Results")
+            ]
+
+            for i, (step_num, step_name) in enumerate(nav_steps):
+                is_current = step_num == state.current_step
                 is_available = True
+                
+                if step_num > 1:
+                    is_available = (step_num - 1) in state.completed_steps
+                
+                if step_num == 1:
+                    is_available = True
 
-            with btn_cols[i]:
-                btn_type = "primary" if is_current else "secondary"
-                st.button(
-                    step_name,
-                    key=f"step_btn_{step_num}",
-                    type=btn_type,
-                    disabled=not is_available,
-                    width='stretch',
-                    on_click=_navigate_to if is_available else None,
-                    args=(step_num,) if is_available else None
-                )
+                with btn_cols[i]:
+                    btn_type = "primary" if is_current else "secondary"
+                    st.button(
+                        step_name,
+                        key=f"step_btn_{step_num}",
+                        type=btn_type,
+                        disabled=not is_available,
+                        width='stretch',
+                        on_click=_navigate_to if is_available else None,
+                        args=(step_num,) if is_available else None
+                    )
 
-    with col_logs:
-        if st.button("Logs", key="debug_btn", width='stretch'):
-            st.session_state.show_debug_modal = True
+        with col_logs:
+            if st.button("Logs", key="debug_btn_analysis", width='stretch'):
+                st.session_state.show_debug_modal = True
 
     if st.session_state.get('show_debug_modal', False):
         _show_debug_modal()

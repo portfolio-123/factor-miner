@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from dotenv import load_dotenv
 
 from src.core.utils import deserialize_dataframe
@@ -27,18 +29,49 @@ def _get_job_path(job_id: str) -> Path:
     return JOBS_DIR / job_id
 
 
-def ensure_formulas_backup(job_dir: Path, dataset_path: str) -> None:
-    formulas_path = job_dir / "formulas.csv"
-    if formulas_path.exists():
+def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
+    metadata_path = job_dir / "dataset_metadata.parquet"
+
+    if metadata_path.exists():
         return
 
     try:
         reader = ParquetDataReader(dataset_path)
         formulas_df = reader.get_formulas_from_metadata()
-        if formulas_df is not None:
-            formulas_df.to_csv(formulas_path, index=False)
+        dataset_info = reader.get_dataset_info()
+        
+        # If we have neither, nothing to save
+        if formulas_df is None and dataset_info is None:
+            return
+
+        # If formulas_df is None but we have metadata, create empty DF
+        if formulas_df is None:
+            formulas_df = pd.DataFrame(columns=['formula', 'name', 'tag', 'Normalization'])
+
+        table = pa.Table.from_pandas(formulas_df)
+        
+        if dataset_info:
+            existing_meta = table.schema.metadata
+            new_meta = existing_meta.copy() if existing_meta else {}
+            new_meta[b'dataset'] = json.dumps(dataset_info).encode('utf-8')
+            table = table.replace_schema_metadata(new_meta)
+            
+        pq.write_table(table, metadata_path)
+
     except Exception as e:
-        print(f"Error backing up formulas: {e}")
+        print(f"Error backing up dataset artifacts: {e}")
+
+
+def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[Dict[str, Any]]:
+    path = JOBS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
+    if path.exists():
+        try:
+            metadata = pq.read_schema(path).metadata
+            if metadata and b'dataset' in metadata:
+                return json.loads(metadata[b'dataset'].decode('utf-8'))
+        except:
+            return None
+    return None
 
 
 def create_job(job_id: str, params: Dict[str, Any]) -> Path:
@@ -58,7 +91,7 @@ def create_job(job_id: str, params: Dict[str, Any]) -> Path:
     # ensure directory for the dataset version exists
     job_path.parent.mkdir(parents=True, exist_ok=True)
     
-    ensure_formulas_backup(job_path.parent, params['dataset_path'])
+    ensure_dataset_metadata(job_path.parent, params['dataset_path'])
 
     with open(job_path, 'w') as f:
         json.dump(job_data, f, indent=2)

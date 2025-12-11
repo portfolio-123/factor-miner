@@ -11,6 +11,7 @@ from typing import Set, Optional
 @dataclass
 class AppState:
     """Central state management for the application."""
+    page: str = "history"
     current_step: int = 1
     completed_steps: Set[int] = field(default_factory=set)
 
@@ -55,9 +56,28 @@ def get_state() -> AppState:
 
 def update_state(**kwargs) -> None:
     state = get_state()
+
     for key, value in kwargs.items():
         if hasattr(state, key):
             setattr(state, key, value)
+    
+    # preserve fl_id if it exists in state
+    if state.factor_list_uid:
+        st.query_params["fl_id"] = state.factor_list_uid
+
+    # determine if this call explicitly navigated to history
+    explicit_history_nav = ("page" in kwargs) and (kwargs["page"] == "history")
+
+    if state.page == "analysis":
+        if state.current_job_id:
+            st.query_params["job_id"] = state.current_job_id
+        if state.current_step is not None:
+            st.query_params["step"] = str(state.current_step)
+
+    # clear analysis params when explicitly navigating to history.
+    if explicit_history_nav:
+        st.query_params.pop("job_id", None)
+        st.query_params.pop("step", None)
 
 
 def add_debug_log(message: str, without_timestamp: bool = False) -> None:

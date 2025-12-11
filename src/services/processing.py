@@ -13,7 +13,7 @@ from src.core.validation import validate_inputs
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import get_dataset_date_range
 from src.core.constants import DEFAULT_BENCHMARK
-from src.workers.manager import start_analysis_job, get_job_results, delete_job, read_job
+from src.workers.manager import start_analysis_job, get_job_results, delete_job
 from src.services.readers import ParquetDataReader
 
 
@@ -178,7 +178,6 @@ def process_step2_completion(job_data: dict) -> Optional[str]:
             all_metrics=metrics_df,
             all_corr_matrix=corr_matrix,
             current_step=3,
-            current_job_id=None
         )
         return None
     except Exception as e:

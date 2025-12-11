@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime
 from collections import defaultdict
 from src.core.context import get_state, update_state
-from src.workers.manager import list_jobs
+from src.workers.manager import list_jobs, get_dataset_info_from_backup
 from src.core.job_restore import restore_job_state
 
 
@@ -32,15 +32,21 @@ def render() -> None:
             "New Analysis",
             type="primary",
             use_container_width=True,
-            on_click=lambda: update_state(current_step=1),
+            on_click=lambda: update_state(page="analysis", current_step=1, current_job_id=None),
         )
     
-    # if not fl_id:
-    #     st.info("No Factor List ID found. Starting new analysis.")
-    #     if st.button("Start New Analysis"):
-    #         update_state(current_step=1)
-    #         st.rerun()
-    #     return
+    # gray line on left side like reddit comments for indentation
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stColumn"]:has(.dataset-line-marker) {
+            border-right: 2px solid #e0e0e0;
+            margin-right: 1rem; /* Visual spacing */
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
     jobs = list_jobs(fl_id)
     
@@ -59,7 +65,59 @@ def render() -> None:
     for ds_ver in sorted_datasets:
         ds_jobs = grouped_jobs[ds_ver]
         
-        ds_label = format_timestamp(ds_ver)
+        dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
+
+        if dataset_info:
+            universe = dataset_info.get("universeName", "Unknown Universe")
+            
+            freq_val = dataset_info.get("frequency", 1)
+            freq_map = {1: "Weekly", 4: "Monthly", 252: "Daily"}
+            frequency = freq_map.get(freq_val, f"Freq: {freq_val}")
+
+            normalization = dataset_info.get("normalization", {})
+            scaling = normalization.get("scaling", "Unknown") if isinstance(normalization, dict) else "Unknown"
+            
+            details = []
+            
+            if isinstance(normalization, dict):
+                scope = normalization.get("scope")
+                if scope:
+                    details.append(f"Scope: {scope.title()}")
+                
+                trim_pct = normalization.get("trimPct", 0.0)
+                if trim_pct > 0:
+                    details.append(f"Trim: {trim_pct}%")
+                    
+                outliers = normalization.get("outliers", False)
+                if outliers:
+                    limit = normalization.get("outlierLimit", 0.0)
+                    details.append(f"Outliers: {limit}")
+            
+            details_str = " • ".join(details)
+            if details_str:
+                details_html = f"<span style='color: #666; font-size: 13px; margin-left: 8px;'>• {details_str}</span>"
+            else:
+                details_html = ""
+
+            content_html = f"""
+                <div style="display: flex; flex-direction: column;">
+                    <div style="font-weight: 600; color: #333; font-size: 16px;">
+                        {universe} <span style="font-weight: 400; color: #666;">({frequency})</span>
+                    </div>
+                    <div style="font-size: 13px; color: #555; margin-top: 2px;">
+                        <span style="background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; color: #495057; font-weight: 500;">{scaling.title()} Scaling</span>
+                        {details_html}
+                    </div>
+                </div>
+            """
+        else:
+            ds_label = format_timestamp(ds_ver)
+            content_html = f"""
+                <div>
+                    <span style="font-weight: 600; color: #333; font-size: 16px;">Dataset Version:</span>
+                    <span style="color: #555; font-size: 16px; margin-left: 8px;">{ds_label}</span>
+                </div>
+            """
         
         st.markdown(
             f"""
@@ -71,15 +129,23 @@ def render() -> None:
                 margin-top: 20px;
                 margin-bottom: 15px;
             ">
-                <span style="font-weight: 600; color: #333; font-size: 16px;">Dataset Version:</span>
-                <span style="color: #555; font-size: 16px; margin-left: 8px;">{ds_label}</span>
+                {content_html}
             </div>
             """, 
             unsafe_allow_html=True
         )
         
-        for job in ds_jobs:
-            render_job_card(job)
+        col_line, card_col = st.columns([0.15, 4])
+        with col_line:
+             st.markdown(
+                """
+                <div class="dataset-line-marker" style="display:none;"></div>
+                """,
+                unsafe_allow_html=True
+            )
+        with card_col:
+            for job in ds_jobs:
+                render_job_card(job)
         
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
@@ -112,7 +178,7 @@ def render_job_card(job: dict) -> None:
         with h_right:
             st.markdown(
                 f"""
-                <div style="text-align:right;">
+                <div style="text-align:right; margin-bottom: 25px;">
                     <span style="
                         background-color:{status_bg};
                         color:{status_color};
@@ -130,37 +196,30 @@ def render_job_card(job: dict) -> None:
                 unsafe_allow_html=True,
             )
 
-        m1, m2, m3, _ = st.columns([2, 2, 2, 3])
-        with m1:
+        col_metrics, col_btn = st.columns([5, 1], vertical_alignment="bottom")
+        
+        with col_metrics:
             st.markdown(
-                "<div style='font-size:11px;color:#888;text-transform:uppercase;'>Min Alpha</div>",
+                f"""
+                <div style="display: flex; gap: 40px; align-items: flex-end; padding-bottom: 12px;">
+                    <div>
+                        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:6px;">Min Alpha</div>
+                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{min_alpha}%</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:6px;">Top X</div>
+                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{top_pct}%</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:6px;">Bottom X</div>
+                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{bottom_pct}%</div>
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                f"<div style='font-size:14px;font-weight:500;color:#333;'>{min_alpha}%</div>",
-                unsafe_allow_html=True,
-            )
-        with m2:
-            st.markdown(
-                "<div style='font-size:11px;color:#888;text-transform:uppercase;'>Top X</div>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"<div style='font-size:14px;font-weight:500;color:#333;'>{top_pct}%</div>",
-                unsafe_allow_html=True,
-            )
-        with m3:
-            st.markdown(
-                "<div style='font-size:11px;color:#888;text-transform:uppercase;'>Bottom X</div>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"<div style='font-size:14px;font-weight:500;color:#333;'>{bottom_pct}%</div>",
-                unsafe_allow_html=True,
-            )
-
-        _, btn_col = st.columns([4, 1])
-        with btn_col:
+            
+        with col_btn:
             if st.button("Open", key=f"open_{job_id}", type="primary", use_container_width=True):
                 if restore_job_state(job_id):
                     st.rerun()

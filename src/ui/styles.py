@@ -69,15 +69,11 @@ def apply_custom_styles() -> None:
     }
 
     /* ===== Arrow Breadcrumb Navigation ===== */
-    /* Target the navigation column's buttons to style as connected breadcrumb */
-
-    /* Remove gaps between breadcrumb button columns */
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     div[data-testid="stHorizontalBlock"] {
         gap: 0 !important;
     }
 
-    /* Style all nav buttons with arrow shape */
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] button {
         border-radius: 0 !important;
@@ -91,14 +87,12 @@ def apply_custom_styles() -> None:
         clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
     }
 
-    /* First button - no left arrow indent */
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:first-child button {
         clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%);
         border-radius: 4px 0 0 4px !important;
     }
 
-    /* Last button - no right arrow point */
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child button {
         clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%);

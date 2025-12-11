@@ -111,11 +111,20 @@ class ParquetDataReader:
             for col in expected_cols:
                 if col not in df.columns:
                     df[col] = '' if col != 'Normalization' else 'Raw'
-            
+            #TODO: check this, might be related to excludePreproc in the api. pass excludePreproc, check which formulas are excluded, apply here as well.
             if 'Normalization' in df.columns:
                  df['Normalization'] = df['Normalization'].replace('', 'Raw').fillna('Raw')
 
             return df[['formula', 'name', 'tag', 'Normalization']]
+        except Exception:
+            return None
+
+    def get_dataset_info(self) -> Optional[Dict[str, Any]]:
+        try:
+            metadata = self.get_custom_metadata()
+            if metadata is None or 'dataset' not in metadata:
+                return None
+            return json.loads(metadata['dataset'])
         except Exception:
             return None
 
