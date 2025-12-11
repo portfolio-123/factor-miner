@@ -18,6 +18,10 @@ def render() -> None:
     state = get_state()
     fl_id = state.factor_list_uid
 
+    if not fl_id:
+        st.warning("No Factor List selected. Please select a Factor List to view analysis history.")
+        return
+
     # Compact header row with title and button vertically centered
     h_left, _, h_right = st.columns([3, 2, 1], vertical_alignment="center")
     with h_left:
@@ -34,14 +38,22 @@ def render() -> None:
             use_container_width=True,
             on_click=lambda: update_state(page="analysis", current_step=1, current_job_id=None),
         )
-    
-    # gray line on left side like reddit comments for indentation
+
+    # Reduce vertical padding on bordered containers
     st.markdown(
         """
         <style>
-        div[data-testid="stColumn"]:has(.dataset-line-marker) {
-            border-right: 2px solid #e0e0e0;
-            margin-right: 1rem; /* Visual spacing */
+        div[data-testid="stVerticalBlockBorderWrapper"] > div {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        /* Reduce divider margins */
+        div[data-testid="stElementContainer"]:has(hr) {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        hr {
+            margin: 0.25rem 0 0.5rem 0 !important;
         }
         </style>
         """,
@@ -67,6 +79,21 @@ def render() -> None:
         
         dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
 
+        dataset_info = {
+            "universeName": "SP500 Universe",
+            "frequency": 1,  # Weekly
+            "scaling": "Z-Score",
+            "currency": "USD",
+            "benchmark": "SPY:USA",
+            "normalization": {
+                "scaling": "Z-Score",
+                "scope": "Dataset",
+                "trimPct": 2.5,
+                "outliers": True,
+                "outlierLimit": 3.0
+            },
+        }
+
         if dataset_info:
             universe = dataset_info.get("universeName", "Unknown Universe")
             
@@ -75,66 +102,85 @@ def render() -> None:
             frequency = freq_map.get(freq_val, f"Freq: {freq_val}")
 
             normalization = dataset_info.get("normalization", {})
-            scaling = normalization.get("scaling", "Unknown") if isinstance(normalization, dict) else "Unknown"
-            
-            details = []
-            
-            if isinstance(normalization, dict):
-                scope = normalization.get("scope")
-                if scope:
-                    details.append(f"Scope: {scope.title()}")
-                
-                trim_pct = normalization.get("trimPct", 0.0)
-                if trim_pct > 0:
-                    details.append(f"Trim: {trim_pct}%")
-                    
-                outliers = normalization.get("outliers", False)
-                if outliers:
-                    limit = normalization.get("outlierLimit", 0.0)
-                    details.append(f"Outliers: {limit}")
-            
-            details_str = " • ".join(details)
-            if details_str:
-                details_html = f"<span style='color: #666; font-size: 13px; margin-left: 8px;'>• {details_str}</span>"
-            else:
-                details_html = ""
+            has_normalization = bool(normalization) and isinstance(normalization, dict)
 
-            content_html = (
-                f'<div style="display: flex; flex-direction: column;">'
-                f'<div style="font-weight: 600; color: #333; font-size: 16px;">{universe} <span style="font-weight: 400; color: #666;">({frequency})</span></div>'
-                f'<div style="font-size: 13px; color: #555; margin-top: 2px;">'
-                f'<span style="background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; color: #495057; font-weight: 500;">{scaling.title()} Scaling</span>'
-                f'{details_html}'
-                f'</div>'
-                f'</div>'
-            )
-        else:
+            # Extract normalization details
+            norm_scaling = normalization.get("scaling", "None") if has_normalization else "None"
+            norm_scope = normalization.get("scope", "N/A") if has_normalization else "N/A"
+            norm_trim_pct = normalization.get("trimPct", 0.0) if has_normalization else 0.0
+            norm_outliers = normalization.get("outliers", False) if has_normalization else False
+            norm_outlier_limit = normalization.get("outlierLimit", 0.0) if has_normalization else 0.0
+
+            currency = dataset_info.get("currency", "USD")
+            precision = dataset_info.get("precision", "2")
             ds_label = format_timestamp(ds_ver)
-            content_html = (
-                f'<div>'
-                f'<span style="font-weight: 600; color: #333; font-size: 16px;">Dataset Version:</span>'
-                f'<span style="color: #555; font-size: 16px; margin-left: 8px;">{ds_label}</span>'
-                f'</div>'
-            )
-        
-        st.markdown(
-            f'<div style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 6px; border-left: 4px solid #2196F3; margin-top: 20px; margin-bottom: 15px;">{content_html}</div>', 
-            unsafe_allow_html=True
-        )
-        
-        col_line, card_col = st.columns([0.15, 4])
-        with col_line:
-             st.markdown(
-                """
-                <div class="dataset-line-marker" style="display:none;"></div>
-                """,
-                unsafe_allow_html=True
-            )
-        with card_col:
-            for job in ds_jobs:
-                render_job_card(job)
-        
-        st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+
+            with st.container(border=True):
+                st.markdown(
+                    f'''<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60646A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                            {universe}
+                        </div>
+                        <span style="font-size: 14px; color: #888; font-weight: 400;">{ds_label}</span>
+                    </div>''',
+                    unsafe_allow_html=True
+                )
+
+                col_main, col_norm = st.columns([3, 2])
+
+                with col_main:
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; gap: 32px;">
+                            <div>
+                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Frequency</div>
+                                <div style="font-size: 14px; font-weight: 500; color: #212529;">{frequency}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Currency</div>
+                                <div style="font-size: 14px; font-weight: 500; color: #212529;">{currency}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Precision</div>
+                                <div style="font-size: 14px; font-weight: 500; color: #212529;">{precision}</div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                with col_norm:
+                    if has_normalization:
+                        outlier_text = f" · Outlier Limit: {norm_outlier_limit}" if norm_outliers else ""
+                        st.markdown(
+                            f"""
+                            <div style="background: #f8f9fa; border-radius: 6px; padding: 8px 12px;">
+                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Normalization</div>
+                                <div style="font-size: 12px; color: #495057; line-height: 1.4;">
+                                    {norm_scaling} · {norm_scope.title()} · Trim: {norm_trim_pct}%{outlier_text}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            """
+                            <div style="background: #f8f9fa; border-radius: 6px; padding: 8px 12px; border-left: 3px solid #adb5bd;">
+                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Normalization</div>
+                                <div style="font-size: 12px; color: #6c757d;">None</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+                st.divider()
+
+                st.markdown("<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>", unsafe_allow_html=True)
+
+                for job in ds_jobs:
+                    render_job_card(job)
 
 
 def render_job_card(job: dict) -> None:
