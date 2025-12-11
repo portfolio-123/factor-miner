@@ -99,32 +99,30 @@ class ParquetDataReader:
         except Exception:
             return None
 
-    def get_formulas_from_metadata(self) -> Optional[pd.DataFrame]:
+    def get_metadata_bundle(self) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
         try:
             metadata = self.get_custom_metadata()
-            if metadata is None or 'features' not in metadata:
-                return None
-            features_json = json.loads(metadata['features'])
-            df = pd.DataFrame(features_json)
+                
+            formulas_df = None
+            if 'features' in metadata:
+                features_json = json.loads(metadata['features'])
+                df = pd.DataFrame(features_json)
 
-            expected_cols = ['formula', 'name', 'tag', 'Normalization']
-            for col in expected_cols:
-                if col not in df.columns:
-                    df[col] = '' if col != 'Normalization' else 'Raw'
-            #TODO: check this, might be related to excludePreproc in the api. pass excludePreproc, check which formulas are excluded, apply here as well.
-            if 'Normalization' in df.columns:
-                 df['Normalization'] = df['Normalization'].replace('', 'Raw').fillna('Raw')
+                expected_cols = ['formula', 'name', 'tag', 'Normalization']
+                for col in expected_cols:
+                    if col not in df.columns:
+                        df[col] = '' if col != 'Normalization' else 'Raw'
+                
+                if 'Normalization' in df.columns:
+                        df['Normalization'] = df['Normalization'].replace('', 'Raw').fillna('Raw')
 
-            return df[['formula', 'name', 'tag', 'Normalization']]
+                formulas_df = df[['formula', 'name', 'tag', 'Normalization']]
+
+            dataset_info = None
+            if 'dataset' in metadata:
+                dataset_info = json.loads(metadata['dataset'])
+
+            return formulas_df, dataset_info
         except Exception:
-            return None
-
-    def get_dataset_info(self) -> Optional[Dict[str, Any]]:
-        try:
-            metadata = self.get_custom_metadata()
-            if metadata is None or 'dataset' not in metadata:
-                return None
-            return json.loads(metadata['dataset'])
-        except Exception:
-            return None
+            return None, None
 

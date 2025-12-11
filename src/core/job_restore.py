@@ -3,13 +3,13 @@ from src.core.context import get_state, update_state, add_debug_log
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus
 from src.core.types import AnalysisParams
-from src.workers.manager import read_job, JOBS_DIR
+from src.workers.manager import read_job, INTEGRATIONS_DIR
 
 
 def _load_formulas(job_id: str) -> pd.DataFrame:
     try:
         job_path_rel = job_id if job_id.endswith('.json') else f"{job_id}.json"
-        job_full_path = JOBS_DIR / job_path_rel
+        job_full_path = INTEGRATIONS_DIR / job_path_rel
         
         metadata_path = job_full_path.parent / "dataset_metadata.parquet"
         

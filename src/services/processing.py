@@ -56,7 +56,7 @@ def process_step1() -> bool:
             st.session_state['step1_error'] = f"Invalid dataset: {validation_error}"
             return False
 
-        formulas_data = dataset_reader.get_formulas_from_metadata()
+        formulas_data, _ = dataset_reader.get_metadata_bundle()
         if formulas_data is None:
             st.session_state['step1_error'] = "Parquet file missing 'features' metadata with formula definitions"
             return False

@@ -16,17 +16,16 @@ from src.services.readers import ParquetDataReader
 
 load_dotenv()
 
-factor_list_dir_env = os.getenv('FACTOR_LIST_DIR')
-if factor_list_dir_env:
-    JOBS_DIR = Path(factor_list_dir_env) / "integrations"
+FACTOR_LIST_DIR = Path(os.getenv('FACTOR_LIST_DIR'))
 
-JOBS_DIR.mkdir(parents=True, exist_ok=True)
+INTEGRATIONS_DIR = FACTOR_LIST_DIR / "integrations"
+INTEGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_job_path(job_id: str) -> Path:
     if not job_id.endswith('.json'):
-        return JOBS_DIR / f"{job_id}.json"
-    return JOBS_DIR / job_id
+        return INTEGRATIONS_DIR / f"{job_id}.json"
+    return INTEGRATIONS_DIR / job_id
 
 
 def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
@@ -37,16 +36,7 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
 
     try:
         reader = ParquetDataReader(dataset_path)
-        formulas_df = reader.get_formulas_from_metadata()
-        dataset_info = reader.get_dataset_info()
-        
-        # If we have neither, nothing to save
-        if formulas_df is None and dataset_info is None:
-            return
-
-        # If formulas_df is None but we have metadata, create empty DF
-        if formulas_df is None:
-            formulas_df = pd.DataFrame(columns=['formula', 'name', 'tag', 'Normalization'])
+        formulas_df, dataset_info = reader.get_metadata_bundle()
 
         table = pa.Table.from_pandas(formulas_df)
         
@@ -63,7 +53,7 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
 
 
 def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[Dict[str, Any]]:
-    path = JOBS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
+    path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
     if path.exists():
         try:
             metadata = pq.read_schema(path).metadata
@@ -173,7 +163,7 @@ def delete_job(job_id: str) -> bool:
 
 
 def list_jobs(fl_id: str) -> List[Dict[str, Any]]:
-    fl_dir = JOBS_DIR / fl_id
+    fl_dir = INTEGRATIONS_DIR / fl_id
     if not fl_dir.exists():
         return []
     
