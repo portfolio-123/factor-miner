@@ -99,39 +99,26 @@ def render() -> None:
             else:
                 details_html = ""
 
-            content_html = f"""
-                <div style="display: flex; flex-direction: column;">
-                    <div style="font-weight: 600; color: #333; font-size: 16px;">
-                        {universe} <span style="font-weight: 400; color: #666;">({frequency})</span>
-                    </div>
-                    <div style="font-size: 13px; color: #555; margin-top: 2px;">
-                        <span style="background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; color: #495057; font-weight: 500;">{scaling.title()} Scaling</span>
-                        {details_html}
-                    </div>
-                </div>
-            """
+            content_html = (
+                f'<div style="display: flex; flex-direction: column;">'
+                f'<div style="font-weight: 600; color: #333; font-size: 16px;">{universe} <span style="font-weight: 400; color: #666;">({frequency})</span></div>'
+                f'<div style="font-size: 13px; color: #555; margin-top: 2px;">'
+                f'<span style="background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; color: #495057; font-weight: 500;">{scaling.title()} Scaling</span>'
+                f'{details_html}'
+                f'</div>'
+                f'</div>'
+            )
         else:
             ds_label = format_timestamp(ds_ver)
-            content_html = f"""
-                <div>
-                    <span style="font-weight: 600; color: #333; font-size: 16px;">Dataset Version:</span>
-                    <span style="color: #555; font-size: 16px; margin-left: 8px;">{ds_label}</span>
-                </div>
-            """
+            content_html = (
+                f'<div>'
+                f'<span style="font-weight: 600; color: #333; font-size: 16px;">Dataset Version:</span>'
+                f'<span style="color: #555; font-size: 16px; margin-left: 8px;">{ds_label}</span>'
+                f'</div>'
+            )
         
         st.markdown(
-            f"""
-            <div style="
-                background-color: #f8f9fa; 
-                padding: 10px 15px; 
-                border-radius: 6px; 
-                border-left: 4px solid #2196F3;
-                margin-top: 20px;
-                margin-bottom: 15px;
-            ">
-                {content_html}
-            </div>
-            """, 
+            f'<div style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 6px; border-left: 4px solid #2196F3; margin-top: 20px; margin-bottom: 15px;">{content_html}</div>', 
             unsafe_allow_html=True
         )
         
