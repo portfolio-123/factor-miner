@@ -123,7 +123,7 @@ def render() -> None:
             start_date = dataset_info.get("startDate")
             end_date = dataset_info.get("endDate")
             if start_date and end_date:
-                date_range = f"{start_date} - {end_date}" if start_date != end_date else start_date
+                date_range = f"{start_date} : {end_date}" if start_date != end_date else start_date
             elif start_date:
                 date_range = start_date
             elif end_date:
@@ -140,7 +140,7 @@ def render() -> None:
                     f'''<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60646A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
                                 {universe}
                             </div>
                             <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
@@ -274,7 +274,7 @@ def render_job_card(job: dict) -> None:
                         border-radius:12px;
                         font-size:11px;
                         font-weight:600;
-                        text-transform:uppercase;
+                        text-transform:capitalize;
                         letter-spacing:0.4px;
                     ">
                         {status}
@@ -285,21 +285,21 @@ def render_job_card(job: dict) -> None:
             )
 
         col_metrics, col_btn = st.columns([5, 1], vertical_alignment="bottom")
-        
+
         with col_metrics:
             st.markdown(
                 f"""
-                <div style="display: flex; gap: 40px; align-items: flex-end; padding-bottom: 12px;">
+                <div style="display: flex; gap: 40px; align-items: flex-end; padding-bottom: 20px;">
                     <div>
-                        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:6px;">Min Alpha</div>
-                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{min_alpha}%</div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Min Alpha</div>
+                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{min_alpha}</div>
                     </div>
                     <div>
-                        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:6px;">Top X</div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Top X</div>
                         <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{top_pct}%</div>
                     </div>
                     <div>
-                        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:6px;">Bottom X</div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Bottom X</div>
                         <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{bottom_pct}%</div>
                     </div>
                 </div>
