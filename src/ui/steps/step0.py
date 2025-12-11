@@ -150,30 +150,8 @@ def render() -> None:
                     unsafe_allow_html=True
                 )
 
-                # Metrics row: Benchmark, Frequency, Date Range
-                st.markdown(
-                    f"""
-                    <div style="display: flex; gap: 40px; margin-bottom: 12px;">
-                        <div>
-                            <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Benchmark</div>
-                            <div style="font-size: 14px; font-weight: 500; color: #212529;">{benchmark}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Frequency</div>
-                            <div style="font-size: 14px; font-weight: 500; color: #212529;">{frequency}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Date Range</div>
-                            <div style="font-size: 14px; font-weight: 500; color: #212529;">{date_range}</div>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                # Normalization row: full width, inline
+                # Format normalization values with N/A handling
                 if has_normalization:
-                    # Format values with N/A handling
                     scaling_val = norm_scaling if norm_scaling else "N/A"
                     scope_val = (norm_scope.title() if isinstance(norm_scope, str) else str(norm_scope)) if norm_scope else "N/A"
                     trim_val = f"{norm_trim_pct}%" if norm_trim_pct is not None else "N/A"
@@ -182,15 +160,42 @@ def render() -> None:
 
                     st.markdown(
                         f"""
-                        <div style="background: #f8f9fa; border-radius: 6px; padding: 8px 14px; margin-bottom: 8px;">
-                            <div style="display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
-                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500;">Normalization</div>
-                                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                                    <div style="font-size: 12px; color: #495057;"><span style="color: #868e96;">Scaling:</span> <span style="font-weight: 500;">{scaling_val}</span></div>
-                                    <div style="font-size: 12px; color: #495057;"><span style="color: #868e96;">Scope:</span> <span style="font-weight: 500;">{scope_val}</span></div>
-                                    <div style="font-size: 12px; color: #495057;"><span style="color: #868e96;">Trim:</span> <span style="font-weight: 500;">{trim_val}</span></div>
-                                    <div style="font-size: 12px; color: #495057;"><span style="color: #868e96;">Precision:</span> <span style="font-weight: 500;">{precision_val}</span></div>
-                                    <div style="font-size: 12px; color: #495057;"><span style="color: #868e96;">Outlier:</span> <span style="font-weight: 500;">{outlier_val}</span></div>
+                        <div style="display: flex; align-items: flex-start; gap: 24px; margin-bottom: 12px;">
+                            <div style="display: flex; gap: 24px;">
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Benchmark</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{benchmark}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Frequency</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{frequency}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Date Range</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{date_range}</div>
+                                </div>
+                            </div>
+                            <div style="width: 1px; background: #dee2e6; align-self: stretch; margin: 0 8px;"></div>
+                            <div style="display: flex; gap: 24px;">
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Scaling</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{scaling_val}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Scope</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{scope_val}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Trim</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{trim_val}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Precision</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{precision_val}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Outlier</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{outlier_val}</div>
                                 </div>
                             </div>
                         </div>
@@ -199,11 +204,26 @@ def render() -> None:
                     )
                 else:
                     st.markdown(
-                        """
-                        <div style="background: #f8f9fa; border-radius: 6px; padding: 8px 14px; margin-bottom: 8px;">
-                            <div style="display: flex; align-items: center; gap: 24px;">
-                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500;">Normalization</div>
-                                <div style="font-size: 12px; color: #6c757d;">None</div>
+                        f"""
+                        <div style="display: flex; align-items: flex-start; gap: 24px; margin-bottom: 12px;">
+                            <div style="display: flex; gap: 24px;">
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Benchmark</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{benchmark}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Frequency</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{frequency}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Date Range</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{date_range}</div>
+                                </div>
+                            </div>
+                            <div style="width: 1px; background: #dee2e6; align-self: stretch; margin: 0 8px;"></div>
+                            <div>
+                                <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Normalization</div>
+                                <div style="font-size: 14px; font-weight: 500; color: #6c757d;">None</div>
                             </div>
                         </div>
                         """,
