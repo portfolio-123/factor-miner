@@ -22,12 +22,11 @@ def render() -> None:
         st.warning("No Factor List selected. Please select a Factor List to view analysis history.")
         return
 
-    # Compact header row with title and button vertically centered
     h_left, _, h_right = st.columns([3, 2, 1], vertical_alignment="center")
     with h_left:
         st.markdown(
             "<div style='font-size:24px;font-weight:700;color:#212529;margin:0;padding:0;'>"
-            "Analysis History"
+            "Factor Evaluator - Analysis History"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -39,7 +38,6 @@ def render() -> None:
             on_click=lambda: update_state(page="analysis", current_step=1, current_job_id=None),
         )
 
-    # Reduce vertical padding on bordered containers
     st.markdown(
         """
         <style>
@@ -55,10 +53,41 @@ def render() -> None:
         hr {
             margin: 0.25rem 0 0.5rem 0 !important;
         }
+        
+        /* Job card link styling */
+        a.job-card-link {
+            display: block !important;
+            text-decoration: none !important;
+            color: inherit !important;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+            background-color: white;
+        }
+        a.job-card-link:hover {
+            border-color: #2196F3 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            text-decoration: none !important;
+            color: inherit !important;
+        }
+        /* Ensure content inside link inherits color */
+        a.job-card-link * {
+            color: inherit;
+        }
         </style>
         """,
         unsafe_allow_html=True
     )
+
+    # Check for job selection via query param (handling click from card)
+    if "select_job_id" in st.query_params:
+        job_id = st.query_params["select_job_id"]
+        # Clear the param to prevent re-triggering
+        del st.query_params["select_job_id"]
+        _handle_job_click(job_id)
+        st.rerun()
 
     jobs = list_jobs(fl_id)
     
@@ -105,31 +134,20 @@ def render() -> None:
             freq_map = {1: "Weekly", 4: "Monthly", 252: "Daily"}
             frequency = freq_map.get(freq_val, f"Freq: {freq_val}")
 
-            normalization = dataset_info.get("normalization", {})
-            has_normalization = bool(normalization) and isinstance(normalization, dict)
-
-            # Extract normalization details with N/A handling
-            norm_scaling = normalization.get("scaling") if has_normalization else None
-            norm_scope = normalization.get("scope") if has_normalization else None
-            norm_trim_pct = normalization.get("trimPct") if has_normalization else None
-            norm_outliers = normalization.get("outliers", False) if has_normalization else False
-            norm_outlier_limit = normalization.get("outlierLimit") if has_normalization else None
-            norm_precision = normalization.get("precision") if has_normalization else None
+            normalization = dataset_info.get("normalization", None)
+            if normalization and isinstance(normalization, dict):
+                norm_scaling = normalization.get("scaling")
+                norm_scope = normalization.get("scope")
+                norm_trim_pct = normalization.get("trimPct")
+                norm_outliers = normalization.get("outliers", False)
+                norm_outlier_limit = normalization.get("outlierLimit")
+                norm_precision = normalization.get("precision")
 
             currency = dataset_info.get("currency", "USD")
             ds_label = format_timestamp(ds_ver)
 
-            # Date range handling - show raw values
-            start_date = dataset_info.get("startDate")
-            end_date = dataset_info.get("endDate")
-            if start_date and end_date:
-                date_range = f"{start_date} : {end_date}" if start_date != end_date else start_date
-            elif start_date:
-                date_range = start_date
-            elif end_date:
-                date_range = end_date
-            else:
-                date_range = "N/A"
+            start_date = dataset_info.get("startDate") or "N/A"
+            end_date = dataset_info.get("endDate") or "N/A"
 
             # Get benchmark
             benchmark = dataset_info.get("benchmark", "N/A") or "N/A"
@@ -140,7 +158,7 @@ def render() -> None:
                     f'''<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
                                 {universe}
                             </div>
                             <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
@@ -151,7 +169,7 @@ def render() -> None:
                 )
 
                 # Format normalization values with N/A handling
-                if has_normalization:
+                if normalization:
                     scaling_val = norm_scaling if norm_scaling else "N/A"
                     scope_val = (norm_scope.title() if isinstance(norm_scope, str) else str(norm_scope)) if norm_scope else "N/A"
                     trim_val = f"{norm_trim_pct}%" if norm_trim_pct is not None else "N/A"
@@ -171,8 +189,12 @@ def render() -> None:
                                     <div style="font-size: 14px; font-weight: 500; color: #212529;">{frequency}</div>
                                 </div>
                                 <div>
-                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Date Range</div>
-                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{date_range}</div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Start Date</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{start_date}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">End Date</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{end_date}</div>
                                 </div>
                             </div>
                             <div style="width: 1px; background: #dee2e6; align-self: stretch; margin: 0 8px;"></div>
@@ -216,8 +238,12 @@ def render() -> None:
                                     <div style="font-size: 14px; font-weight: 500; color: #212529;">{frequency}</div>
                                 </div>
                                 <div>
-                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Date Range</div>
-                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{date_range}</div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Start Date</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{start_date}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">End Date</div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #212529;">{end_date}</div>
                                 </div>
                             </div>
                             <div style="width: 1px; background: #dee2e6; align-self: stretch; margin: 0 8px;"></div>
@@ -235,10 +261,13 @@ def render() -> None:
                 st.markdown("<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>", unsafe_allow_html=True)
 
                 for job in ds_jobs:
-                    render_job_card(job)
+                    render_job_card(job, fl_id)
+
+                # Bottom padding for the dataset card
+                st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
 
-def render_job_card(job: dict) -> None:
+def render_job_card(job: dict, fl_id: str) -> None:
     created_at = datetime.fromisoformat(job["created_at"])
     formatted_date = created_at.strftime("%b %d, %Y %H:%M:%S")
     status = job["status"]
@@ -256,60 +285,34 @@ def render_job_card(job: dict) -> None:
     else:
         status_bg, status_color = "#fce8e6", "#c5221f"
 
-    with st.container(border=True):
-        h_left, h_right = st.columns([4, 1])
-        with h_left:
-            st.markdown(
-                f"<div style='font-size:16px;font-weight:600;color:#212529;'>{formatted_date}</div>",
-                unsafe_allow_html=True,
-            )
-        with h_right:
-            st.markdown(
-                f"""
-                <div style="text-align:right; margin-bottom: 25px;">
-                    <span style="
-                        background-color:{status_bg};
-                        color:{status_color};
-                        padding:3px 9px;
-                        border-radius:12px;
-                        font-size:11px;
-                        font-weight:600;
-                        text-transform:capitalize;
-                        letter-spacing:0.4px;
-                    ">
-                        {status}
-                    </span>
+    # HTML Link Card
+    link_content = f"""
+    <a href="?select_job_id={job_id}&fl_id={fl_id}" target="_self" class="job-card-link">
+        <div style="display:flex;align-items:center;gap:24px;padding:12px 16px;">
+            <div style="font-size:14px;font-weight:600;color:#212529;white-space:nowrap;">{formatted_date}</div>
+            <div style="display:flex;gap:24px;align-items:center;flex:1;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:11px;color:#64748b;text-transform:uppercase;">Min Alpha</span>
+                    <span style="font-size:13px;font-weight:500;color:#333;">{min_alpha}</span>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        col_metrics, col_btn = st.columns([5, 1], vertical_alignment="bottom")
-
-        with col_metrics:
-            st.markdown(
-                f"""
-                <div style="display: flex; gap: 40px; align-items: flex-end; padding-bottom: 20px;">
-                    <div>
-                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Min Alpha</div>
-                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{min_alpha}</div>
-                    </div>
-                    <div>
-                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Top X</div>
-                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{top_pct}%</div>
-                    </div>
-                    <div>
-                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Bottom X</div>
-                        <div style="font-size:14px;font-weight:500;color:#333;line-height:1;">{bottom_pct}%</div>
-                    </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:11px;color:#64748b;text-transform:uppercase;">Top X</span>
+                    <span style="font-size:13px;font-weight:500;color:#333;">{top_pct}%</span>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            
-        with col_btn:
-            if st.button("Open", key=f"open_{job_id}", type="primary", use_container_width=True):
-                if restore_job_state(job_id):
-                    st.rerun()
-                else:
-                    st.error("Failed.")
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:11px;color:#64748b;text-transform:uppercase;">Bottom X</span>
+                    <span style="font-size:13px;font-weight:500;color:#333;">{bottom_pct}%</span>
+                </div>
+            </div>
+            <span style="background-color:{status_bg};color:{status_color};padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600;text-transform:capitalize;letter-spacing:0.4px;white-space:nowrap;">{status}</span>
+        </div>
+    </a>
+    """
+
+    st.markdown(link_content, unsafe_allow_html=True)
+
+
+def _handle_job_click(job_id: str) -> None:
+    """Handle job card click - restore job state and trigger rerun."""
+    if not restore_job_state(job_id):
+        st.session_state["_job_restore_error"] = job_id
