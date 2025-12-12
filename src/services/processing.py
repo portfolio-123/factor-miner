@@ -22,68 +22,71 @@ def process_step1() -> bool:
 
     is_valid, error_msg = validate_inputs()
     if not is_valid:
-        st.session_state['step1_error'] = error_msg
+        st.session_state["step1_error"] = error_msg
         return False
 
-    st.session_state['step1_error'] = None
+    st.session_state["step1_error"] = None
 
-    benchmark_ticker = st.session_state.get('benchmark_ticker', DEFAULT_BENCHMARK).strip() or DEFAULT_BENCHMARK
-    api_id = st.session_state.get('api_id', '').strip() or None
-    api_key = st.session_state.get('api_key', '').strip()
-    min_alpha = st.session_state.get('min_alpha', 0.5)
-    top_x_pct = st.session_state.get('top_x_pct', 20)
-    bottom_x_pct = st.session_state.get('bottom_x_pct', 20)
+    benchmark_ticker = (
+        st.session_state.get("benchmark_ticker", DEFAULT_BENCHMARK).strip()
+        or DEFAULT_BENCHMARK
+    )
+    api_id = st.session_state.get("api_id", "").strip() or None
+    api_key = st.session_state.get("api_key", "").strip()
+    min_alpha = st.session_state.get("min_alpha", 0.5)
+    top_x_pct = st.session_state.get("top_x_pct", 20)
+    bottom_x_pct = st.session_state.get("bottom_x_pct", 20)
 
     add_debug_log(f"Processing Step 1: Benchmark={benchmark_ticker}")
-    add_debug_log(f"Analysis Parameters - Min Alpha: {min_alpha}%, Top X: {top_x_pct}%, Bottom X: {bottom_x_pct}%")
+    add_debug_log(
+        f"Analysis Parameters - Min Alpha: {min_alpha}%, Top X: {top_x_pct}%, Bottom X: {bottom_x_pct}%"
+    )
 
     try:
         if state.is_internal_app:
             dataset_file = state.dataset_path
         else:
-            dataset_path = st.session_state.get('dataset_path', '').strip()
+            dataset_path = st.session_state.get("dataset_path", "").strip()
             path = Path(dataset_path)
             if not path.is_absolute():
                 path = path.resolve()
             dataset_file = str(path)
 
         add_debug_log(f"Dataset file: {dataset_file}")
-    
+
         dataset_reader = ParquetDataReader(dataset_file)
 
         is_valid, validation_error = dataset_reader.validate()
         if not is_valid:
-            st.session_state['step1_error'] = f"Invalid dataset: {validation_error}"
+            st.session_state["step1_error"] = f"Invalid dataset: {validation_error}"
             return False
 
         formulas_data, _ = dataset_reader.get_metadata_bundle()
         if formulas_data is None:
-            st.session_state['step1_error'] = "Parquet file missing 'features' metadata with formula definitions"
+            st.session_state["step1_error"] = (
+                "Parquet file missing 'features' metadata with formula definitions"
+            )
             return False
         add_debug_log(f"Formulas loaded: {len(formulas_data)} formulas")
 
         add_debug_log("Getting date range from dataset...")
 
-        date_df = dataset_reader.read_columns(['Date'])
+        date_df = dataset_reader.read_columns(["Date"])
         try:
             start_date, end_date = get_dataset_date_range(date_df)
             add_debug_log(f"Date range: {start_date} to {end_date}")
         except ValueError as e:
-            st.session_state['step1_error'] = f"Error getting date range: {str(e)}"
+            st.session_state["step1_error"] = f"Error getting date range: {str(e)}"
             return False
 
         add_debug_log(f"Fetching benchmark data for {benchmark_ticker}...")
         benchmark_data, error = fetch_benchmark_data(
-            benchmark_ticker,
-            api_key,
-            start_date,
-            end_date,
-            api_id
+            benchmark_ticker, api_key, start_date, end_date, api_id
         )
 
         if error:
             add_debug_log(f"Benchmark fetch failed: {error}")
-            st.session_state['step1_error'] = f"Error fetching benchmark data: {error}"
+            st.session_state["step1_error"] = f"Error fetching benchmark data: {error}"
             return False
 
         add_debug_log("Benchmark data fetched successfully")
@@ -97,19 +100,23 @@ def process_step1() -> bool:
             api_key=api_key,
             min_alpha=min_alpha,
             top_x_pct=float(top_x_pct),
-            bottom_x_pct=float(bottom_x_pct)
+            bottom_x_pct=float(bottom_x_pct),
         )
         # store original paths that the user entered for form restoration, not the resolved ones
         if not state.is_internal_app:
-            state_updates['dataset_path_input'] = st.session_state.get('dataset_path', '')
+            state_updates["dataset_path_input"] = st.session_state.get(
+                "dataset_path", ""
+            )
         update_state(**state_updates)
 
         # save all settings to localStorage as single json object
         settings_to_save = {
-            'api_key': api_key,
-            'api_id': api_id,
+            "api_key": api_key,
+            "api_id": api_id,
         }
-        get_local_storage().setItem('factor_eval_settings', json.dumps(settings_to_save))
+        get_local_storage().setItem(
+            "factor_eval_settings", json.dumps(settings_to_save)
+        )
 
         state.completed_steps.add(1)
         state.current_step = 2
@@ -119,25 +126,25 @@ def process_step1() -> bool:
 
     except Exception as e:
         add_debug_log(f"ERROR: {str(e)}")
-        st.session_state['step1_error'] = f"Error processing data: {str(e)}"
+        st.session_state["step1_error"] = f"Error processing data: {str(e)}"
         return False
 
 
 def start_step2_analysis() -> str:
     state = get_state()
-    
+
     fl_id = state.factor_list_uid
 
     dataset_ts = None
     if state.dataset_path and os.path.exists(state.dataset_path):
         try:
-            ts = os.path.getctime(state.dataset_path)
+            ts = os.path.getmtime(state.dataset_path)
             dataset_ts = str(int(ts))
         except Exception:
             pass
-            
-    job_ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    
+
+    job_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     # fl_id/dataset_ts/job_ts
     job_id = f"{fl_id}/{dataset_ts}/{job_ts}"
 
@@ -159,14 +166,14 @@ def start_step2_analysis() -> str:
 
 def _merge_worker_logs(job_data: dict) -> None:
     """Merge worker logs from job into main debug logs."""
-    worker_logs = job_data.get('logs', [])
+    worker_logs = job_data.get("logs", [])
     for log_entry in worker_logs:
         add_debug_log(log_entry, without_timestamp=True)
 
 
 def process_step2_completion(job_data: dict) -> Optional[str]:
     state = get_state()
-    
+
     _merge_worker_logs(job_data)
 
     try:
