@@ -153,26 +153,6 @@ def render() -> None:
         ds_jobs = grouped_jobs[ds_ver]
 
         dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
-        print(dataset_info)
-        # dataset_info = {
-        #     "universeName": "SP500 Universe",
-        #     "frequency": 1,  # Weekly
-        #     "currency": "USD",
-        #     "benchmark": "SPY:USA",
-        #     "startDate": "2020-01-01",
-        #     "endDate": "2024-12-31",
-        #     "precision": 2,
-        #     "normalization": {
-        #         "naFill": True,
-        #         "scaling": "Z-Score",
-        #         "scope": "Dataset",
-        #         "trimPct": 2.5,
-        #         "mlTrainingEnd": None,
-        #         "outliers": True,
-        #         "outlierLimit": 3.0,
-        #         "precision": 2,
-        #     },
-        # }
 
         frequency_map = {
             "WEEKLY": "Every week",
