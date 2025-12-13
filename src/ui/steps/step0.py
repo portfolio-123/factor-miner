@@ -127,9 +127,6 @@ def _render_dataset_card(
     fl_id: str,
     show_new_analysis_button: bool = False,
 ) -> None:
-    """
-    Render a dataset card with its metadata and optional job list.
-    """
     frequency_map = {
         "WEEKLY": "Every week",
         "WEEKS2": "Every 2 weeks",
