@@ -147,38 +147,20 @@ def _render_dataset_card(
     benchmark = dataset_info.get("benchName", "N/A")
 
     with st.container(border=True):
-        # Card header with optional button
-        if show_new_analysis_button:
-            h_left, h_right = st.columns([4, 1], vertical_alignment="center")
-        else:
-            h_left = st.container()
-            h_right = None
-
-        with h_left:
-            st.markdown(
-                f"""<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
-                            {universe}
-                        </div>
-                        <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
+        # Card header
+        st.markdown(
+            f"""<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                        {universe}
                     </div>
-                    <span style="font-size: 14px; color: #888; font-weight: 400;">{ds_label}</span>
-                </div>""",
-                unsafe_allow_html=True,
-            )
-
-        if h_right:
-            with h_right:
-                st.button(
-                    "New Analysis",
-                    type="primary",
-                    use_container_width=True,
-                    on_click=lambda: update_state(
-                        page="analysis", current_step=1, current_job_id=None
-                    ),
-                )
+                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
+                </div>
+                <span style="font-size: 14px; color: #888; font-weight: 400;">{ds_label}</span>
+            </div>""",
+            unsafe_allow_html=True,
+        )
 
         _render_dataset_info(
             benchmark,
@@ -189,17 +171,33 @@ def _render_dataset_card(
             dataset_info.get("precision"),
         )
 
-        # Only show job section if there are jobs
-        if jobs:
-            st.divider()
+        st.divider()
+        if show_new_analysis_button:
+            label_col, btn_col = st.columns([4, 1], vertical_alignment="center")
+            with label_col:
+                st.markdown(
+                    "<div style='font-size: 15px; font-weight: 400; color: #60646A;'>PAST ANALYSES</div>",
+                    unsafe_allow_html=True,
+                )
+            with btn_col:
+                st.button(
+                    "New Analysis",
+                    type="primary",
+                    use_container_width=True,
+                    on_click=lambda: update_state(
+                        page="analysis", current_step=1, current_job_id=None
+                    ),
+                )
+        else:
             st.markdown(
                 "<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>",
                 unsafe_allow_html=True,
             )
+
+        if jobs:
             for job in jobs:
                 render_job_card(job, fl_id)
         else:
-            st.divider()
             st.markdown(
                 "<div style='font-size: 14px; color: #9ca3af; font-style: italic; padding: 8px 0;'>No analyses yet for this dataset version</div>",
                 unsafe_allow_html=True,
