@@ -173,7 +173,7 @@ def _render_dataset_card(
 
         st.divider()
         if show_new_analysis_button:
-            label_col, btn_col = st.columns([4, 1], vertical_alignment="center")
+            label_col, btn_col = st.columns([4, 1], vertical_alignment="top")
             with label_col:
                 st.markdown(
                     "<div style='font-size: 15px; font-weight: 400; color: #60646A;'>PAST ANALYSES</div>",
