@@ -1,11 +1,13 @@
 import streamlit as st
 from datetime import datetime
 from collections import defaultdict
+import os
+import json
 from src.core.context import get_state, update_state
-from src.core.utils import format_timestamp
+from src.core.utils import format_timestamp, locate_factor_list_file
 from src.workers.manager import list_jobs, get_dataset_info_from_backup
 from src.core.job_restore import restore_job_state
-import json
+from src.services.readers import ParquetDataReader
 
 
 def _info_item(label: str, value: str, muted: bool = False) -> str:
@@ -15,6 +17,29 @@ def _info_item(label: str, value: str, muted: bool = False) -> str:
 
 def _job_param(label: str, value: str) -> str:
     return f'<div class="job-card-param"><span class="label">{label}</span><span class="value">{value}</span></div>'
+
+
+def _get_current_dataset_info(fl_id: str) -> tuple[str | None, dict | None]:
+    """
+    Get the current dataset version and metadata from the source parquet file.
+
+    Returns:
+        tuple: (dataset_version, dataset_info) or (None, None) on error
+    """
+    try:
+        dataset_path = locate_factor_list_file(fl_id)
+
+        # Get modification timestamp as version (same logic as processing.py)
+        ts = os.path.getmtime(dataset_path)
+        current_version = str(int(ts))
+
+        # Read metadata from source parquet
+        reader = ParquetDataReader(dataset_path)
+        _, dataset_info = reader.get_metadata_bundle()
+
+        return current_version, dataset_info
+    except (FileNotFoundError, ValueError, Exception):
+        return None, None
 
 
 def _render_dataset_info(
@@ -95,6 +120,97 @@ def _render_dataset_info(
     st.markdown(html, unsafe_allow_html=True)
 
 
+def _render_dataset_card(
+    dataset_info: dict,
+    ds_ver: str,
+    jobs: list,
+    fl_id: str,
+    show_new_analysis_button: bool = False,
+) -> None:
+    """
+    Render a dataset card with its metadata and optional job list.
+    """
+    frequency_map = {
+        "WEEKLY": "Every week",
+        "WEEKS2": "Every 2 weeks",
+        "WEEKS4": "Every 4 weeks",
+        "WEEKS8": "Every 8 weeks",
+        "WEEKS13": "Every 13 weeks",
+        "WEEKS26": "Every 26 weeks",
+        "WEEKS52": "Every 52 weeks",
+    }
+
+    universe = dataset_info.get("universeName", "Unknown Universe")
+    frequency = frequency_map.get(dataset_info.get("frequency"), "Unknown")
+    normalization = dataset_info.get("normalization", None)
+    currency = dataset_info.get("currency", "USD")
+    ds_label = format_timestamp(ds_ver)
+    start_date = dataset_info.get("startDt") or "N/A"
+    end_date = dataset_info.get("endDt") or "N/A"
+    benchmark = dataset_info.get("benchName", "N/A")
+
+    with st.container(border=True):
+        # Card header with optional button
+        if show_new_analysis_button:
+            h_left, h_right = st.columns([4, 1], vertical_alignment="center")
+        else:
+            h_left = st.container()
+            h_right = None
+
+        with h_left:
+            st.markdown(
+                f"""<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                            {universe}
+                        </div>
+                        <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
+                    </div>
+                    <span style="font-size: 14px; color: #888; font-weight: 400;">{ds_label}</span>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+
+        if h_right:
+            with h_right:
+                st.button(
+                    "New Analysis",
+                    type="primary",
+                    use_container_width=True,
+                    on_click=lambda: update_state(
+                        page="analysis", current_step=1, current_job_id=None
+                    ),
+                )
+
+        _render_dataset_info(
+            benchmark,
+            frequency,
+            start_date,
+            end_date,
+            normalization,
+            dataset_info.get("precision"),
+        )
+
+        # Only show job section if there are jobs
+        if jobs:
+            st.divider()
+            st.markdown(
+                "<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>",
+                unsafe_allow_html=True,
+            )
+            for job in jobs:
+                render_job_card(job, fl_id)
+        else:
+            st.divider()
+            st.markdown(
+                "<div style='font-size: 14px; color: #9ca3af; font-style: italic; padding: 8px 0;'>No analyses yet for this dataset version</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
+
 def render() -> None:
     state = get_state()
     fl_id = state.factor_list_uid
@@ -105,114 +221,77 @@ def render() -> None:
         )
         return
 
-    h_left, _, h_right = st.columns([3, 2, 1], vertical_alignment="center")
-    with h_left:
-        st.markdown(
-            "<div style='font-size:24px;font-weight:700;color:#212529;margin:0;padding:0;'>"
-            "Factor Evaluator - Analysis History"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    with h_right:
-        st.button(
-            "New Analysis",
-            type="primary",
-            use_container_width=True,
-            on_click=lambda: update_state(
-                page="analysis", current_step=1, current_job_id=None
-            ),
-        )
+    # Page header (no standalone button - it's now in the dataset card)
+    st.markdown(
+        "<div style='font-size:24px;font-weight:700;color:#212529;margin:0 0 16px 0;padding:0;'>"
+        "Factor Evaluator - Analysis History"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-    # handle card click. have to do this because the card is not a button and streamlit is limited
+    # Handle card click
     if "select_job_id" in st.query_params:
         job_id = st.query_params["select_job_id"]
-        # clear the param to prevent re-triggering
         del st.query_params["select_job_id"]
         _handle_job_click(job_id)
         st.rerun()
 
+    # Get current dataset version and metadata from source file
+    current_version, current_dataset_info = _get_current_dataset_info(fl_id)
+
+    # Get all existing jobs
     jobs = list_jobs(fl_id)
 
-    if not jobs:
-        st.info("No past analysis found for this Factor List.")
-        return
-
-    # group jobs by dataset version
+    # Group jobs by dataset version
     grouped_jobs = defaultdict(list)
     for job in jobs:
         grouped_jobs[job["dataset_version"]].append(job)
 
-    # newest dataset first
+    # Check if current version already has jobs
+    current_version_has_jobs = current_version and current_version in grouped_jobs
+
+    # Get sorted dataset versions (newest first)
     sorted_datasets = sorted(
         grouped_jobs.keys(),
         key=lambda x: float(x) if x.replace(".", "", 1).isdigit() else 0,
         reverse=True,
     )
 
+    # Render current dataset card if it doesn't have jobs yet
+    if current_version and current_dataset_info and not current_version_has_jobs:
+        _render_dataset_card(
+            dataset_info=current_dataset_info,
+            ds_ver=current_version,
+            jobs=[],
+            fl_id=fl_id,
+            show_new_analysis_button=True,
+        )
+
+    # Render existing dataset cards
     for ds_ver in sorted_datasets:
         ds_jobs = grouped_jobs[ds_ver]
 
-        dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
+        # Determine if this is the current dataset version
+        is_current_version = ds_ver == current_version
 
-        frequency_map = {
-            "WEEKLY": "Every week",
-            "WEEKS2": "Every 2 weeks",
-            "WEEKS4": "Every 4 weeks",
-            "WEEKS8": "Every 8 weeks",
-            "WEEKS13": "Every 13 weeks",
-            "WEEKS26": "Every 26 weeks",
-            "WEEKS52": "Every 52 weeks",
-        }
+        # Get dataset info (from current source for matching version, otherwise from backup)
+        if is_current_version and current_dataset_info:
+            dataset_info = current_dataset_info
+        else:
+            dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
 
         if dataset_info:
-            universe = dataset_info.get("universeName", "Unknown Universe")
+            _render_dataset_card(
+                dataset_info=dataset_info,
+                ds_ver=ds_ver,
+                jobs=ds_jobs,
+                fl_id=fl_id,
+                show_new_analysis_button=is_current_version,
+            )
 
-            frequency = frequency_map[dataset_info.get("frequency")]
-
-            normalization = dataset_info.get("normalization", None)
-            currency = dataset_info.get("currency", "USD")
-            ds_label = format_timestamp(ds_ver)
-
-            start_date = dataset_info.get("startDt") or "N/A"
-            end_date = dataset_info.get("endDt") or "N/A"
-
-            benchmark = dataset_info.get("benchName", "N/A")
-
-            with st.container(border=True):
-                st.markdown(
-                    f"""<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
-                                {universe}
-                            </div>
-                            <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
-                        </div>
-                        <span style="font-size: 14px; color: #888; font-weight: 400;">{ds_label}</span>
-                    </div>""",
-                    unsafe_allow_html=True,
-                )
-
-                _render_dataset_info(
-                    benchmark,
-                    frequency,
-                    start_date,
-                    end_date,
-                    normalization,
-                    dataset_info.get("precision"),
-                )
-
-                st.divider()
-
-                st.markdown(
-                    "<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>",
-                    unsafe_allow_html=True,
-                )
-
-                for job in ds_jobs:
-                    render_job_card(job, fl_id)
-
-                st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+    # Show message if no data at all
+    if not jobs and not current_dataset_info:
+        st.info("No past analysis found for this Factor List.")
 
 
 def render_job_card(job: dict, fl_id: str) -> None:
