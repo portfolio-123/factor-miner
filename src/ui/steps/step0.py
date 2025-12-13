@@ -125,7 +125,7 @@ def _render_dataset_card(
     ds_ver: str,
     jobs: list,
     fl_id: str,
-    show_new_analysis_button: bool = False,
+    is_current: bool = False,
 ) -> None:
     frequency_map = {
         "WEEKLY": "Every week",
@@ -174,18 +174,55 @@ def _render_dataset_card(
         # Only show job section if there are jobs
         if jobs:
             st.divider()
-            st.markdown(
-                "<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>",
-                unsafe_allow_html=True,
-            )
+            # Header row with "PAST ANALYSES" and optional "New Analysis" button
+            if is_current:
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(
+                        "<div style='font-size: 15px; font-weight: 400; color: #60646A; padding-top: 4px;'>PAST ANALYSES</div>",
+                        unsafe_allow_html=True,
+                    )
+                with col2:
+                    st.button(
+                        "New Analysis",
+                        type="primary",
+                        key="new_analysis_btn",
+                        use_container_width=True,
+                        on_click=lambda: update_state(
+                            page="analysis", current_step=1, current_job_id=None
+                        ),
+                    )
+            else:
+                st.markdown(
+                    "<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>",
+                    unsafe_allow_html=True,
+                )
             for job in jobs:
                 render_job_card(job, fl_id)
         else:
             st.divider()
-            st.markdown(
-                "<div style='font-size: 14px; color: #9ca3af; font-style: italic; padding: 8px 0;'>No analyses yet for this dataset version</div>",
-                unsafe_allow_html=True,
-            )
+            if is_current:
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(
+                        "<div style='font-size: 14px; color: #9ca3af; font-style: italic; padding-top: 4px;'>No analyses yet for this dataset version</div>",
+                        unsafe_allow_html=True,
+                    )
+                with col2:
+                    st.button(
+                        "New Analysis",
+                        type="primary",
+                        key="new_analysis_btn_empty",
+                        use_container_width=True,
+                        on_click=lambda: update_state(
+                            page="analysis", current_step=1, current_job_id=None
+                        ),
+                    )
+            else:
+                st.markdown(
+                    "<div style='font-size: 14px; color: #9ca3af; font-style: italic; padding: 8px 0;'>No analyses yet for this dataset version</div>",
+                    unsafe_allow_html=True,
+                )
 
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
@@ -243,14 +280,12 @@ def render() -> None:
             ds_ver=current_version,
             jobs=[],
             fl_id=fl_id,
-            show_new_analysis_button=True,
+            is_current=True,
         )
 
     # Render existing dataset cards
     for ds_ver in sorted_datasets:
         ds_jobs = grouped_jobs[ds_ver]
-
-        # Determine if this is the current dataset version
         is_current_version = ds_ver == current_version
 
         # Get dataset info (from current source for matching version, otherwise from backup)
@@ -265,7 +300,7 @@ def render() -> None:
                 ds_ver=ds_ver,
                 jobs=ds_jobs,
                 fl_id=fl_id,
-                show_new_analysis_button=is_current_version,
+                is_current=is_current_version,
             )
 
     # Show message if no data at all
@@ -278,6 +313,7 @@ def render_job_card(job: dict, fl_id: str) -> None:
     formatted_date = created_at.strftime("%b %d, %Y %H:%M:%S")
     status = job["status"]
     job_id = job["id"]
+    job_name = job.get("name") or "Untitled Analysis"
     params = job.get("params", {})
 
     min_alpha = params.get("min_alpha", "N/A")
@@ -302,9 +338,12 @@ def render_job_card(job: dict, fl_id: str) -> None:
     link_content = f"""
     <a href="?select_job_id={job_id}&fl_id={fl_id}" target="_self" class="job-card-link">
         <div class="job-card-content">
-            <div class="job-card-date">{formatted_date}</div>
+            <div class="job-card-name">{job_name}</div>
             <div class="job-card-params">{params_html}</div>
-            <span class="job-card-status" style="background-color:{status_bg};color:{status_color};">{status}</span>
+            <div class="job-card-right">
+                <span class="job-card-date">{formatted_date}</span>
+                <span class="job-card-status" style="background-color:{status_bg};color:{status_color};">{status}</span>
+            </div>
         </div>
     </a>
     """

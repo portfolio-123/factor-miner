@@ -254,12 +254,6 @@ def apply_custom_styles() -> None:
         gap: 24px;
         padding: 12px 16px;
     }
-    .job-card-date {
-        font-size: 14px;
-        font-weight: 600;
-        color: #212529;
-        white-space: nowrap;
-    }
     .job-card-name {
         font-size: 14px;
         font-weight: 600;
@@ -271,6 +265,18 @@ def apply_custom_styles() -> None:
         gap: 24px;
         align-items: center;
         flex: 1;
+    }
+    .job-card-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-left: auto;
+    }
+    .job-card-date {
+        font-size: 13px;
+        font-weight: 400;
+        color: #9ca3af;
+        white-space: nowrap;
     }
     .job-card-param {
         display: flex;
@@ -296,6 +302,15 @@ def apply_custom_styles() -> None:
         text-transform: capitalize;
         letter-spacing: 0.4px;
         white-space: nowrap;
+    }
+
+    /* New Analysis button alignment and styling */
+    div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stColumn"]:last-child .stButton {
+        display: flex;
+        justify-content: flex-end;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stColumn"]:last-child .stButton button {
+        font-weight: 400 !important;
     }
 
 </style>
