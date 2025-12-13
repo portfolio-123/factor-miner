@@ -260,6 +260,12 @@ def apply_custom_styles() -> None:
         color: #212529;
         white-space: nowrap;
     }
+    .job-card-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #212529;
+        white-space: nowrap;
+    }
     .job-card-params {
         display: flex;
         gap: 24px;
@@ -275,6 +281,7 @@ def apply_custom_styles() -> None:
         font-size: 11px;
         color: #64748b;
         text-transform: uppercase;
+        margin-right: 6px;
     }
     .job-card-param .value {
         font-size: 13px;

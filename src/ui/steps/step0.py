@@ -171,33 +171,17 @@ def _render_dataset_card(
             dataset_info.get("precision"),
         )
 
-        st.divider()
-        if show_new_analysis_button:
-            label_col, btn_col = st.columns([4, 1], vertical_alignment="top")
-            with label_col:
-                st.markdown(
-                    "<div style='font-size: 15px; font-weight: 400; color: #60646A;'>PAST ANALYSES</div>",
-                    unsafe_allow_html=True,
-                )
-            with btn_col:
-                st.button(
-                    "New Analysis",
-                    type="primary",
-                    use_container_width=True,
-                    on_click=lambda: update_state(
-                        page="analysis", current_step=1, current_job_id=None
-                    ),
-                )
-        else:
+        # Only show job section if there are jobs
+        if jobs:
+            st.divider()
             st.markdown(
                 "<div style='font-size: 15px; font-weight: 400; color: #60646A; margin-bottom: 10px;'>PAST ANALYSES</div>",
                 unsafe_allow_html=True,
             )
-
-        if jobs:
             for job in jobs:
                 render_job_card(job, fl_id)
         else:
+            st.divider()
             st.markdown(
                 "<div style='font-size: 14px; color: #9ca3af; font-style: italic; padding: 8px 0;'>No analyses yet for this dataset version</div>",
                 unsafe_allow_html=True,

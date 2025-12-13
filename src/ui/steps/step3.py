@@ -1,10 +1,48 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from datetime import datetime
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.ui.components import section_header, render_results_table
 from src.core.calculations import select_best_features
-from src.workers.manager import delete_job
+from src.workers.manager import delete_job, read_job, update_job_name
+
+
+def render_analysis_name_input() -> None:
+    state = get_state()
+    job_id = state.current_job_id
+
+    if not job_id:
+        return
+
+    job_data = read_job(job_id)
+    if not job_data:
+        return
+
+    saved_name = job_data.get("name", "")
+    created_at = datetime.fromisoformat(job_data["created_at"])
+    default_name = created_at.strftime("%b %d, %Y %H:%M:%S")
+
+    st.markdown(
+        "<div style='font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: 4px;'>Analysis Name</div>",
+        unsafe_allow_html=True
+    )
+
+    col_input, col_btn = st.columns([5, 1])
+
+    with col_input:
+        new_name = st.text_input(
+            "Analysis Name",
+            value=saved_name,
+            placeholder=default_name,
+            key="analysis_name_input",
+            label_visibility="collapsed",
+        )
+
+    with col_btn:
+        if st.button("Save", type="primary", use_container_width=True):
+            update_job_name(job_id, new_name)
+            st.rerun()
 
 
 @st.fragment

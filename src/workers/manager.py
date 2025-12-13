@@ -181,6 +181,7 @@ def list_jobs(fl_id: str) -> List[Dict[str, Any]]:
                 
                 jobs.append({
                     "id": job_data.get("id"),
+                    "name": job_data.get("name"),
                     "created_at": job_data.get("created_at"),
                     "status": job_data.get("status"),
                     "dataset_version": dataset_version,
@@ -216,3 +217,24 @@ def get_job_results(job_data: Dict[str, Any]) -> tuple[pd.DataFrame, pd.DataFram
     metrics_df = deserialize_dataframe(results['all_metrics'])
     corr_matrix = deserialize_dataframe(results['all_corr_matrix'])
     return metrics_df, corr_matrix
+
+
+def update_job_name(job_id: str, name: str) -> bool:
+    job_data = read_job(job_id)
+    if job_data is None:
+        return False
+
+    job_data["name"] = name
+    job_data["updated_at"] = datetime.now().isoformat()
+
+    job_path = _get_job_path(job_id)
+    with open(job_path, 'w') as f:
+        json.dump(job_data, f, indent=2)
+    return True
+
+
+def get_job_name(job_id: str) -> Optional[str]:
+    job_data = read_job(job_id)
+    if job_data is None:
+        return None
+    return job_data.get("name")
