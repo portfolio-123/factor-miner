@@ -6,6 +6,7 @@ import re
 from src.core.context import get_state, update_state, clear_debug_logs
 from src.core.utils import format_timestamp
 from src.services.readers import ParquetDataReader
+from src.workers.manager import get_dataset_info_from_backup
 import os
 from src.ui.constants import FREQUENCY_LABELS, SCALING_LABELS
 from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Frequency, Job
@@ -379,18 +380,28 @@ def render_dataset_header(dataset_info: dict, dataset_version: str) -> None:
 def render_current_dataset_header() -> None:
     state = get_state()
 
+    # if viewing a restored job, use historical dataset info
+    if state.current_job_id:
+        try:
+            parts = state.current_job_id.split("/")
+            if len(parts) >= 2:
+                fl_id = parts[0]
+                dataset_version = parts[1]
+                dataset_info = get_dataset_info_from_backup(fl_id, dataset_version)
+                if dataset_info:
+                    render_dataset_header(dataset_info, dataset_version)
+                    return
+        except Exception:
+            pass
+
     if not state.dataset_path:
         return
 
     try:
-        # Get dataset version from file modification time
         ts = os.path.getmtime(state.dataset_path)
         dataset_version = str(int(ts))
-
-        # Read metadata from parquet
         reader = ParquetDataReader(state.dataset_path)
         dataset_info = reader.get_dataset_info()
-
         if dataset_info:
             render_dataset_header(dataset_info, dataset_version)
     except (FileNotFoundError, Exception):
