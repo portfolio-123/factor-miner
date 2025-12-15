@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import datetime
 import pandas as pd
 from typing import Optional
 import re
@@ -7,7 +8,7 @@ from src.core.utils import format_timestamp
 from src.services.readers import ParquetDataReader
 import os
 from src.ui.constants import FREQUENCY_LABELS, SCALING_LABELS
-from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Frequency
+from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Frequency, Job
 
 
 def header_with_navigation() -> None:
@@ -394,3 +395,171 @@ def render_current_dataset_header() -> None:
             render_dataset_header(dataset_info, dataset_version)
     except (FileNotFoundError, Exception):
         pass
+
+
+def render_job_param(label: str, value: str) -> str:
+    return f'<div class="job-card-param"><span class="label">{label}</span><span class="value">{value}</span></div>'
+
+
+def render_job_card(job: Job, fl_id: str) -> None:
+    created_at = datetime.fromisoformat(job.created_at)
+    formatted_date = created_at.strftime("%b %d, %Y %H:%M:%S")
+    status = job.status
+    job_id = job.id
+    job_name = job.name or "Untitled Analysis"
+
+    min_alpha = job.params.min_alpha
+    top_pct = job.params.top_pct
+    bottom_pct = job.params.bottom_pct
+
+    if status == "completed":
+        status_bg, status_color = "#e6f4ea", "#1e8e3e"
+    elif status in ("running", "pending"):
+        status_bg, status_color = "#fff0b3", "#b06000"
+    else:
+        status_bg, status_color = "#fce8e6", "#c5221f"
+
+    params_html = "".join(
+        [
+            render_job_param("Min Alpha", str(min_alpha)),
+            render_job_param("Top X", f"{top_pct}%"),
+            render_job_param("Bottom X", f"{bottom_pct}%"),
+        ]
+    )
+
+    link_content = f"""
+    <a href="?select_job_id={job_id}&fl_id={fl_id}" target="_self" class="job-card-link">
+        <div class="job-card-content">
+            <div class="job-card-name">{job_name}</div>
+            <div class="job-card-params">{params_html}</div>
+            <div class="job-card-right">
+                <span class="job-card-date">{formatted_date}</span>
+                <span class="job-card-status" style="background-color:{status_bg};color:{status_color};">{status}</span>
+            </div>
+        </div>
+    </a>
+    """
+
+    st.markdown(link_content, unsafe_allow_html=True)
+
+
+def render_dataset_history_card(
+    dataset_info: dict,
+    ds_ver: str,
+    jobs: list[Job],
+    fl_id: str,
+    is_current: bool = False,
+) -> None:
+    config = DatasetConfig.model_validate(dataset_info)
+
+
+    universe = config.universeName
+    currency = config.currency
+    ds_label = format_timestamp(ds_ver)
+
+    with st.container(border=True):
+        header_left, header_right = st.columns([5, 1])
+
+        with header_left:
+            st.markdown(
+                f"""<div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                        {universe}
+                    </div>
+                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+
+        with header_right:
+            st.markdown(
+                f'<div style="text-align: right; font-size: 14px; color: #888;">{ds_label}</div>',
+                unsafe_allow_html=True,
+            )
+
+        st.space(size=2)
+        stats_col, formulas_col = st.columns([5, 1], vertical_alignment="top")
+        with stats_col:
+            render_dataset_info_row(
+                config.benchName or "N/A",
+                config.frequency,
+                config.startDt or "N/A",
+                config.endDt or "N/A",
+                config.normalization,
+                config.precision,
+            )
+        with formulas_col:
+            st.markdown("""
+            <style>
+            div[data-testid="stVerticalBlock"]:has(.view-formulas-container) {
+                height: auto !important;
+                min-height: 0 !important;
+                justify-content: flex-start !important;
+            }
+            .view-formulas-container {
+                display: flex;
+                justify-content: flex-end;
+                width: 100%;
+                margin-top: 16px; /* align with the value text line */
+            }
+            .view-formulas-container a {
+                background: none;
+                border: none;
+                padding: 0;
+                color: #2196F3;
+                text-decoration: underline;
+                font-size: 13px;
+                font-weight: 400;
+                cursor: pointer;
+            }
+            .view-formulas-container a:hover {
+                color: #1976D2;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="view-formulas-container">'
+                f'<a href="?fl_id={fl_id}&view_formulas_ds_ver={ds_ver}" target="_self">View Formulas</a>'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.divider()
+
+        title_text = "PAST ANALYSES" if jobs else "No analyses yet for this dataset version"
+        title_style = (
+            "font-size: 15px; font-weight: 400; color: #60646A;"
+            if jobs
+            else "font-size: 14px; color: #9ca3af; font-style: italic;"
+        )
+
+        if is_current:
+            title_style += " padding-top: 4px;"
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.markdown(
+                    f"<div style='{title_style}'>{title_text}</div>",
+                    unsafe_allow_html=True,
+                )
+            with col2:
+                st.button(
+                    "New Analysis",
+                    type="primary",
+                    key="new_analysis_btn" if jobs else "new_analysis_btn_empty",
+                    use_container_width=True,
+                    on_click=lambda: update_state(
+                        page="analysis", current_step=1, current_job_id=None
+                    ),
+                )
+        else:
+            title_style += " margin-bottom: 10px;" if jobs else " padding: 8px 0;"
+            st.markdown(
+                f"<div style='{title_style}'>{title_text}</div>",
+                unsafe_allow_html=True,
+            )
+
+        for job in jobs:
+            render_job_card(job, fl_id)
+
+        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
