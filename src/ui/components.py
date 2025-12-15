@@ -115,6 +115,25 @@ def _show_debug_modal():
     _logs_content()
 
 
+def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
+    """Display formulas in a modal dialog."""
+    st.session_state.show_formulas_modal = False
+
+    total = int(len(formulas_df)) if formulas_df is not None else 0
+    title = f"Dataset Formulas ({total})"
+
+    dialog = st.dialog(title, width="large")
+
+    @dialog
+    def _render() -> None:
+        if formulas_df is not None and not formulas_df.empty:
+            render_formulas_grid(formulas_df)
+        else:
+            st.info("No formulas available for this dataset")
+
+    _render()
+
+
 def section_header(title: str) -> None:
     st.markdown(
         f"""

@@ -8,6 +8,7 @@ from src.core.utils import format_timestamp, locate_factor_list_file
 from src.workers.manager import list_jobs, get_dataset_info_from_backup
 from src.core.job_restore import restore_job_state
 from src.services.readers import ParquetDataReader
+from src.ui.components import show_formulas_modal
 
 
 def _info_item(label: str, value: str, muted: bool = False) -> str:
@@ -147,29 +148,78 @@ def _render_dataset_card(
     benchmark = dataset_info.get("benchName", "N/A")
 
     with st.container(border=True):
-        # Card header
-        st.markdown(
-            f"""<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
+        # Header row: universe name + View Formulas on left, date on right
+        header_left, header_right = st.columns([5, 1])
+
+        with header_left:
+            # Universe name and currency badge
+            st.markdown(
+                f"""<div style="display: flex; align-items: center; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
                         {universe}
                     </div>
                     <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
-                </div>
-                <span style="font-size: 14px; color: #888; font-weight: 400;">{ds_label}</span>
-            </div>""",
-            unsafe_allow_html=True,
-        )
+                </div>""",
+                unsafe_allow_html=True,
+            )
 
-        _render_dataset_info(
-            benchmark,
-            frequency,
-            start_date,
-            end_date,
-            normalization,
-            dataset_info.get("precision"),
-        )
+        with header_right:
+            st.markdown(
+                f'<div style="text-align: right; font-size: 14px; color: #888;">{ds_label}</div>',
+                unsafe_allow_html=True,
+            )
+
+        st.space(size=2)
+        # Dataset info row with View Formulas at the end
+        # Force both columns to align their contents at the top (prevents button sinking)
+        stats_col, formulas_col = st.columns([5, 1], vertical_alignment="top")
+        with stats_col:
+            _render_dataset_info(
+                benchmark,
+                frequency,
+                start_date,
+                end_date,
+                normalization,
+                dataset_info.get("precision"),
+            )
+        with formulas_col:
+            # Render as an HTML link (avoids Streamlit button layout/height quirks)
+            st.markdown("""
+            <style>
+            /* Make the formulas column shrink-wrap and top-align */
+            div[data-testid="stVerticalBlock"]:has(.view-formulas-container) {
+                height: auto !important;
+                min-height: 0 !important;
+                justify-content: flex-start !important;
+            }
+            .view-formulas-container {
+                display: flex;
+                justify-content: flex-end;
+                width: 100%;
+                margin-top: 16px; /* align with the value text line */
+            }
+            .view-formulas-container a {
+                background: none;
+                border: none;
+                padding: 0;
+                color: #2196F3;
+                text-decoration: underline;
+                font-size: 13px;
+                font-weight: 400;
+                cursor: pointer;
+            }
+            .view-formulas-container a:hover {
+                color: #1976D2;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="view-formulas-container">'
+                f'<a href="?fl_id={fl_id}&view_formulas_ds_ver={ds_ver}" target="_self">View Formulas</a>'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
         # Only show job section if there are jobs
         if jobs:
@@ -252,6 +302,15 @@ def render() -> None:
         _handle_job_click(job_id)
         st.rerun()
 
+    # Handle formulas link click (query param)
+    if "view_formulas_ds_ver" in st.query_params:
+        ds_ver = st.query_params["view_formulas_ds_ver"]
+        del st.query_params["view_formulas_ds_ver"]
+        st.session_state.show_formulas_modal = True
+        st.session_state.formulas_fl_id = fl_id
+        st.session_state.formulas_ds_ver = ds_ver
+        st.rerun()
+
     # Get current dataset version and metadata from source file
     current_version, current_dataset_info = _get_current_dataset_info(fl_id)
 
@@ -306,6 +365,29 @@ def render() -> None:
     # Show message if no data at all
     if not jobs and not current_dataset_info:
         st.info("No past analysis found for this Factor List.")
+
+    # Handle formulas modal
+    if st.session_state.get("show_formulas_modal"):
+        formulas_fl_id = st.session_state.get("formulas_fl_id")
+        formulas_ds_ver = st.session_state.get("formulas_ds_ver")
+        if formulas_fl_id and formulas_ds_ver:
+            try:
+                # Check if this is the current version
+                is_current = formulas_ds_ver == current_version
+                if is_current:
+                    # Read from current dataset file
+                    dataset_path = locate_factor_list_file(formulas_fl_id)
+                    reader = ParquetDataReader(dataset_path)
+                    formulas_df, _ = reader.get_metadata_bundle()
+                else:
+                    # Read from backup file
+                    from src.workers.manager import INTEGRATIONS_DIR
+                    import pandas as pd
+                    backup_path = INTEGRATIONS_DIR / formulas_fl_id / formulas_ds_ver / "dataset_metadata.parquet"
+                    formulas_df = pd.read_parquet(backup_path)
+                show_formulas_modal(formulas_df)
+            except Exception:
+                st.session_state.show_formulas_modal = False
 
 
 def render_job_card(job: dict, fl_id: str) -> None:
