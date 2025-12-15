@@ -13,4 +13,6 @@ gatherUsageStats = false
 
 [client]
 toolbarMode = "minimal"
-showSidebarNavigation = false
+
+[ui]
+hideTopBar = true
