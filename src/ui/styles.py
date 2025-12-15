@@ -313,5 +313,32 @@ def apply_custom_styles() -> None:
         font-weight: 400 !important;
     }
 
-</style>
+    /* ===== View Formulas Link Styles ===== */
+    /* Make the formulas column shrink-wrap and top-align */
+    div[data-testid="stVerticalBlock"]:has(.view-formulas-container) {
+        height: auto !important;
+        min-height: 0 !important;
+        justify-content: flex-start !important;
+    }
+    .view-formulas-container {
+        display: flex;
+        justify-content: flex-end;
+        width: 100%;
+        margin-top: 16px; /* align with the value text line */
+    }
+    .view-formulas-container a {
+        background: none;
+        border: none;
+        padding: 0;
+        color: #2196F3;
+        text-decoration: underline;
+        font-size: 13px;
+        font-weight: 400;
+        cursor: pointer;
+    }
+    .view-formulas-container a:hover {
+        color: #1976D2;
+    }
+
+    </style>
     """, unsafe_allow_html=True)

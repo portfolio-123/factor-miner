@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.utils import locate_factor_list_file
 from src.ui.styles import apply_custom_styles
-from src.workers.manager import list_jobs
 from src.ui.pages import history_page, analysis_page
 from src.core.job_restore import restore_job_state
 
@@ -60,7 +59,6 @@ def initialize_app() -> None:
 
                 
                 if not restored:
-                    # default to history page
                     update_state(page="history")
                     
             except (ValueError, FileNotFoundError) as e:

@@ -5,12 +5,9 @@ import re
 from src.core.context import get_state, update_state, clear_debug_logs
 from src.core.utils import format_timestamp
 from src.services.readers import ParquetDataReader
-import json
 import os
-
-
-def _navigate_to(step: int) -> None:
-    update_state(current_step=step)
+from src.ui.constants import FREQUENCY_LABELS, SCALING_LABELS
+from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Frequency
 
 
 def header_with_navigation() -> None:
@@ -65,8 +62,8 @@ def header_with_navigation() -> None:
                         type=btn_type,
                         disabled=not is_available,
                         width="stretch",
-                        on_click=_navigate_to if is_available else None,
-                        args=(step_num,) if is_available else None,
+                        on_click=update_state if is_available else None,
+                        kwargs={"current_step": step_num} if is_available else None,
                     )
 
         with col_logs:
@@ -116,7 +113,6 @@ def _show_debug_modal():
 
 
 def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
-    """Display formulas in a modal dialog."""
     st.session_state.show_formulas_modal = False
 
     total = int(len(formulas_df)) if formulas_df is not None else 0
@@ -278,33 +274,80 @@ def render_results_table(
         return None
 
 
-def _dataset_info_item(label: str, value: str, muted: bool = False) -> str:
+def render_info_item(label: str, value: str, muted: bool = False) -> str:
     value_class = "value muted" if muted else "value"
     return f'<div class="dataset-info-item"><div class="label">{label}</div><div class="{value_class}">{value}</div></div>'
 
 
+def render_dataset_info_row(
+    benchmark: str,
+    frequency: Frequency,
+    start_date: str,
+    end_date: str,
+    normalization: NormalizationConfig | None,
+    precision: str | None,
+) -> None:
+
+    base_items = [
+        render_info_item("Benchmark", benchmark),
+        render_info_item("Frequency", FREQUENCY_LABELS.get(frequency, str(frequency))),
+        render_info_item("Start Date", start_date),
+        render_info_item("End Date", end_date),
+    ]
+
+    if normalization:
+        norm_items = [
+            render_info_item(
+                "Scaling",
+                SCALING_LABELS.get(normalization.scaling, str(normalization.scaling))
+                if normalization.scaling
+                else "None",
+            ),
+            render_info_item(
+                "Scope", normalization.scope.title() if normalization.scope else "None"
+            ),
+            render_info_item(
+                "Trim",
+                f"{normalization.trimPct}%"
+                if normalization.trimPct is not None
+                else "N/A",
+            ),
+            render_info_item("Precision", precision or "N/A"),
+            render_info_item(
+                "Outlier",
+                str(normalization.outlierLimit)
+                if normalization.outlierLimit is not None
+                else "None",
+            ),
+            render_info_item(
+                "N/A Handling", "Middle" if normalization.naFill else "None"
+            ),
+        ]
+
+        if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
+            norm_items.append(
+                render_info_item("ML Training End", normalization.mlTrainingEnd)
+            )
+    else:
+        norm_items = [render_info_item("Normalization", "None", muted=True)]
+
+    html = f"""
+    <div class="dataset-info-row">
+        <div class="dataset-info-group">{"".join(base_items)}</div>
+        <div class="dataset-info-divider"></div>
+        <div class="dataset-info-group">{"".join(norm_items)}</div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def render_dataset_header(dataset_info: dict, dataset_version: str) -> None:
     """Render the dataset header with universe name, metadata, and info row."""
-    frequency_map = {
-        "WEEKLY": "Every week",
-        "WEEKS2": "Every 2 weeks",
-        "WEEKS4": "Every 4 weeks",
-        "WEEKS8": "Every 8 weeks",
-        "WEEKS13": "Every 13 weeks",
-        "WEEKS26": "Every 26 weeks",
-        "WEEKS52": "Every 52 weeks",
-    }
-    scaling_map = {"normal": "Z-Score", "minmax": "Min/Max", "rank": "Rank"}
+    config = DatasetConfig.model_validate(dataset_info)
 
-    universe = dataset_info.get("universeName", "Unknown Universe")
-    frequency = frequency_map.get(dataset_info.get("frequency"), "Unknown")
-    currency = dataset_info.get("currency", "USD")
+    universe = config.universeName
+    currency = config.currency
     ds_label = format_timestamp(dataset_version)
-    start_date = dataset_info.get("startDt") or "N/A"
-    end_date = dataset_info.get("endDt") or "N/A"
-    benchmark = dataset_info.get("benchName", "N/A")
-    precision = dataset_info.get("precision", "N/A")
-    normalization = dataset_info.get("normalization", None)
 
     with st.container(border=True):
         # Card header
@@ -322,63 +365,17 @@ def render_dataset_header(dataset_info: dict, dataset_version: str) -> None:
             unsafe_allow_html=True,
         )
 
-        # Dataset info row
-        base_items = [
-            _dataset_info_item("Benchmark", benchmark),
-            _dataset_info_item("Frequency", frequency),
-            _dataset_info_item("Start Date", start_date),
-            _dataset_info_item("End Date", end_date),
-        ]
-
-        if isinstance(normalization, str):
-            normalization = json.loads(normalization)
-
-        if normalization:
-            norm_scaling = scaling_map.get(normalization.get("scaling"), "N/A")
-            norm_scope = normalization.get("scope")
-            scope_val = (
-                (norm_scope.title() if isinstance(norm_scope, str) else str(norm_scope))
-                if norm_scope
-                else "N/A"
-            )
-            trim_val = (
-                f"{normalization.get('trimPct')}%"
-                if normalization.get("trimPct") is not None
-                else "N/A"
-            )
-            outlier_val = (
-                str(normalization.get("outlierLimit"))
-                if (
-                    normalization.get("outliers")
-                    and normalization.get("outlierLimit") is not None
-                )
-                else "N/A"
-            )
-            na_fill = "Middle" if normalization.get("naFill") else "None"
-
-            norm_items = [
-                _dataset_info_item("Scaling", norm_scaling),
-                _dataset_info_item("Scope", scope_val),
-                _dataset_info_item("Trim", trim_val),
-                _dataset_info_item("Precision", str(precision)),
-                _dataset_info_item("Outlier", outlier_val),
-                _dataset_info_item("N/A Handling", na_fill),
-            ]
-        else:
-            norm_items = [_dataset_info_item("Normalization", "None", muted=True)]
-
-        html = f"""
-        <div class="dataset-info-row">
-            <div class="dataset-info-group">{"".join(base_items)}</div>
-            <div class="dataset-info-divider"></div>
-            <div class="dataset-info-group">{"".join(norm_items)}</div>
-        </div>
-        """
-        st.markdown(html, unsafe_allow_html=True)
+        render_dataset_info_row(
+            config.benchName or "N/A",
+            config.frequency,
+            config.startDt or "N/A",
+            config.endDt or "N/A",
+            config.normalization,
+            config.precision,
+        )
 
 
 def render_current_dataset_header() -> None:
-    """Render the dataset header for the current dataset in state."""
     state = get_state()
 
     if not state.dataset_path:
@@ -391,7 +388,7 @@ def render_current_dataset_header() -> None:
 
         # Read metadata from parquet
         reader = ParquetDataReader(state.dataset_path)
-        _, dataset_info = reader.get_metadata_bundle()
+        dataset_info = reader.get_dataset_info()
 
         if dataset_info:
             render_dataset_header(dataset_info, dataset_version)

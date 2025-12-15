@@ -74,8 +74,8 @@ def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -
 
 
 def restore_job_state(job_id: str) -> bool:
-    """Check job state and dispatch to appropriate restore function."""
     job_data = read_job(job_id)
+    # if there's no job, nothing to restore
     if not job_data:
         return False
 

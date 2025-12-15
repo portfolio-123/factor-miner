@@ -4,7 +4,8 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
+from collections import defaultdict
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -13,6 +14,7 @@ from dotenv import load_dotenv
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus, JobProgress
 from src.services.readers import ParquetDataReader
+from src.core.types import Job
 
 load_dotenv()
 
@@ -36,7 +38,11 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
 
     try:
         reader = ParquetDataReader(dataset_path)
-        formulas_df, dataset_info = reader.get_metadata_bundle()
+        formulas_df = reader.get_formulas_df()
+        dataset_info = reader.get_dataset_info()
+
+        if formulas_df is None:
+            formulas_df = pd.DataFrame(columns=["formula", "name", "tag", "Normalization"])
 
         table = pa.Table.from_pandas(formulas_df)
         
@@ -54,14 +60,12 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
 
 def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[Dict[str, Any]]:
     path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
-    if path.exists():
-        try:
-            metadata = pq.read_schema(path).metadata
-            if metadata and b'dataset' in metadata:
-                return json.loads(metadata[b'dataset'].decode('utf-8'))
-        except:
-            return None
-    return None
+    if not path.exists():
+        return None
+    try:
+        return ParquetDataReader(str(path)).get_dataset_info()
+    except Exception:
+        return None
 
 
 def create_job(job_id: str, params: Dict[str, Any]) -> Path:
@@ -238,3 +242,24 @@ def get_job_name(job_id: str) -> Optional[str]:
     if job_data is None:
         return None
     return job_data.get("name")
+
+
+def get_grouped_jobs(fl_id: str) -> Tuple[List[Job], Dict[str, List[Job]]]:
+    jobs_data = list_jobs(fl_id)
+    jobs = [Job(**j) for j in jobs_data]
+    
+    grouped_jobs = defaultdict(list)
+    for job in jobs:
+        ds_ver = job.dataset_version
+        if ds_ver:
+            grouped_jobs[ds_ver].append(job)
+            
+    return jobs, grouped_jobs
+
+
+def sort_dataset_versions(versions: List[str]) -> List[str]:
+    return sorted(
+        versions,
+        key=lambda x: float(x) if x.replace(".", "", 1).isdigit() else 0,
+        reverse=True,
+    )

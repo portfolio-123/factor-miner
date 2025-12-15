@@ -1,11 +1,13 @@
 from functools import cached_property
 import json
 from typing import Optional, Dict, Any, Tuple
+import os
 
 import pandas as pd
 import pyarrow.parquet as pq
 
 from src.core.constants import REQUIRED_COLUMNS
+from src.core.utils import locate_factor_list_file
 
 
 class ParquetDataReader:
@@ -15,6 +17,19 @@ class ParquetDataReader:
     @cached_property
     def _parquet_file(self) -> pq.ParquetFile:
         return pq.ParquetFile(self.file_path)
+
+    @cached_property
+    def _custom_metadata(self) -> Dict[str, str]:
+        try:
+            schema_metadata = self._parquet_file.schema_arrow.metadata
+            if schema_metadata is None:
+                return {}
+            return {
+                k.decode("utf-8"): v.decode("utf-8")
+                for k, v in schema_metadata.items()
+            }
+        except Exception:
+            return {}
 
 
     def validate(self) -> Tuple[bool, Optional[str]]:
@@ -87,42 +102,61 @@ class ParquetDataReader:
         except Exception as e:
             return {'valid': False, 'error': str(e)}
 
-    def get_custom_metadata(self) -> Optional[Dict[str, str]]:
+    def _get_custom_metadata_json(self, key: str) -> Optional[Any]:
+        raw = self._custom_metadata.get(key)
+        if not raw:
+            return None
         try:
-            schema_metadata = self._parquet_file.schema_arrow.metadata
-            if schema_metadata is None:
-                return None
-            return {
-                k.decode('utf-8'): v.decode('utf-8')
-                for k, v in schema_metadata.items()
-            }
+            return json.loads(raw)
         except Exception:
             return None
 
-    def get_metadata_bundle(self) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
+    def get_formulas_df(self) -> Optional[pd.DataFrame]:
+        features_json = self._get_custom_metadata_json("features")
+        if not features_json:
+            return None
+
         try:
-            metadata = self.get_custom_metadata()
-                
-            formulas_df = None
-            if 'features' in metadata:
-                features_json = json.loads(metadata['features'])
-                df = pd.DataFrame(features_json)
+            df = pd.DataFrame(features_json)
 
-                expected_cols = ['formula', 'name', 'tag', 'Normalization']
-                for col in expected_cols:
-                    if col not in df.columns:
-                        df[col] = '' if col != 'Normalization' else 'Raw'
-                
-                if 'Normalization' in df.columns:
-                        df['Normalization'] = df['Normalization'].replace('', 'Raw').fillna('Raw')
+            expected_cols = ["formula", "name", "tag", "Normalization"]
+            for col in expected_cols:
+                if col not in df.columns:
+                    df[col] = "" if col != "Normalization" else "Raw"
 
-                formulas_df = df[['formula', 'name', 'tag', 'Normalization']]
+            # normalize missing/empty values
+            df["Normalization"] = df["Normalization"].replace("", "Raw").fillna("Raw")
 
-            dataset_info = None
-            if 'dataset' in metadata:
-                dataset_info = json.loads(metadata['dataset'])
-
-            return formulas_df, dataset_info
+            return df[expected_cols]
         except Exception:
-            return None, None
+            return None
 
+    def get_dataset_info(self) -> Optional[Dict[str, Any]]:
+        dataset_info = self._get_custom_metadata_json("dataset")
+        if not dataset_info:
+            return None
+        norm = dataset_info.get("normalization")
+        if isinstance(norm, str):
+            try:
+                loaded = json.loads(norm)
+            except Exception:
+                loaded = None
+            dataset_info["normalization"] = loaded if isinstance(loaded, dict) else None
+
+        return dataset_info
+
+
+def get_current_dataset_info(fl_id: str) -> Tuple[Optional[str], Optional[dict]]:
+    try:
+        dataset_path = locate_factor_list_file(fl_id)
+        
+        # get modification timestamp as id
+        ts = os.path.getmtime(dataset_path)
+        current_version = str(int(ts))
+        
+        reader = ParquetDataReader(dataset_path)
+        dataset_info = reader.get_dataset_info()
+        
+        return current_version, dataset_info
+    except (FileNotFoundError, ValueError, Exception):
+        return None, None
