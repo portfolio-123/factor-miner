@@ -87,21 +87,20 @@ def _render_review_content() -> None:
     preview_df = reader.read_preview(num_rows=10)
     metadata = reader.get_metadata()
 
-    if preview_df is None or preview_df.empty:
-        st.error("No data available for preview")
-        return
-
-    actual_row_count = metadata.get('num_rows', len(preview_df))
-    unique_dates = metadata.get('unique_dates')
-    dates = pd.to_datetime(preview_df['Date'])
-    stats = {
-        'num_rows': actual_row_count,
-        'num_columns': len(preview_df.columns),
-        'num_dates': unique_dates if unique_dates is not None else dates.nunique(),
-        'min_date': format_date(dates.min()),
-        'max_date': format_date(dates.max()),
-    }
-    render_dataset_statistics(stats, state.benchmark_ticker)
+    if preview_df is not None and not preview_df.empty:
+        actual_row_count = metadata.get('num_rows', len(preview_df))
+        unique_dates = metadata.get('unique_dates')
+        dates = pd.to_datetime(preview_df['Date'])
+        stats = {
+            'num_rows': actual_row_count,
+            'num_columns': len(preview_df.columns),
+            'num_dates': unique_dates if unique_dates is not None else dates.nunique(),
+            'min_date': format_date(dates.min()),
+            'max_date': format_date(dates.max()),
+        }
+        render_dataset_statistics(stats, state.benchmark_ticker)
+    else:
+        st.error("Unable to load dataset preview and statistics. Showing available metadata only.")
 
     tab1, tab2 = st.tabs(["Formulas", "Dataset Preview"])
 
@@ -112,7 +111,10 @@ def _render_review_content() -> None:
             st.info("No formulas data available")
 
     with tab2:
-        render_dataset_preview(preview_df)
+        if preview_df is not None and not preview_df.empty:
+            render_dataset_preview(preview_df)
+        else:
+            st.warning("Preview unavailable")
 
     if st.session_state.get('step2_error'):
         st.error(st.session_state['step2_error'])
@@ -134,5 +136,9 @@ def render() -> None:
     if job_data is None:
         update_state(current_job_id=None)
         st.rerun()
+
+    if job_data.get('status') == JobStatus.COMPLETED:
+        _render_review_content()
+        return
 
     _render_job_progress(job_id)
