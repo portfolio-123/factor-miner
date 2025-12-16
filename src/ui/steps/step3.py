@@ -135,21 +135,6 @@ def _render_action_buttons(state, display_df) -> None:
     # comma delimited for file download (with Formula in second position)
     csv_to_download = _prepare_download_csv(display_df, state.formulas_data)
 
-    # with col1:
-    #     if st.button("New Analysis", type="tertiary", use_container_width=True) and state.factor_list_uid:
-    #         delete_job(state.factor_list_uid)
-    #         add_debug_log(f"Deleted job {state.factor_list_uid} for new analysis")
-
-    #         # Reset state to step 1
-    #         state.completed_steps.clear()
-    #         state.completed_steps.add(1)
-    #         update_state(
-    #             current_step=1,
-    #             current_job_id=None,
-    #             all_metrics=None,
-    #             all_corr_matrix=None,
-    #         )
-    #         st.rerun()
 
     # TODO: horrible way to add a copy button. search for a streamlit library or more native solution
     csv_escaped = csv_to_copy.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')

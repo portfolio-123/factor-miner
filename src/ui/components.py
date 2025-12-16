@@ -10,6 +10,7 @@ from src.workers.manager import get_dataset_info_from_backup
 import os
 from src.ui.constants import FREQUENCY_LABELS, SCALING_LABELS
 from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Frequency, Job
+from src.core.job_restore import restore_job_state
 
 
 def header_simple_back(create_columns: bool = True) -> None:
@@ -365,11 +366,17 @@ def render_dataset_info_row(
     st.markdown(html, unsafe_allow_html=True)
 
 
+def handle_view_formulas(fl_id: str, ds_ver: str) -> None:
+    st.session_state.show_formulas_modal = True
+    st.session_state.formulas_fl_id = fl_id
+    st.session_state.formulas_ds_ver = ds_ver
+
+
 def render_dataset_header(
     dataset_info: dict,
     dataset_version: str,
     analysis_params: Optional[dict] = None,
-    view_formulas_url: Optional[str] = None
+    fl_id: Optional[str] = None
 ) -> None:
     """Render the dataset header with universe name, metadata, and info row."""
     config = DatasetConfig.model_validate(dataset_info)
@@ -419,24 +426,30 @@ def render_dataset_header(
             
             params_html = f'<div class="dataset-info-group">{"".join(items)}</div>'
             
-            view_formulas_html = ""
-            if view_formulas_url:
-                view_formulas_html = f'<a href="{view_formulas_url}" target="_self" class="view-formulas-link">View Formulas</a>'
+            # Use columns to align params (left) and button (right)
+            col_params, col_btn = st.columns([5, 1], vertical_alignment="bottom")
+            
+            with col_params:
+                st.markdown(f"""
+                <div class="analysis-params-row" style="padding-bottom: 0;">
+                    {params_html}
+                </div>
+                """, unsafe_allow_html=True)
 
-            st.markdown(f"""
-            <div class="analysis-params-row">
-                {params_html}
-                {view_formulas_html}
-            </div>
-            """, unsafe_allow_html=True)
+            with col_btn:
+                if fl_id:
+                    st.markdown('<span class="view-formulas-trigger">&nbsp;</span>', unsafe_allow_html=True)
+                    st.button("View Formulas", key="view_formulas_btn_header", type="tertiary", on_click=handle_view_formulas, args=(fl_id, dataset_version))
+
+            # Add spacing below the params row
+            st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
 
 
 def render_current_dataset_header() -> None:
     state = get_state()
 
-    # Prepare analysis params and formulas URL if available
+    # Prepare analysis params
     analysis_params = None
-    view_formulas_url = None
     
     # Check if we have analysis params in state
     if state.current_step == 3: # Only show analysis params in result step or if job is loaded
@@ -446,7 +459,7 @@ def render_current_dataset_header() -> None:
              "bottom_x_pct": state.bottom_x_pct
          }
 
-    # Prepare view formulas URL
+    # Prepare dataset version if possible
     dataset_version = None
     if state.dataset_path and os.path.exists(state.dataset_path):
         try:
@@ -464,11 +477,6 @@ def render_current_dataset_header() -> None:
          except:
             pass
 
-    if state.factor_list_uid and dataset_version:
-         job_id_param = f"&job_id={state.current_job_id}" if state.current_job_id else ""
-         view_formulas_url = f"?fl_id={state.factor_list_uid}&view_formulas_ds_ver={dataset_version}{job_id_param}"
-
-
     # if viewing a restored job, use historical dataset info
     if state.current_job_id:
         try:
@@ -478,7 +486,7 @@ def render_current_dataset_header() -> None:
                 ds_ver = parts[1]
                 dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
                 if dataset_info:
-                    render_dataset_header(dataset_info, ds_ver, analysis_params, view_formulas_url)
+                    render_dataset_header(dataset_info, ds_ver, analysis_params, fl_id)
                     return
         except Exception:
             pass
@@ -492,13 +500,20 @@ def render_current_dataset_header() -> None:
         reader = ParquetDataReader(state.dataset_path)
         dataset_info = reader.get_dataset_info()
         if dataset_info:
-            render_dataset_header(dataset_info, ds_ver, analysis_params, view_formulas_url)
+            render_dataset_header(dataset_info, ds_ver, analysis_params, state.factor_list_uid)
     except (FileNotFoundError, Exception):
         pass
 
 
 def render_job_param(label: str, value: str) -> str:
     return f'<div class="job-card-param"><span class="label">{label}</span><span class="value">{value}</span></div>'
+
+
+def handle_job_selection(job_id: str) -> None:
+    if restore_job_state(job_id):
+        st.rerun()
+    else:
+        st.error(f"Failed to load job {job_id}")
 
 
 def render_job_card(job: Job, fl_id: str) -> None:
@@ -527,20 +542,26 @@ def render_job_card(job: Job, fl_id: str) -> None:
         ]
     )
 
-    link_content = f"""
-    <a href="?select_job_id={job_id}&fl_id={fl_id}" target="_self" class="job-card-link">
-        <div class="job-card-content">
-            <div class="job-card-name">{job_name}</div>
-            <div class="job-card-params">{params_html}</div>
-            <div class="job-card-right">
-                <span class="job-card-date">{formatted_date}</span>
-                <span class="job-card-status" style="background-color:{status_bg};color:{status_color};">{status}</span>
-            </div>
+    # 1. Visual Card Content & Trigger combined
+    # The container div "job-card-content" now has the layout styles
+    # We append the trigger span directly here so they are in the same markdown container
+    card_html = f"""
+    <div class="job-card-content">
+        <div class="job-card-name">{job_name}</div>
+        <div class="job-card-params">{params_html}</div>
+        <div class="job-card-right">
+            <span class="job-card-date">{formatted_date}</span>
+            <span class="job-card-status" style="background-color:{status_bg};color:{status_color};">{status}</span>
         </div>
-    </a>
+    </div>
+    <span class="job-card-trigger"></span>
     """
-
-    st.markdown(link_content, unsafe_allow_html=True)
+    st.markdown(card_html, unsafe_allow_html=True)
+    
+    # 2. Native Button Overlay
+    # The CSS hack will position this button over the card content
+    if st.button("Open Analysis", key=f"job_btn_{job_id}", use_container_width=True):
+        handle_job_selection(job_id)
 
 
 def render_dataset_history_card(
@@ -590,12 +611,9 @@ def render_dataset_history_card(
                 config.precision,
             )
         with formulas_col:
-            st.markdown(
-                f'<div class="view-formulas-container">'
-                f'<a href="?fl_id={fl_id}&view_formulas_ds_ver={ds_ver}" target="_self">View Formulas</a>'
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+            # Replaced manual HTML link with styled Streamlit button
+            st.markdown('<span class="view-formulas-trigger">&nbsp;</span>', unsafe_allow_html=True)
+            st.button("View Formulas", key=f"view_formulas_{ds_ver}", type="tertiary", on_click=handle_view_formulas, args=(fl_id, ds_ver))
 
         st.divider()
 

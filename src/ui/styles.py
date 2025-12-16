@@ -252,7 +252,13 @@ def apply_custom_styles() -> None:
         display: flex;
         align-items: center;
         gap: 24px;
-        padding: 12px 16px;
+        padding: 0 16px; /* Vertical padding handled by height */
+        height: 52px;
+        box-sizing: border-box;
+        /* Matches link style minus border/hover */
+        border: 1px solid transparent; /* Placeholder to match height */
+        border-radius: 8px;
+        background-color: white;
     }
     .job-card-name {
         font-size: 14px;
@@ -295,13 +301,65 @@ def apply_custom_styles() -> None:
         color: #333;
     }
     .job-card-status {
-        padding: 3px 9px;
+        padding: 2px 8px;
         border-radius: 12px;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
         text-transform: capitalize;
         letter-spacing: 0.4px;
         white-space: nowrap;
+    }
+
+    /* JOB CARD BUTTON OVERLAY STYLES */
+    /* 1. Target the markdown container to remove bottom margin */
+    .element-container:has(.job-card-trigger) {
+        margin-bottom: 0 !important;
+    }
+
+    /* 2. Target button following the trigger */
+    .element-container:has(.job-card-trigger) + div button {
+        /* Position to cover the card */
+        margin-top: -52px !important; /* Exact match for height */
+        height: 52px !important;
+        width: 100% !important;
+        display: block !important;
+        cursor: pointer !important;
+        
+        /* Visuals */
+        background-color: transparent !important; /* Start transparent */
+        border: 1px solid #e5e7eb !important;
+        border-radius: 8px !important;
+        transition: all 0.2s ease !important;
+        z-index: 5;
+        
+        /* Text handling */
+        color: transparent !important; /* Hide button label */
+        
+        /* Spacing for next card */
+        margin-bottom: 6px !important;
+    }
+    
+    .element-container:has(.job-card-trigger) + div button:hover {
+        border-color: #2196F3 !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+        background-color: rgba(255, 255, 255, 0) !important; /* Ensure transparent bg */
+    }
+    
+    .element-container:has(.job-card-trigger) + div button:focus {
+        border-color: #2196F3 !important;
+        box-shadow: none !important;
+        color: transparent !important;
+    }
+    
+    .element-container:has(.job-card-trigger) + div button:active {
+        background-color: rgba(33, 150, 243, 0.05) !important;
+        border-color: #2196F3 !important;
+        color: transparent !important;
+    }
+    
+    /* Ensure inner p is hidden */
+    .element-container:has(.job-card-trigger) + div button p {
+        display: none;
     }
 
     /* New Analysis button alignment and styling */
@@ -313,39 +371,84 @@ def apply_custom_styles() -> None:
         font-weight: 400 !important;
     }
 
-    /* ===== View Formulas Link Styles ===== */
-    .view-formulas-link {
-        color: #2196F3 !important;
-        text-decoration: underline;
-        font-size: 13px;
-        font-weight: 400;
-        cursor: pointer;
-        white-space: nowrap;
-    }
-    .view-formulas-link:hover {
-        color: #1976D2;
+    /* ===== View Formulas Button Styles (Styled to look like a link) ===== */
+    
+    /* 1. Hide the trigger container (using multiple selectors for robustness) */
+    .element-container:has(.view-formulas-trigger),
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) {
+        display: none !important;
     }
 
-    /* Container for formulas link in history card (right aligned) */
-    .view-formulas-container {
-        display: flex;
-        justify-content: flex-end;
-        width: 100%;
-        padding-bottom: 5px;
+    /* 2. Target the BUTTON directly following the trigger container */
+    /* We target the container of the button to align it right */
+    .element-container:has(.view-formulas-trigger) ~ .element-container,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] {
+        display: flex !important;
+        justify-content: flex-end !important;
+        width: 100% !important;
     }
-    /* Ensure link inside container inherits styles if needed, or apply directly */
-    .view-formulas-container a {
-        background: none;
-        border: none;
-        padding: 0;
+    
+    /* Ensure the wrapper div (.stButton) doesn't take full width and allows alignment */
+    .element-container:has(.view-formulas-trigger) ~ .element-container .stButton,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] .stButton {
+        width: auto !important;
+        display: inline-flex !important;
+    }
+
+    /* 3. Target the button itself to make it look like a link */
+    .element-container:has(.view-formulas-trigger) ~ .element-container button,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button {
+        /* Remove button-ness */
+        border: none !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
+        
+        /* Remove sizing/padding constraints */
+        padding: 0px !important;
+        margin: 0px !important;
+        height: auto !important;
+        min-height: 0px !important;
+        line-height: 1.5 !important;
+        width: auto !important;
+        
+        /* Positional adjustment */
+        position: relative !important;
+        top: 13px !important;
+        
+        /* Font styling */
         color: #2196F3 !important;
-        text-decoration: underline;
-        font-size: 13px;
-        font-weight: 400;
-        cursor: pointer;
+        text-decoration: underline !important;
+        font-size: 13px !important;
+        font-weight: 400 !important;
     }
-    .view-formulas-container a:hover {
-        color: #1976D2;
+
+    /* 4. Target the inner text paragraph of the button */
+    .element-container:has(.view-formulas-trigger) ~ .element-container button p,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button p {
+        font-size: 13px !important;
+        font-weight: 400 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* 5. Hover/Focus/Active states */
+    .element-container:has(.view-formulas-trigger) ~ .element-container button:hover,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:hover {
+        color: #1976D2 !important;
+        background: transparent !important;
+        text-decoration: underline !important;
+    }
+
+    .element-container:has(.view-formulas-trigger) ~ .element-container button:focus,
+    .element-container:has(.view-formulas-trigger) ~ .element-container button:active,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:focus,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:active {
+        color: #2196F3 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
     }
 
     /* Row layout for analysis params + formulas link */
@@ -356,10 +459,5 @@ def apply_custom_styles() -> None:
         width: 100%;
         padding-bottom: 16px;
     }
-    .analysis-params-row .view-formulas-link {
-        margin-left: 20px;
-        padding-bottom: 0px;
-    }
-
     </style>
     """, unsafe_allow_html=True)
