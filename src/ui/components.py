@@ -3,13 +3,32 @@ from datetime import datetime
 import pandas as pd
 from typing import Optional
 import re
-from src.core.context import get_state, update_state, clear_debug_logs
+from src.core.context import get_state, update_state, clear_debug_logs, reset_analysis_state
 from src.core.utils import format_timestamp
 from src.services.readers import ParquetDataReader
 from src.workers.manager import get_dataset_info_from_backup
 import os
 from src.ui.constants import FREQUENCY_LABELS, SCALING_LABELS
 from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Frequency, Job
+
+
+def header_simple_back(create_columns: bool = True) -> None:
+    if create_columns:
+        col_back, _ = st.columns([1, 11])
+        container = col_back
+    else:
+        container = st.container()
+
+    with container:
+        # Create a nested layout to center the button vertically/horizontally if needed,
+        # but primarily to constrain width if not using columns
+        if not create_columns:
+            # If we're already in a small column, just render the button
+            st.button("Back", type="secondary", key="back_btn_simple", use_container_width=True, on_click=lambda: update_state(page="history", current_job_id=None))
+        else:
+             if st.button("Back", type="secondary", key="back_btn_simple"):
+                 update_state(page="history", current_job_id=None)
+                 st.rerun()
 
 
 def header_with_navigation() -> None:
@@ -34,12 +53,13 @@ def header_with_navigation() -> None:
                 st.session_state.show_debug_modal = True
 
     else:
-        col_brand, col_nav, col_logs = st.columns([2.5, 4.5, 0.8])
+        col_brand, col_nav, col_logs = st.columns([1, 2, 1], vertical_alignment="center")
 
         with col_brand:
-            if st.button("Back", type="secondary"):
-                update_state(page="history", current_job_id=None)
-                st.rerun()
+            # Use columns to constrain width and help with alignment
+            btn_col, _ = st.columns([1, 1])
+            with btn_col:
+                header_simple_back(create_columns=False)
 
         with col_nav:
             btn_cols = st.columns([1, 1, 1])
@@ -63,14 +83,16 @@ def header_with_navigation() -> None:
                         key=f"step_btn_{step_num}",
                         type=btn_type,
                         disabled=not is_available,
-                        width="stretch",
+                        use_container_width=True,
                         on_click=update_state if is_available else None,
                         kwargs={"current_step": step_num} if is_available else None,
                     )
 
         with col_logs:
-            if st.button("Logs", key="debug_btn_analysis", width="stretch"):
-                st.session_state.show_debug_modal = True
+            _, btn_col = st.columns([1, 1])
+            with btn_col:
+                if st.button("Logs", key="debug_btn_analysis", use_container_width=True, type="primary"):
+                    st.session_state.show_debug_modal = True
 
     if st.session_state.get("show_debug_modal", False):
         _show_debug_modal()
@@ -343,7 +365,12 @@ def render_dataset_info_row(
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_dataset_header(dataset_info: dict, dataset_version: str) -> None:
+def render_dataset_header(
+    dataset_info: dict,
+    dataset_version: str,
+    analysis_params: Optional[dict] = None,
+    view_formulas_url: Optional[str] = None
+) -> None:
     """Render the dataset header with universe name, metadata, and info row."""
     config = DatasetConfig.model_validate(dataset_info)
 
@@ -376,9 +403,71 @@ def render_dataset_header(dataset_info: dict, dataset_version: str) -> None:
             config.precision,
         )
 
+        if analysis_params:
+            st.divider()
+            
+            # Additional params row
+            items = []
+            if "min_alpha" in analysis_params:
+                items.append(render_info_item("Min Alpha", f"{analysis_params['min_alpha']}%"))
+            if "top_x_pct" in analysis_params:
+                items.append(render_info_item("Top X", f"{analysis_params['top_x_pct']}%"))
+            if "bottom_x_pct" in analysis_params:
+                items.append(render_info_item("Bottom X", f"{analysis_params['bottom_x_pct']}%"))
+            
+            # We don't repeat benchmark as it is usually in the dataset info or config
+            
+            params_html = f'<div class="dataset-info-group">{"".join(items)}</div>'
+            
+            view_formulas_html = ""
+            if view_formulas_url:
+                view_formulas_html = f'<a href="{view_formulas_url}" target="_self" class="view-formulas-link">View Formulas</a>'
+
+            st.markdown(f"""
+            <div class="analysis-params-row">
+                {params_html}
+                {view_formulas_html}
+            </div>
+            """, unsafe_allow_html=True)
+
 
 def render_current_dataset_header() -> None:
     state = get_state()
+
+    # Prepare analysis params and formulas URL if available
+    analysis_params = None
+    view_formulas_url = None
+    
+    # Check if we have analysis params in state
+    if state.current_step == 3: # Only show analysis params in result step or if job is loaded
+         analysis_params = {
+             "min_alpha": state.min_alpha,
+             "top_x_pct": state.top_x_pct,
+             "bottom_x_pct": state.bottom_x_pct
+         }
+
+    # Prepare view formulas URL
+    dataset_version = None
+    if state.dataset_path and os.path.exists(state.dataset_path):
+        try:
+             ts = os.path.getmtime(state.dataset_path)
+             dataset_version = str(int(ts))
+        except Exception:
+             pass
+             
+    # Fallback to job id logic if we are viewing a past job and dataset path might differ or we rely on backup
+    if state.current_job_id and not dataset_version:
+         try:
+            parts = state.current_job_id.split("/")
+            if len(parts) >= 2:
+                dataset_version = parts[1]
+         except:
+            pass
+
+    if state.factor_list_uid and dataset_version:
+         job_id_param = f"&job_id={state.current_job_id}" if state.current_job_id else ""
+         view_formulas_url = f"?fl_id={state.factor_list_uid}&view_formulas_ds_ver={dataset_version}{job_id_param}"
+
 
     # if viewing a restored job, use historical dataset info
     if state.current_job_id:
@@ -386,10 +475,10 @@ def render_current_dataset_header() -> None:
             parts = state.current_job_id.split("/")
             if len(parts) >= 2:
                 fl_id = parts[0]
-                dataset_version = parts[1]
-                dataset_info = get_dataset_info_from_backup(fl_id, dataset_version)
+                ds_ver = parts[1]
+                dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
                 if dataset_info:
-                    render_dataset_header(dataset_info, dataset_version)
+                    render_dataset_header(dataset_info, ds_ver, analysis_params, view_formulas_url)
                     return
         except Exception:
             pass
@@ -399,11 +488,11 @@ def render_current_dataset_header() -> None:
 
     try:
         ts = os.path.getmtime(state.dataset_path)
-        dataset_version = str(int(ts))
+        ds_ver = str(int(ts))
         reader = ParquetDataReader(state.dataset_path)
         dataset_info = reader.get_dataset_info()
         if dataset_info:
-            render_dataset_header(dataset_info, dataset_version)
+            render_dataset_header(dataset_info, ds_ver, analysis_params, view_formulas_url)
     except (FileNotFoundError, Exception):
         pass
 
@@ -490,7 +579,7 @@ def render_dataset_history_card(
             )
 
         st.space(size=2)
-        stats_col, formulas_col = st.columns([5, 1], vertical_alignment="top")
+        stats_col, formulas_col = st.columns([5, 1], vertical_alignment="bottom")
         with stats_col:
             render_dataset_info_row(
                 config.benchName or "N/A",
@@ -501,34 +590,6 @@ def render_dataset_history_card(
                 config.precision,
             )
         with formulas_col:
-            st.markdown("""
-            <style>
-            div[data-testid="stVerticalBlock"]:has(.view-formulas-container) {
-                height: auto !important;
-                min-height: 0 !important;
-                justify-content: flex-start !important;
-            }
-            .view-formulas-container {
-                display: flex;
-                justify-content: flex-end;
-                width: 100%;
-                margin-top: 16px; /* align with the value text line */
-            }
-            .view-formulas-container a {
-                background: none;
-                border: none;
-                padding: 0;
-                color: #2196F3;
-                text-decoration: underline;
-                font-size: 13px;
-                font-weight: 400;
-                cursor: pointer;
-            }
-            .view-formulas-container a:hover {
-                color: #1976D2;
-            }
-            </style>
-            """, unsafe_allow_html=True)
             st.markdown(
                 f'<div class="view-formulas-container">'
                 f'<a href="?fl_id={fl_id}&view_formulas_ds_ver={ds_ver}" target="_self">View Formulas</a>'
@@ -559,9 +620,7 @@ def render_dataset_history_card(
                     type="primary",
                     key="new_analysis_btn" if jobs else "new_analysis_btn_empty",
                     use_container_width=True,
-                    on_click=lambda: update_state(
-                        page="analysis", current_step=1, current_job_id=None
-                    ),
+                on_click=reset_analysis_state,
                 )
         else:
             title_style += " margin-bottom: 10px;" if jobs else " padding: 8px 0;"

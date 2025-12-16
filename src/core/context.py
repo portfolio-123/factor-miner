@@ -71,13 +71,48 @@ def update_state(**kwargs) -> None:
     if state.page == "analysis":
         if state.current_job_id:
             st.query_params["job_id"] = state.current_job_id
-        if state.current_step is not None:
-            st.query_params["step"] = str(state.current_step)
+            st.query_params.pop("new_analysis", None)
+        else:
+            st.query_params["new_analysis"] = "true"
+            st.query_params.pop("job_id", None)
+        
+        # Don't track step in URL to avoid polluting browser history
+        st.query_params.pop("step", None)
 
     # clear analysis params when explicitly navigating to history.
     if explicit_history_nav:
         st.query_params.pop("job_id", None)
         st.query_params.pop("step", None)
+        st.query_params.pop("new_analysis", None)
+
+
+def reset_analysis_state() -> None:
+    """Resets the analysis state to default values for a new analysis."""
+    update_state(
+        page="analysis",
+        current_step=1,
+        current_job_id=None,
+        completed_steps=set(),
+        
+        # Calculation parameters defaults
+        min_alpha=0.5,
+        top_x_pct=20.0,
+        bottom_x_pct=20.0,
+        correlation_threshold=0.5,
+        n_features=10,
+        
+        # Data state
+        benchmark_data=None,
+        benchmark_ticker=None,
+        api_id=None,
+        api_key=None,
+        
+        # Results
+        all_metrics=None,
+        all_corr_matrix=None,
+        
+        dataset_path_input=None
+    )
 
 
 def add_debug_log(message: str, without_timestamp: bool = False) -> None:

@@ -20,7 +20,7 @@ load_dotenv()
 
 FACTOR_LIST_DIR = Path(os.getenv('FACTOR_LIST_DIR'))
 
-INTEGRATIONS_DIR = FACTOR_LIST_DIR / "integrations"
+INTEGRATIONS_DIR = FACTOR_LIST_DIR / "factor-eval"
 INTEGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 

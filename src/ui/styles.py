@@ -313,7 +313,53 @@ def apply_custom_styles() -> None:
         font-weight: 400 !important;
     }
 
+    /* ===== View Formulas Link Styles ===== */
+    .view-formulas-link {
+        color: #2196F3 !important;
+        text-decoration: underline;
+        font-size: 13px;
+        font-weight: 400;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .view-formulas-link:hover {
+        color: #1976D2;
+    }
 
+    /* Container for formulas link in history card (right aligned) */
+    .view-formulas-container {
+        display: flex;
+        justify-content: flex-end;
+        width: 100%;
+        padding-bottom: 5px;
+    }
+    /* Ensure link inside container inherits styles if needed, or apply directly */
+    .view-formulas-container a {
+        background: none;
+        border: none;
+        padding: 0;
+        color: #2196F3 !important;
+        text-decoration: underline;
+        font-size: 13px;
+        font-weight: 400;
+        cursor: pointer;
+    }
+    .view-formulas-container a:hover {
+        color: #1976D2;
+    }
+
+    /* Row layout for analysis params + formulas link */
+    .analysis-params-row {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        width: 100%;
+        padding-bottom: 16px;
+    }
+    .analysis-params-row .view-formulas-link {
+        margin-left: 20px;
+        padding-bottom: 0px;
+    }
 
     </style>
     """, unsafe_allow_html=True)

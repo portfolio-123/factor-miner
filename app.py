@@ -19,8 +19,9 @@ st.set_page_config(
 
 hide_streamlit_style = """
 <style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
+#MainMenu {display: none;}
+footer {display: none;}
+[data-testid="stHeader"] {display: none;}
 </style>
 
 """
@@ -52,6 +53,7 @@ def initialize_app() -> None:
                 
                 qp_job_id = st.query_params.get("job_id")
                 qp_step = st.query_params.get("step")
+                is_new_analysis = st.query_params.get("new_analysis")
                 
                 restored = False
                 
@@ -65,7 +67,9 @@ def initialize_app() -> None:
                                 update_state(current_step=int(qp_step))
                             except ValueError:
                                 pass
-
+                elif is_new_analysis:
+                    update_state(page="analysis", current_step=1)
+                    restored = True
                 
                 if not restored:
                     update_state(page="history")

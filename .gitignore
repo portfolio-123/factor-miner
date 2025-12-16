@@ -9,3 +9,4 @@ __pycache__
 .env.production.local
 
 data/integrations/*
+data/factor-eval/*
