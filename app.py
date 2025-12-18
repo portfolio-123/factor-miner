@@ -1,5 +1,5 @@
 import os
-
+import jwt
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -10,6 +10,42 @@ from src.ui.pages import history_page, analysis_page
 from src.core.job_restore import restore_job_state
 
 load_dotenv()
+
+SECRET_FILE_PATH = r"C:\factor-eval\jwt_secret.txt"
+
+
+def load_secret():
+    if not os.path.exists(SECRET_FILE_PATH):
+        st.error(f"CRITICAL: Secret file not found at {SECRET_FILE_PATH}")
+        st.stop()
+
+    with open(SECRET_FILE_PATH, "r", encoding="utf-8") as f:
+        return f.read().strip()
+
+
+def authenticate_user():
+    query_params = st.query_params
+    token = query_params.get("token", None)
+
+    if not token:
+        st.warning(
+            "No access token provided. Please access this tool via the main website."
+        )
+        return None
+
+    secret_key = load_secret()
+
+    try:
+        decoded_payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+        return decoded_payload
+
+    except jwt.ExpiredSignatureError:
+        st.error("Session expired. Please return to the main website and try again.")
+        return None
+    except jwt.InvalidTokenError as e:
+        st.error(f"Invalid authentication token: {e}")
+        return None
+
 
 st.set_page_config(
     page_title="Factor Evaluator - Portfolio123",
@@ -27,21 +63,22 @@ footer {display: none;}
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
+
 def initialize_app() -> None:
-    if 'initialized' in st.session_state:
+    if "initialized" in st.session_state:
         return
 
     add_debug_log("Initializing application...")
 
     # check env variable to see if it's internal or external app.
-    is_internal_app = os.getenv('INTERNAL_APP', 'false').lower() == 'true'
+    is_internal_app = os.getenv("INTERNAL_APP", "false").lower() == "true"
     state = get_state()
     state.is_internal_app = is_internal_app
 
     if is_internal_app:
         add_debug_log("Running in internal app mode")
 
-        fl_id = st.query_params.get('fl_id', None)
+        fl_id = st.query_params.get("fl_id", None)
 
         if fl_id:
             add_debug_log(f"Factor list ID from URL: {fl_id}")
@@ -50,18 +87,18 @@ def initialize_app() -> None:
             try:
                 dataset_path = locate_factor_list_file(fl_id)
                 update_state(dataset_path=dataset_path)
-                
+
                 qp_job_id = st.query_params.get("job_id")
                 qp_step = st.query_params.get("step")
                 is_new_analysis = st.query_params.get("new_analysis")
-                
+
                 restored = False
-                
+
                 if qp_job_id:
                     if restore_job_state(qp_job_id):
                         restored = True
                         update_state(page="analysis")
-                        
+
                         if qp_step:
                             try:
                                 update_state(current_step=int(qp_step))
@@ -70,14 +107,14 @@ def initialize_app() -> None:
                 elif is_new_analysis:
                     update_state(page="analysis", current_step=1)
                     restored = True
-                
+
                 if not restored:
                     update_state(page="history")
-                    
+
             except (ValueError, FileNotFoundError) as e:
                 update_state(page="history")
     else:
-        #TODO: think how to handle external app. we don't know the dataset path until they add it in step 1 form. wait until the results redesign to support multiple results.
+        # TODO: think how to handle external app. we don't know the dataset path until they add it in step 1 form. wait until the results redesign to support multiple results.
         add_debug_log("Running in external app mode")
 
     # to avoid re-initialization if it has already been done
@@ -86,6 +123,16 @@ def initialize_app() -> None:
 
 
 def main() -> None:
+    user_claims = authenticate_user()
+
+    if user_claims:
+        user_uid = user_claims.get("sub")
+        fl_uid = user_claims.get("factorListUid")
+        api_key = user_claims.get("apiKey")
+
+        st.write("### Session Data")
+        st.json(user_claims)
+
     apply_custom_styles()
 
     initialize_app()

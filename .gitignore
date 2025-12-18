@@ -10,3 +10,5 @@ __pycache__
 
 data/integrations/*
 data/factor-eval/*
+
+jwt_secret.txt
