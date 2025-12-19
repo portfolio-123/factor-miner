@@ -4,26 +4,25 @@ from src.core.context import get_state
 from src.services.processing import process_step1
 from src.core.validation import (
     check_required_fields,
-    load_saved_settings,
     restore_session_defaults,
 )
 from src.ui.components import section_header
 from src.core.constants import DEFAULT_BENCHMARK
 
 
-def _apply_saved_settings() -> None:
-    """Callback to apply saved API credentials. Runs before rerender."""
-    saved = load_saved_settings()
-    for key in ('api_key', 'api_id'):
-        if saved.get(key) is not None:
-            st.session_state[key] = saved[key]
-    st.session_state['step1_error'] = None
-
-
 def render() -> None:
     state = get_state()
-    saved = load_saved_settings()
-    has_saved = bool(saved.get('api_key') or saved.get('api_id'))
+    
+    if "user_payload" in st.session_state:
+        payload = st.session_state["user_payload"]
+        jwt_api_key = payload.get("apiKey") or payload.get("api_key")
+        jwt_api_id = payload.get("apiId") or payload.get("api_id")
+        
+        if jwt_api_key:
+            st.session_state["api_key"] = jwt_api_key
+        
+        if jwt_api_id:
+            st.session_state["api_id"] = jwt_api_id
 
     restore_session_defaults(state)
 
@@ -89,21 +88,11 @@ def render() -> None:
             key="bottom_x_pct",
         )
 
-    section_header("Authentication")
-
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        st.text_input(
-            "API Key",
-            placeholder="Enter API Key",
-            key="api_key",
-        )
-    with col2:
-        st.text_input(
-            "API ID",
-            placeholder="Enter API ID",
-            key="api_id",
-        )
+    api_key_present = bool(st.session_state.get("api_key"))
+    api_id_present = bool(st.session_state.get("api_id"))
+    
+    if not api_key_present or not api_id_present:
+        st.warning(f"Missing authentication details.")
 
     error_placeholder = st.empty()
 
@@ -114,9 +103,6 @@ def render() -> None:
     can_continue = check_required_fields()
 
     col1, col2, col3 = st.columns([2, 1, 1])
-    with col2:
-        if has_saved:
-            st.button("Use saved settings", width='stretch', on_click=_apply_saved_settings)
     with col3:
         is_loading = st.session_state.get('step1_loading', False)
 

@@ -1,5 +1,4 @@
 import os
-import jwt
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -8,44 +7,9 @@ from src.core.utils import locate_factor_list_file
 from src.ui.styles import apply_custom_styles
 from src.ui.pages import history_page, analysis_page
 from src.core.job_restore import restore_job_state
+from src.core.auth import authenticate_user
 
 load_dotenv()
-
-SECRET_FILE_PATH = r"C:\factor-eval\jwt_secret.txt"
-
-
-def load_secret():
-    if not os.path.exists(SECRET_FILE_PATH):
-        st.error(f"CRITICAL: Secret file not found at {SECRET_FILE_PATH}")
-        st.stop()
-
-    with open(SECRET_FILE_PATH, "r", encoding="utf-8") as f:
-        return f.read().strip()
-
-
-def authenticate_user():
-    query_params = st.query_params
-    token = query_params.get("token", None)
-
-    if not token:
-        st.warning(
-            "No access token provided. Please access this tool via the main website."
-        )
-        return None
-
-    secret_key = load_secret()
-
-    try:
-        decoded_payload = jwt.decode(token, secret_key, algorithms=["HS256"])
-        return decoded_payload
-
-    except jwt.ExpiredSignatureError:
-        st.error("Session expired. Please return to the main website and try again.")
-        return None
-    except jwt.InvalidTokenError as e:
-        st.error(f"Invalid authentication token: {e}")
-        return None
-
 
 st.set_page_config(
     page_title="Factor Evaluator - Portfolio123",
@@ -125,13 +89,19 @@ def initialize_app() -> None:
 def main() -> None:
     user_claims = authenticate_user()
 
-    if user_claims:
-        user_uid = user_claims.get("sub")
-        fl_uid = user_claims.get("factorListUid")
-        api_key = user_claims.get("apiKey")
+    if not user_claims:
+        st.stop()
 
-        st.write("### Session Data")
-        st.json(user_claims)
+
+    qp_fl_id = st.query_params.get("fl_id")
+    
+    if qp_fl_id:
+        token_fl_id = user_claims.get("factorListUid")
+        if not token_fl_id or str(token_fl_id) != str(qp_fl_id):
+            st.error("Unauthorized: Your session does not have access to this Factor List.")
+            st.stop()
+    
+
 
     apply_custom_styles()
 
