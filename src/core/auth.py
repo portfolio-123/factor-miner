@@ -6,7 +6,7 @@ from src.core.utils import get_local_storage
 import json 
 
 def load_secret():
-    secret_filename = os.getenv("JWT_SECRET_FILE_PATH")
+    secret_filename = os.getenv("JWT_SECRET_PATH")
         
     secret_path = os.path.abspath(secret_filename)
     
@@ -16,7 +16,7 @@ def load_secret():
         secret_path = os.path.join(project_root, secret_filename)
 
     if not os.path.exists(secret_path):
-        st.error(f"CRITICAL: Secret file not found. Checked: {secret_filename}")
+        st.error(f"JWT verification failed. Checked: {secret_filename}")
         st.stop()
 
     with open(secret_path, "r", encoding="utf-8") as f:

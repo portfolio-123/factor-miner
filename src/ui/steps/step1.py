@@ -15,8 +15,8 @@ def render() -> None:
     
     if "user_payload" in st.session_state:
         payload = st.session_state["user_payload"]
-        jwt_api_key = payload.get("apiKey") or payload.get("api_key")
-        jwt_api_id = payload.get("apiId") or payload.get("api_id")
+        jwt_api_key = payload.get("apiKey")
+        jwt_api_id = payload.get("apiId")
         
         if jwt_api_key:
             st.session_state["api_key"] = jwt_api_key
