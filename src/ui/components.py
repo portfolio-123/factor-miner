@@ -3,13 +3,18 @@ from datetime import datetime
 import pandas as pd
 from typing import Optional
 import re
-from src.core.context import get_state, update_state, clear_debug_logs, reset_analysis_state
+from src.core.context import (
+    get_state,
+    update_state,
+    clear_debug_logs,
+    reset_analysis_state,
+)
 from src.core.utils import format_timestamp
 from src.services.readers import ParquetDataReader
 from src.workers.manager import get_dataset_info_from_backup
 import os
-from src.ui.constants import FREQUENCY_LABELS, SCALING_LABELS
-from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Frequency, Job
+from src.ui.constants import SCALING_LABELS, frequency_map
+from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Job
 from src.core.job_restore import restore_job_state
 
 
@@ -25,11 +30,17 @@ def header_simple_back(create_columns: bool = True) -> None:
         # but primarily to constrain width if not using columns
         if not create_columns:
             # If we're already in a small column, just render the button
-            st.button("Back", type="secondary", key="back_btn_simple", use_container_width=True, on_click=lambda: update_state(page="history", current_job_id=None))
+            st.button(
+                "Back",
+                type="secondary",
+                key="back_btn_simple",
+                use_container_width=True,
+                on_click=lambda: update_state(page="history", current_job_id=None),
+            )
         else:
-             if st.button("Back", type="secondary", key="back_btn_simple"):
-                 update_state(page="history", current_job_id=None)
-                 st.rerun()
+            if st.button("Back", type="secondary", key="back_btn_simple"):
+                update_state(page="history", current_job_id=None)
+                st.rerun()
 
 
 def header_with_navigation() -> None:
@@ -54,7 +65,9 @@ def header_with_navigation() -> None:
                 st.session_state.show_debug_modal = True
 
     else:
-        col_brand, col_nav, col_logs = st.columns([1, 2, 1], vertical_alignment="center")
+        col_brand, col_nav, col_logs = st.columns(
+            [1, 2, 1], vertical_alignment="center"
+        )
 
         with col_brand:
             btn_col, _ = st.columns([1, 1])
@@ -91,7 +104,12 @@ def header_with_navigation() -> None:
         with col_logs:
             _, btn_col = st.columns([1, 1])
             with btn_col:
-                if st.button("Logs", key="debug_btn_analysis", use_container_width=True, type="primary"):
+                if st.button(
+                    "Logs",
+                    key="debug_btn_analysis",
+                    use_container_width=True,
+                    type="primary",
+                ):
                     st.session_state.show_debug_modal = True
 
     if st.session_state.get("show_debug_modal", False):
@@ -305,7 +323,7 @@ def render_info_item(label: str, value: str, muted: bool = False) -> str:
 
 def render_dataset_info_row(
     benchmark: str,
-    frequency: Frequency,
+    frequency: int,
     start_date: str,
     end_date: str,
     normalization: NormalizationConfig | None,
@@ -314,7 +332,7 @@ def render_dataset_info_row(
 
     base_items = [
         render_info_item("Benchmark", benchmark),
-        render_info_item("Frequency", FREQUENCY_LABELS.get(frequency, str(frequency))),
+        render_info_item("Frequency", frequency_map[frequency]),
         render_info_item("Start Date", start_date),
         render_info_item("End Date", end_date),
     ]
@@ -323,25 +341,33 @@ def render_dataset_info_row(
         norm_items = [
             render_info_item(
                 "Scaling",
-                SCALING_LABELS.get(normalization.scaling, str(normalization.scaling))
-                if normalization.scaling
-                else "None",
+                (
+                    SCALING_LABELS.get(
+                        normalization.scaling, str(normalization.scaling)
+                    )
+                    if normalization.scaling
+                    else "None"
+                ),
             ),
             render_info_item(
                 "Scope", normalization.scope.title() if normalization.scope else "None"
             ),
             render_info_item(
                 "Trim",
-                f"{normalization.trimPct}%"
-                if normalization.trimPct is not None
-                else "N/A",
+                (
+                    f"{normalization.trimPct}%"
+                    if normalization.trimPct is not None
+                    else "N/A"
+                ),
             ),
             render_info_item("Precision", precision or "N/A"),
             render_info_item(
                 "Outlier",
-                str(normalization.outlierLimit)
-                if normalization.outlierLimit is not None
-                else "None",
+                (
+                    str(normalization.outlierLimit)
+                    if normalization.outlierLimit is not None
+                    else "None"
+                ),
             ),
             render_info_item(
                 "N/A Handling", "Middle" if normalization.naFill else "None"
@@ -375,7 +401,7 @@ def render_dataset_header(
     dataset_info: dict,
     dataset_version: str,
     analysis_params: Optional[dict] = None,
-    fl_id: Optional[str] = None
+    fl_id: Optional[str] = None,
 ) -> None:
     """Render the dataset header with universe name, metadata, and info row."""
     config = DatasetConfig.model_validate(dataset_info)
@@ -400,7 +426,7 @@ def render_dataset_header(
         )
 
         render_dataset_info_row(
-            config.benchName or "N/A",
+            config.benchmark or "N/A",
             config.frequency,
             config.startDt or "N/A",
             config.endDt or "N/A",
@@ -410,31 +436,48 @@ def render_dataset_header(
 
         if analysis_params:
             st.divider()
-            
+
             items = []
             if "min_alpha" in analysis_params:
-                items.append(render_info_item("Min Alpha", f"{analysis_params['min_alpha']}%"))
+                items.append(
+                    render_info_item("Min Alpha", f"{analysis_params['min_alpha']}%")
+                )
             if "top_x_pct" in analysis_params:
-                items.append(render_info_item("Top X", f"{analysis_params['top_x_pct']}%"))
+                items.append(
+                    render_info_item("Top X", f"{analysis_params['top_x_pct']}%")
+                )
             if "bottom_x_pct" in analysis_params:
-                items.append(render_info_item("Bottom X", f"{analysis_params['bottom_x_pct']}%"))
+                items.append(
+                    render_info_item("Bottom X", f"{analysis_params['bottom_x_pct']}%")
+                )
 
-            
             params_html = f'<div class="dataset-info-group">{"".join(items)}</div>'
-            
+
             col_params, col_btn = st.columns([5, 1], vertical_alignment="bottom")
-            
+
             with col_params:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="analysis-params-row" style="padding-bottom: 0;">
                     {params_html}
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
 
             with col_btn:
                 if fl_id:
-                    st.markdown('<span class="view-formulas-trigger">&nbsp;</span>', unsafe_allow_html=True)
-                    st.button("View Formulas", key="view_formulas_btn_header", type="tertiary", on_click=handle_view_formulas, args=(fl_id, dataset_version))
+                    st.markdown(
+                        '<span class="view-formulas-trigger">&nbsp;</span>',
+                        unsafe_allow_html=True,
+                    )
+                    st.button(
+                        "View Formulas",
+                        key="view_formulas_btn_header",
+                        type="tertiary",
+                        on_click=handle_view_formulas,
+                        args=(fl_id, dataset_version),
+                    )
 
             st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
 
@@ -443,28 +486,28 @@ def render_current_dataset_header() -> None:
     state = get_state()
 
     analysis_params = None
-    
+
     if state.current_step == 3:
-         analysis_params = {
-             "min_alpha": state.min_alpha,
-             "top_x_pct": state.top_x_pct,
-             "bottom_x_pct": state.bottom_x_pct
-         }
+        analysis_params = {
+            "min_alpha": state.min_alpha,
+            "top_x_pct": state.top_x_pct,
+            "bottom_x_pct": state.bottom_x_pct,
+        }
 
     dataset_version = None
     if state.dataset_path and os.path.exists(state.dataset_path):
         try:
-             ts = os.path.getmtime(state.dataset_path)
-             dataset_version = str(int(ts))
+            ts = os.path.getmtime(state.dataset_path)
+            dataset_version = str(int(ts))
         except Exception:
-             pass
-             
+            pass
+
     if state.current_job_id and not dataset_version:
-         try:
+        try:
             parts = state.current_job_id.split("/")
             if len(parts) >= 2:
                 dataset_version = parts[1]
-         except:
+        except:
             pass
 
     if state.current_job_id:
@@ -489,7 +532,9 @@ def render_current_dataset_header() -> None:
         reader = ParquetDataReader(state.dataset_path)
         dataset_info = reader.get_dataset_info()
         if dataset_info:
-            render_dataset_header(dataset_info, ds_ver, analysis_params, state.factor_list_uid)
+            render_dataset_header(
+                dataset_info, ds_ver, analysis_params, state.factor_list_uid
+            )
     except (FileNotFoundError, Exception):
         pass
 
@@ -543,7 +588,7 @@ def render_job_card(job: Job) -> None:
     <span class="job-card-trigger"></span>
     """
     st.markdown(card_html, unsafe_allow_html=True)
-    
+
     if st.button("Open Analysis", key=f"job_btn_{job_id}", use_container_width=True):
         handle_job_selection(job_id)
 
@@ -556,7 +601,6 @@ def render_dataset_history_card(
     is_current: bool = False,
 ) -> None:
     config = DatasetConfig.model_validate(dataset_info)
-
 
     universe = config.universeName
     currency = config.currency
@@ -587,7 +631,7 @@ def render_dataset_history_card(
         stats_col, formulas_col = st.columns([5, 1], vertical_alignment="bottom")
         with stats_col:
             render_dataset_info_row(
-                config.benchName or "N/A",
+                config.benchmark or "N/A",
                 config.frequency,
                 config.startDt or "N/A",
                 config.endDt or "N/A",
@@ -595,12 +639,23 @@ def render_dataset_history_card(
                 config.precision,
             )
         with formulas_col:
-            st.markdown('<span class="view-formulas-trigger">&nbsp;</span>', unsafe_allow_html=True)
-            st.button("View Formulas", key=f"view_formulas_{ds_ver}", type="tertiary", on_click=handle_view_formulas, args=(fl_id, ds_ver))
+            st.markdown(
+                '<span class="view-formulas-trigger">&nbsp;</span>',
+                unsafe_allow_html=True,
+            )
+            st.button(
+                "View Formulas",
+                key=f"view_formulas_{ds_ver}",
+                type="tertiary",
+                on_click=handle_view_formulas,
+                args=(fl_id, ds_ver),
+            )
 
         st.divider()
 
-        title_text = "PAST ANALYSES" if jobs else "No analyses yet for this dataset version"
+        title_text = (
+            "PAST ANALYSES" if jobs else "No analyses yet for this dataset version"
+        )
         title_style = (
             "font-size: 15px; font-weight: 400; color: #60646A;"
             if jobs
@@ -621,7 +676,7 @@ def render_dataset_history_card(
                     type="primary",
                     key="new_analysis_btn" if jobs else "new_analysis_btn_empty",
                     use_container_width=True,
-                on_click=reset_analysis_state,
+                    on_click=reset_analysis_state,
                 )
         else:
             title_style += " margin-bottom: 10px;" if jobs else " padding: 8px 0;"

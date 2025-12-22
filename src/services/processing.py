@@ -31,7 +31,7 @@ def process_step1() -> bool:
         st.session_state.get("benchmark_ticker", DEFAULT_BENCHMARK).strip()
         or DEFAULT_BENCHMARK
     )
-    api_id = st.session_state.get("api_id", "").strip() or None
+    api_id = str(st.session_state.get("api_id", "")) or None
     api_key = st.session_state.get("api_key", "").strip()
     min_alpha = st.session_state.get("min_alpha", 0.5)
     top_x_pct = st.session_state.get("top_x_pct", 20)
@@ -108,15 +108,6 @@ def process_step1() -> bool:
                 "dataset_path", ""
             )
         update_state(**state_updates)
-
-        # save all settings to localStorage as single json object
-        settings_to_save = {
-            "api_key": api_key,
-            "api_id": api_id,
-        }
-        get_local_storage().setItem(
-            "factor_eval_settings", json.dumps(settings_to_save)
-        )
 
         state.completed_steps.add(1)
         state.current_step = 2

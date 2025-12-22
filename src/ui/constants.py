@@ -1,5 +1,5 @@
 from typing import Final
-from src.core.types import ScalingMethod, Frequency
+from src.core.types import ScalingMethod
 
 SCALING_LABELS: Final[dict[ScalingMethod, str]] = {
     ScalingMethod.NORMAL: "Z-Score",
@@ -7,12 +7,13 @@ SCALING_LABELS: Final[dict[ScalingMethod, str]] = {
     ScalingMethod.RANK: "Rank",
 }
 
-FREQUENCY_LABELS: Final[dict[Frequency, str]] = {
-    Frequency.WEEKLY: "Every week",
-    Frequency.WEEKS2: "Every 2 weeks",
-    Frequency.WEEKS4: "Every 4 weeks",
-    Frequency.WEEKS8: "Every 8 weeks",
-    Frequency.WEEKS13: "Every 13 weeks",
-    Frequency.WEEKS26: "Every 26 weeks",
-    Frequency.WEEKS52: "Every 52 weeks",
+
+frequency_map = {
+    1: "Weekly",
+    7: "Every 2 weeks",
+    2: "Every 4 weeks",
+    8: "Every 8 weeks",
+    3: "Every 13 weeks",
+    9: "Every 26 weeks",
+    10: "Every 52 weeks",
 }

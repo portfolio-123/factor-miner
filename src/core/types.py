@@ -14,16 +14,6 @@ class ScopeType(StrEnum):
     DATE = "date"
 
 
-class Frequency(StrEnum):
-    WEEKLY = "WEEKLY"
-    WEEKS2 = "WEEKS2"
-    WEEKS4 = "WEEKS4"
-    WEEKS8 = "WEEKS8"
-    WEEKS13 = "WEEKS13"
-    WEEKS26 = "WEEKS26"
-    WEEKS52 = "WEEKS52"
-
-
 class AnalysisParams(BaseModel):
     dataset_path: str
     top_pct: float
@@ -50,11 +40,11 @@ class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     universeName: str = Field(default="Unknown Universe")
-    frequency: Frequency | str = Field(default="Unknown")
+    frequency: int = Field(default=1)
     currency: str = Field(default="USD")
     startDt: str | None = Field(default=None)
     endDt: str | None = Field(default=None)
-    benchName: str | None = Field(default=None)
+    benchmark: str | None = Field(default=None)
     precision: str | None = Field(default=None)
     normalization: NormalizationConfig | None = Field(default=None)
 

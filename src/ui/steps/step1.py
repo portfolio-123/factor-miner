@@ -3,7 +3,6 @@ import streamlit as st
 from src.core.context import get_state
 from src.services.processing import process_step1
 from src.core.validation import (
-    check_required_fields,
     restore_session_defaults,
 )
 from src.ui.components import section_header
@@ -12,15 +11,15 @@ from src.core.constants import DEFAULT_BENCHMARK
 
 def render() -> None:
     state = get_state()
-    
+
     if "user_payload" in st.session_state:
         payload = st.session_state["user_payload"]
         jwt_api_key = payload.get("apiKey")
         jwt_api_id = payload.get("apiId")
-        
+
         if jwt_api_key:
             st.session_state["api_key"] = jwt_api_key
-        
+
         if jwt_api_id:
             st.session_state["api_id"] = jwt_api_id
 
@@ -34,7 +33,7 @@ def render() -> None:
             "Factor List UID",
             value=state.factor_list_uid or "",
             disabled=True,
-            key="factor_list_uid"
+            key="factor_list_uid",
         )
 
         if not state.factor_list_uid:
@@ -44,13 +43,13 @@ def render() -> None:
     else:
         # External app - dataset path input
         st.text_input(
-                "Dataset Path",
-                placeholder="data/dataset.parquet",
-                key="dataset_path",
-            )
+            "Dataset Path",
+            placeholder="data/dataset.parquet",
+            key="dataset_path",
+        )
         st.caption(
-                "**Note:** Parquet files include formulas in metadata. Your dataset must contain 'Last Close' for price data."
-            )
+            "**Note:** Parquet files include formulas in metadata. Your dataset must contain 'Last Close' for price data."
+        )
 
     section_header("Configuration")
 
@@ -90,35 +89,35 @@ def render() -> None:
 
     api_key_present = bool(st.session_state.get("api_key"))
     api_id_present = bool(st.session_state.get("api_id"))
-    
+
     if not api_key_present or not api_id_present:
         st.warning(f"Missing authentication details.")
 
     error_placeholder = st.empty()
 
-    if st.session_state.get('step1_error'):
-        error_placeholder.error(st.session_state['step1_error'])
-
-    # check if required fields are filled to enable Continue button
-    can_continue = check_required_fields()
+    if st.session_state.get("step1_error"):
+        error_placeholder.error(st.session_state["step1_error"])
 
     col1, col2, col3 = st.columns([2, 1, 1])
     with col3:
-        is_loading = st.session_state.get('step1_loading', False)
+        is_loading = st.session_state.get("step1_loading", False)
 
         if is_loading:
-            st.markdown('''
+            st.markdown(
+                """
             <div class="spinner-button">
                 <div class="spinner"></div>
             </div>
-            ''', unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
         else:
-            if st.button("Continue", type="primary", width='stretch', disabled=not can_continue):
+            if st.button("Continue", type="primary", width="stretch"):
                 st.session_state.step1_loading = True
                 st.rerun()
 
     # process continue action after rerun if loading flag is set
-    if st.session_state.get('step1_loading', False):
+    if st.session_state.get("step1_loading", False):
         st.session_state.step1_loading = False
         process_step1()
         st.rerun()
