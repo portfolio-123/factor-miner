@@ -2,8 +2,8 @@ import os
 import time
 from jose import jwe
 import streamlit as st
-from src.core.utils import cookies
 import json
+from extra_streamlit_components import CookieManager
 
 
 def load_secret():
@@ -42,24 +42,26 @@ def authenticate_user():
         return st.session_state["user_payload"]
 
     secret_key = load_secret()
-    cookie_manager = cookies()
+    cookie_manager = CookieManager(key="auth_manager")
 
     url_token = st.query_params.get("token")
-
     if url_token:
         cookie_manager.set("jwt_token", url_token)
-
         del st.query_params["token"]
-        token = url_token
-    else:
-        token = cookie_manager.get("jwt_token")
+
+        st.rerun()
+
+    token = cookie_manager.get("jwt_token")
 
     if token:
         payload = _decrypt_token(token, secret_key)
         if payload:
             st.session_state["user_payload"] = payload
             return payload
-        return None
+
+    if "auth_check_complete" not in st.session_state:
+        st.session_state["auth_check_complete"] = True
+        st.stop()
 
     st.warning(
         'Session expired or invalid. Please access this tool via the main website with the "Factor Evaluator" button.'

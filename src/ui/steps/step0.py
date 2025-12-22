@@ -1,7 +1,6 @@
 import streamlit as st
 from src.core.context import get_state
 from src.core.utils import locate_factor_list_file
-from src.core.job_restore import restore_job_state
 from src.ui.components import show_formulas_modal, render_dataset_history_card
 from src.services.readers import ParquetDataReader, get_current_dataset_info
 from src.workers.manager import (
@@ -9,11 +8,7 @@ from src.workers.manager import (
     get_grouped_jobs,
     sort_dataset_versions,
 )
-
-
-def _handle_job_click(job_id: str) -> None:
-    if not restore_job_state(job_id):
-        st.session_state["_job_restore_error"] = job_id
+import pandas as pd
 
 
 def render() -> None:
@@ -32,21 +27,6 @@ def render() -> None:
         "</div>",
         unsafe_allow_html=True,
     )
-
-    if "select_job_id" in st.query_params:
-        job_id = st.query_params["select_job_id"]
-        del st.query_params["select_job_id"]
-        _handle_job_click(job_id)
-        st.rerun()
-
-    if "view_formulas_ds_ver" in st.query_params:
-        ds_ver = st.query_params["view_formulas_ds_ver"]
-        del st.query_params["view_formulas_ds_ver"]
-        st.session_state.show_formulas_modal = True
-        st.session_state.formulas_fl_id = fl_id
-        st.session_state.formulas_ds_ver = ds_ver
-        st.rerun()
-
     current_version, current_dataset_info = get_current_dataset_info(fl_id)
     jobs, grouped_jobs = get_grouped_jobs(fl_id)
 
@@ -97,7 +77,9 @@ def render() -> None:
                     reader = ParquetDataReader(dataset_path)
                     formulas_df = reader.get_formulas_df()
                 else:
-                    formulas_df = get_dataset_info_from_backup(formulas_fl_id, formulas_ds_ver)
+                    formulas_df = get_dataset_info_from_backup(
+                        formulas_fl_id, formulas_ds_ver
+                    )
                 show_formulas_modal(formulas_df)
             except Exception:
                 st.session_state.show_formulas_modal = False
