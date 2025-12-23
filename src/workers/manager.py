@@ -50,6 +50,10 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
             existing_meta = table.schema.metadata
             new_meta = existing_meta.copy() if existing_meta else {}
             new_meta[b'dataset'] = json.dumps(dataset_info).encode('utf-8')
+            
+            if formulas_df is not None:
+                 new_meta[b'features'] = json.dumps(formulas_df.to_dict(orient='records')).encode('utf-8')
+
             table = table.replace_schema_metadata(new_meta)
             
         pq.write_table(table, metadata_path)
@@ -64,6 +68,17 @@ def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[D
         return None
     try:
         return ParquetDataReader(str(path)).get_dataset_info()
+    except Exception:
+        return None
+
+
+def get_dataset_formulas_from_backup(fl_id: str, dataset_version: str) -> Optional[pd.DataFrame]:
+    path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
+    if not path.exists():
+        return None
+    try:
+        reader = ParquetDataReader(str(path))
+        return reader.get_formulas_df()
     except Exception:
         return None
 

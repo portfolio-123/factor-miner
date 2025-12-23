@@ -9,9 +9,8 @@ from src.ui.components import (
     header_simple_back,
     show_formulas_modal
 )
-from src.core.utils import locate_factor_list_file
 from src.services.readers import ParquetDataReader
-from src.workers.manager import get_dataset_info_from_backup
+from src.workers.manager import get_dataset_formulas_from_backup
 import os
 
 
@@ -48,7 +47,7 @@ def analysis_page():
                     reader = ParquetDataReader(state.dataset_path)
                     formulas_df = reader.get_formulas_df()
                 else:
-                    formulas_df = get_dataset_info_from_backup(formulas_fl_id, formulas_ds_ver)
+                    formulas_df = get_dataset_formulas_from_backup(formulas_fl_id, formulas_ds_ver)
                 
                 show_formulas_modal(formulas_df)
             except Exception:

@@ -6,6 +6,7 @@ from src.ui.components import show_formulas_modal, render_dataset_history_card
 from src.services.readers import ParquetDataReader, get_current_dataset_info
 from src.workers.manager import (
     get_dataset_info_from_backup,
+    get_dataset_formulas_from_backup,
     get_grouped_jobs,
     sort_dataset_versions,
 )
@@ -97,7 +98,7 @@ def render() -> None:
                     reader = ParquetDataReader(dataset_path)
                     formulas_df = reader.get_formulas_df()
                 else:
-                    formulas_df = get_dataset_info_from_backup(formulas_fl_id, formulas_ds_ver)
+                    formulas_df = get_dataset_formulas_from_backup(formulas_fl_id, formulas_ds_ver)
                 show_formulas_modal(formulas_df)
             except Exception:
                 st.session_state.show_formulas_modal = False
