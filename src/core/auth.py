@@ -2,7 +2,7 @@ import os
 import time
 from jose import jwe
 import streamlit as st
-from src.core.utils import get_local_storage
+from src.core.utils import cookies
 import json
 
 
@@ -42,7 +42,17 @@ def authenticate_user():
         return st.session_state["user_payload"]
 
     secret_key = load_secret()
-    token = st.query_params.get("token") or get_local_storage().getItem("jwt_token")
+    cookie_manager = cookies()
+
+    url_token = st.query_params.get("token")
+
+    if url_token:
+        cookie_manager.set("jwt_token", url_token)
+
+        del st.query_params["token"]
+        token = url_token
+    else:
+        token = cookie_manager.get("jwt_token")
 
     if token:
         payload = _decrypt_token(token, secret_key)
@@ -52,6 +62,6 @@ def authenticate_user():
         return None
 
     st.warning(
-        "No access token provided. Please access this tool via the main website."
+        'Session expired or invalid. Please access this tool via the main website with the "Factor Evaluator" button.'
     )
     return None

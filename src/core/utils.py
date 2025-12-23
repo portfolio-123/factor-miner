@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import streamlit as st
 from streamlit_local_storage import LocalStorage
+from extra_streamlit_components import CookieManager
 import pandas as pd
 
 
@@ -44,6 +45,12 @@ def get_local_storage():
     if 'local_storage' not in st.session_state:
         st.session_state.local_storage = LocalStorage()
     return st.session_state.local_storage
+
+
+def cookies():
+    if 'cookie_manager' not in st.session_state:
+        st.session_state.cookie_manager = CookieManager()
+    return st.session_state.cookie_manager
 
 
 def serialize_dataframe(df: pd.DataFrame) -> str:
