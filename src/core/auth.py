@@ -73,8 +73,9 @@ def authenticate_user():
         )
 
         if fl_id:
+            base_url = os.getenv("P123_BASE_URL")
             st.markdown(
-                f"<div style='text-align: center; margin-top: 10px;'><a href='https://localhost/sv/factorList/{fl_id}/download'>Return to Factor List</a></div>",
+                f"<div style='text-align: center; margin-top: 10px;'><a href='{base_url}/sv/factorList/{fl_id}/download'>Return to Factor List</a></div>",
                 unsafe_allow_html=True,
             )
 
