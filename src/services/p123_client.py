@@ -1,15 +1,34 @@
 from typing import Optional, Tuple
+import os
 
 import pandas as pd
-import p123api
+import requests
+
+
+API_BASE_URL = os.getenv("API_BASE_URL")
 
 
 def _validate_benchmark_data(df: Optional[pd.DataFrame]) -> bool:
-    if df is None or df.empty or len(df) == 0:
+    if df is None or df.empty:
         return False
-    if 'close' not in df.columns or 'dt' not in df.columns:
+    if "close" not in df.columns or "dt" not in df.columns:
         return False
     return True
+
+
+def _authenticate(api_id: str, api_key: str) -> Optional[str]:
+    try:
+        url = f"{API_BASE_URL}/auth"
+
+        payload = {"apiId": api_id, "apiKey": api_key}
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        if response.status_code == 200:
+            return response.text.strip('"')
+
+        return None
+    except Exception:
+        return None
 
 
 def fetch_benchmark_data(
@@ -17,30 +36,57 @@ def fetch_benchmark_data(
     api_key: str,
     start_date: str,
     end_date: str,
-    api_id: str | None = None
+    api_id: str | None = None,
 ) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     try:
-        client = p123api.Client(api_id=api_id, api_key=api_key)
-        benchmark_response = client.data_prices(
-            benchmark_ticker,
-            start_date,
-            end_date,
-            False
-        )
-        benchmark_df = pd.DataFrame(benchmark_response["prices"])
+        if not api_key:
+            return None, "Missing API Token/Key"
+
+        auth_token = _authenticate(api_id, api_key)
+        if not auth_token:
+            return None, "Authentication failed."
+
+        bearer_token = auth_token
+
+        url = f"{API_BASE_URL}/data/prices/{benchmark_ticker}"
+
+        headers = {
+            "Authorization": f"Bearer {bearer_token}",
+            "Content-Type": "application/json",
+            "Source": "0",
+        }
+
+        params = {"start": start_date, "end": end_date}
+
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+
+        if response.status_code == 401:
+            return None, "401 Unauthorized: Invalid Token or Credentials."
+
+        if response.status_code == 403:
+            return (
+                None,
+                f"403 Forbidden: Access denied for ticker '{benchmark_ticker}'.",
+            )
+
+        if response.status_code != 200:
+            return (
+                None,
+                f"Error fetching data: {response.status_code} - {response.text}",
+            )
+
+        data = response.json()
+
+        benchmark_df = pd.DataFrame(data["prices"])
+        if "date" in benchmark_df.columns and "dt" not in benchmark_df.columns:
+            benchmark_df = benchmark_df.rename(columns={"date": "dt"})
 
         if not _validate_benchmark_data(benchmark_df):
             return None, f"Benchmark ticker '{benchmark_ticker}' returned invalid data"
 
         return benchmark_df, None
 
+    except requests.exceptions.ConnectionError:
+        return None, "Connection refused"
     except Exception as e:
-        error_msg = str(e)
-        eml = error_msg.lower()
-        if "authentication" in eml or "invalid id/key" in eml or "401" in error_msg:
-            return None, "Invalid API Key"
-        if "404" in error_msg or "not found" in eml:
-            return None, f"Benchmark ticker '{benchmark_ticker}' not found"
-        if "timeout" in eml or "connection" in eml:
-            return None, "Connection error. Please check your internet connection"
-        return None, f"Error: {error_msg}"
+        return None, f"Error: {str(e)}"
