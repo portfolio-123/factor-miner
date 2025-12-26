@@ -440,7 +440,7 @@ def render_dataset_header(
             items = []
             if "min_alpha" in analysis_params:
                 items.append(
-                    render_info_item("Min Alpha", f"{analysis_params['min_alpha']}%")
+                    render_info_item("Min Alpha", f"{analysis_params['min_alpha']}")
                 )
             if "top_x_pct" in analysis_params:
                 items.append(
