@@ -1,5 +1,4 @@
 import os
-import time
 from jose import jwe
 import streamlit as st
 import json
@@ -63,7 +62,22 @@ def authenticate_user():
         st.session_state["auth_check_complete"] = True
         st.stop()
 
-    st.warning(
-        'Session expired or invalid. Please access this tool via the main website with the "Factor Evaluator" button.'
-    )
+    fl_id = st.query_params.get("fl_id")
+
+    st.markdown("<div style='height: 25vh'></div>", unsafe_allow_html=True)
+
+    _, col, _ = st.columns([1, 2, 1])
+
+    with col:
+        st.warning(
+            "**Session expired or invalid**\n\n"
+            'Access this tool via the main website with the "Factor Evaluator" button.',
+        )
+
+        if fl_id:
+            st.markdown(
+                f"<div style='text-align: center; margin-top: 10px;'><a href='https://localhost/sv/factorList/{fl_id}/download'>Return to Factor List</a></div>",
+                unsafe_allow_html=True,
+            )
+
     return None
