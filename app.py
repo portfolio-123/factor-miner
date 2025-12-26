@@ -91,16 +91,6 @@ def main() -> None:
         st.stop()
 
 
-    qp_fl_id = st.query_params.get("fl_id")
-    
-    if qp_fl_id:
-        token_fl_id = user_claims.get("factorListUid")
-        if not token_fl_id or str(token_fl_id) != str(qp_fl_id):
-            st.error("Unauthorized: Your session does not have access to this Factor List.")
-            st.stop()
-    
-
-
     apply_custom_styles()
 
     initialize_app()

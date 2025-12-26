@@ -38,7 +38,16 @@ def _decrypt_token(token, secret_key):
 
 def authenticate_user():
     if st.session_state.get("user_payload"):
-        return st.session_state["user_payload"]
+        payload = st.session_state["user_payload"]
+        
+        url_fl_id = st.query_params.get("fl_id")
+        if url_fl_id:
+            token_fl_id = payload.get("factorListUid")
+            if not token_fl_id or str(token_fl_id) != str(url_fl_id):
+                st.error("Unauthorized: Your session does not have access to this Factor List.")
+                st.stop()
+                
+        return payload
 
     secret_key = load_secret()
     cookie_manager = CookieManager(key="auth_manager")
@@ -53,6 +62,13 @@ def authenticate_user():
     if token:
         payload = _decrypt_token(token, secret_key)
         if payload:
+            url_fl_id = st.query_params.get("fl_id")
+            if url_fl_id:
+                token_fl_id = payload.get("factorListUid")
+                if not token_fl_id or str(token_fl_id) != str(url_fl_id):
+                    st.error("Unauthorized: Your session does not have access to this Factor List.")
+                    st.stop()
+
             st.session_state["user_payload"] = payload
             return payload
 
