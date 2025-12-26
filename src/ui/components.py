@@ -10,9 +10,6 @@ from src.core.context import (
     reset_analysis_state,
 )
 from src.core.utils import format_timestamp
-from src.services.readers import ParquetDataReader
-from src.workers.manager import get_dataset_info_from_backup
-import os
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Job
 from src.core.job_restore import restore_job_state
@@ -26,10 +23,7 @@ def header_simple_back(create_columns: bool = True) -> None:
         container = st.container()
 
     with container:
-        # Create a nested layout to center the button vertically/horizontally if needed,
-        # but primarily to constrain width if not using columns
         if not create_columns:
-            # If we're already in a small column, just render the button
             st.button(
                 "Back",
                 type="secondary",
@@ -155,7 +149,7 @@ def _show_debug_modal():
 
 
 def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
-    st.session_state.show_formulas_modal = False
+    st.session_state.formulas_ds_ver = None
 
     total = int(len(formulas_df)) if formulas_df is not None else 0
     title = f"Dataset Formulas ({total})"
@@ -391,19 +385,16 @@ def render_dataset_info_row(
     st.markdown(html, unsafe_allow_html=True)
 
 
-def handle_view_formulas(fl_id: str, ds_ver: str) -> None:
-    st.session_state.show_formulas_modal = True
-    st.session_state.formulas_fl_id = fl_id
+def handle_view_formulas(ds_ver: str) -> None:
     st.session_state.formulas_ds_ver = ds_ver
 
 
 def render_dataset_header(
-    dataset_info: dict,
+    dataset_info: DatasetConfig | dict,
     dataset_version: str,
     analysis_params: Optional[dict] = None,
     fl_id: Optional[str] = None,
 ) -> None:
-    """Render the dataset header with universe name, metadata, and info row."""
     config = DatasetConfig.model_validate(dataset_info)
 
     universe = config.universeName
@@ -476,67 +467,10 @@ def render_dataset_header(
                         key="view_formulas_btn_header",
                         type="tertiary",
                         on_click=handle_view_formulas,
-                        args=(fl_id, dataset_version),
+                        args=(dataset_version,),
                     )
 
             st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
-
-
-def render_current_dataset_header() -> None:
-    state = get_state()
-
-    analysis_params = None
-
-    if state.current_step == 3:
-        analysis_params = {
-            "min_alpha": state.min_alpha,
-            "top_x_pct": state.top_x_pct,
-            "bottom_x_pct": state.bottom_x_pct,
-        }
-
-    dataset_version = None
-    if state.dataset_path and os.path.exists(state.dataset_path):
-        try:
-            ts = os.path.getmtime(state.dataset_path)
-            dataset_version = str(int(ts))
-        except Exception:
-            pass
-
-    if state.current_job_id and not dataset_version:
-        try:
-            parts = state.current_job_id.split("/")
-            if len(parts) >= 2:
-                dataset_version = parts[1]
-        except:
-            pass
-
-    if state.current_job_id:
-        try:
-            parts = state.current_job_id.split("/")
-            if len(parts) >= 2:
-                fl_id = parts[0]
-                ds_ver = parts[1]
-                dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
-                if dataset_info:
-                    render_dataset_header(dataset_info, ds_ver, analysis_params, fl_id)
-                    return
-        except Exception:
-            pass
-
-    if not state.dataset_path:
-        return
-
-    try:
-        ts = os.path.getmtime(state.dataset_path)
-        ds_ver = str(int(ts))
-        reader = ParquetDataReader(state.dataset_path)
-        dataset_info = reader.get_dataset_info()
-        if dataset_info:
-            render_dataset_header(
-                dataset_info, ds_ver, analysis_params, state.factor_list_uid
-            )
-    except (FileNotFoundError, Exception):
-        pass
 
 
 def render_job_param(label: str, value: str) -> str:
@@ -594,7 +528,7 @@ def render_job_card(job: Job) -> None:
 
 
 def render_dataset_history_card(
-    dataset_info: dict,
+    dataset_info: DatasetConfig,
     ds_ver: str,
     jobs: list[Job],
     fl_id: str,
@@ -648,7 +582,7 @@ def render_dataset_history_card(
                 key=f"view_formulas_{ds_ver}",
                 type="tertiary",
                 on_click=handle_view_formulas,
-                args=(fl_id, ds_ver),
+                args=(ds_ver,),
             )
 
         st.divider()

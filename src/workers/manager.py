@@ -11,10 +11,11 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
 
+from src.core.context import get_state
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus, JobProgress
 from src.services.readers import ParquetDataReader
-from src.core.types import Job
+from src.core.types import Job, DatasetConfig
 
 load_dotenv()
 
@@ -62,7 +63,14 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
         print(f"Error backing up dataset artifacts: {e}")
 
 
-def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[Dict[str, Any]]:
+def get_dataset_backup_path(fl_id: str, dataset_version: str) -> Optional[str]:
+    path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
+    if path.exists():
+        return str(path)
+    return None
+
+
+def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[DatasetConfig]:
     path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
     if not path.exists():
         return None
@@ -72,15 +80,30 @@ def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[D
         return None
 
 
-def get_dataset_formulas_from_backup(fl_id: str, dataset_version: str) -> Optional[pd.DataFrame]:
-    path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
-    if not path.exists():
-        return None
+def get_formulas_df_for_version(fl_id: str, ds_ver: str) -> Optional[pd.DataFrame]:
     try:
-        reader = ParquetDataReader(str(path))
-        return reader.get_formulas_df()
+        state = get_state()
+        dataset_path = None
+        
+        # check current dataset first and if we're trying to view the current version, use it
+        if state.dataset_path and os.path.exists(state.dataset_path):
+            ts = os.path.getmtime(state.dataset_path)
+            current_ver = str(int(ts))
+            if current_ver == ds_ver:
+                dataset_path = state.dataset_path
+                
+        # fallback to backup if not found as current
+        if not dataset_path:
+            dataset_path = get_dataset_backup_path(fl_id, ds_ver)
+
+        if dataset_path and os.path.exists(dataset_path):
+            reader = ParquetDataReader(dataset_path)
+            return reader.get_formulas_df()
+            
     except Exception:
-        return None
+        pass
+        
+    return None
 
 
 def create_job(job_id: str, params: Dict[str, Any]) -> Path:

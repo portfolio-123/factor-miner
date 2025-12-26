@@ -1,15 +1,13 @@
 import streamlit as st
 from src.core.context import get_state
-from src.core.utils import locate_factor_list_file
 from src.ui.components import show_formulas_modal, render_dataset_history_card
-from src.services.readers import ParquetDataReader, get_current_dataset_info
+from src.services.readers import get_current_dataset_info
 from src.workers.manager import (
     get_dataset_info_from_backup,
-    get_dataset_formulas_from_backup,
+    get_formulas_df_for_version,
     get_grouped_jobs,
     sort_dataset_versions,
 )
-import pandas as pd
 
 
 def render() -> None:
@@ -50,35 +48,21 @@ def render() -> None:
         ds_jobs = grouped_jobs[ds_ver]
         is_current_version = ds_ver == current_version
 
-        if is_current_version and current_dataset_info:
-            dataset_info = current_dataset_info
-        else:
-            dataset_info = get_dataset_info_from_backup(fl_id, ds_ver)
-
-        if dataset_info:
-            render_dataset_history_card(
-                dataset_info=dataset_info,
-                ds_ver=ds_ver,
-                jobs=ds_jobs,
-                fl_id=fl_id,
-                is_current=is_current_version,
-            )
+        render_dataset_history_card(
+            dataset_info=current_dataset_info if is_current_version else get_dataset_info_from_backup(fl_id, ds_ver),
+            ds_ver=ds_ver,
+            jobs=ds_jobs,
+            fl_id=fl_id,
+            is_current=is_current_version,
+        )
 
     if not jobs and not current_dataset_info:
         st.info("No past analysis found for this Factor List.")
 
-    if st.session_state.get("show_formulas_modal"):
-        formulas_fl_id = st.session_state.get("formulas_fl_id")
-        formulas_ds_ver = st.session_state.get("formulas_ds_ver")
-        if formulas_fl_id and formulas_ds_ver:
-            try:
-                is_current = formulas_ds_ver == current_version
-                if is_current:
-                    dataset_path = locate_factor_list_file(formulas_fl_id)
-                    reader = ParquetDataReader(dataset_path)
-                    formulas_df = reader.get_formulas_df()
-                else:
-                    formulas_df = get_dataset_formulas_from_backup(formulas_fl_id, formulas_ds_ver)
-                show_formulas_modal(formulas_df)
-            except Exception:
-                st.session_state.show_formulas_modal = False
+    formulas_ds_ver = st.session_state.get("formulas_ds_ver")
+    if formulas_ds_ver:
+        formulas_df = get_formulas_df_for_version(fl_id, formulas_ds_ver)
+        if formulas_df is not None:
+             show_formulas_modal(formulas_df)
+        else:
+            st.session_state.formulas_ds_ver = None

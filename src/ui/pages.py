@@ -5,13 +5,11 @@ from src.ui.steps import render_step
 from src.ui.steps.step3 import render_analysis_name_input
 from src.ui.components import (
     header_with_navigation,
-    render_current_dataset_header,
     header_simple_back,
     show_formulas_modal,
 )
-from src.services.readers import ParquetDataReader
-from src.workers.manager import get_dataset_formulas_from_backup
-import os
+from src.ui.header import render_current_dataset_header
+from src.workers.manager import get_formulas_df_for_version
 
 
 def history_page():
@@ -21,38 +19,19 @@ def history_page():
 def analysis_page():
     state = get_state()
 
-    if st.session_state.get("show_formulas_modal"):
-        formulas_fl_id = st.session_state.get("formulas_fl_id")
-        formulas_ds_ver = st.session_state.get("formulas_ds_ver")
-        if formulas_fl_id and formulas_ds_ver:
-            try:
-                # Check if current dataset matches the version
-                is_current = False
-                if state.dataset_path and os.path.exists(state.dataset_path):
-                    ts = os.path.getmtime(state.dataset_path)
-                    current_ver = str(int(ts))
-                    if current_ver == formulas_ds_ver:
-                        is_current = True
+    formulas_ds_ver = st.session_state.get("formulas_ds_ver")
+    if formulas_ds_ver:
+        formulas_df = get_formulas_df_for_version(state.factor_list_uid, formulas_ds_ver)
+        if formulas_df is not None:
+             show_formulas_modal(formulas_df)
+        else:
+            st.session_state.formulas_ds_ver = None
 
-                if is_current:
-                    reader = ParquetDataReader(state.dataset_path)
-                    formulas_df = reader.get_formulas_df()
-                else:
-                    formulas_df = get_dataset_formulas_from_backup(formulas_fl_id, formulas_ds_ver)
-                
-                show_formulas_modal(formulas_df)
-            except Exception:
-                st.session_state.show_formulas_modal = False
-
-    # if we have a current_job_id, we are viewing an existing analysis
     if state.current_job_id:
         header_simple_back()
-        render_current_dataset_header()
-        render_analysis_name_input()
-        render_step(state.current_step)
     else:
-        # Creating new analysis
         header_with_navigation()
-        render_current_dataset_header()
-        render_analysis_name_input()
-        render_step(state.current_step)
+
+    render_current_dataset_header()
+    render_analysis_name_input()
+    render_step(state.current_step)

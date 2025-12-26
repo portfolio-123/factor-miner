@@ -8,6 +8,7 @@ import pyarrow.parquet as pq
 
 from src.core.constants import REQUIRED_COLUMNS
 from src.core.utils import locate_factor_list_file
+from src.core.types import DatasetConfig
 
 
 class ParquetDataReader:
@@ -131,7 +132,7 @@ class ParquetDataReader:
         except Exception:
             return None
 
-    def get_dataset_info(self) -> Optional[Dict[str, Any]]:
+    def get_dataset_info(self) -> Optional[DatasetConfig]:
         dataset_info = self._get_custom_metadata_json("dataset")
         if not dataset_info:
             return None
@@ -143,10 +144,10 @@ class ParquetDataReader:
                 loaded = None
             dataset_info["normalization"] = loaded if isinstance(loaded, dict) else None
 
-        return dataset_info
+        return DatasetConfig(**dataset_info)
 
 
-def get_current_dataset_info(fl_id: str) -> Tuple[Optional[str], Optional[dict]]:
+def get_current_dataset_info(fl_id: str) -> Tuple[Optional[str], Optional[DatasetConfig]]:
     try:
         dataset_path = locate_factor_list_file(fl_id)
         

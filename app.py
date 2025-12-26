@@ -17,15 +17,13 @@ st.set_page_config(
     layout="wide",
 )
 
-hide_streamlit_style = """
+st.markdown('''
 <style>
-#MainMenu {display: none;}
-footer {display: none;}
-[data-testid="stHeader"] {display: none;}
+.stApp [data-testid="stToolbar"]{
+    display:none;
+}
 </style>
-
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 
 def initialize_app() -> None:
