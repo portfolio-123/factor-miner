@@ -10,10 +10,10 @@ SCALING_LABELS: Final[dict[ScalingMethod, str]] = {
 
 frequency_map = {
     1: "Weekly",
-    7: "Every 2 weeks",
-    2: "Every 4 weeks",
-    8: "Every 8 weeks",
-    3: "Every 13 weeks",
-    9: "Every 26 weeks",
-    10: "Every 52 weeks",
+    7: "2 weeks",
+    2: "4 weeks",
+    8: "8 weeks",
+    3: "13 weeks",
+    9: "26 weeks",
+    10: "52 weeks",
 }

@@ -628,7 +628,7 @@ def render_dataset_history_card(
             )
 
         st.space(size=2)
-        stats_col, formulas_col = st.columns([5, 1], vertical_alignment="bottom")
+        stats_col, formulas_col = st.columns([8, 1], vertical_alignment="bottom")
         with stats_col:
             render_dataset_info_row(
                 config.benchmark or "N/A",
@@ -659,7 +659,7 @@ def render_dataset_history_card(
         title_style = (
             "font-size: 15px; font-weight: 400; color: #60646A;"
             if jobs
-            else "font-size: 14px; color: #9ca3af; font-style: italic;"
+            else "font-size: 14px; color: #9ca3af; font-style: italic; margin-top: 0.25rem;"
         )
 
         if is_current:
