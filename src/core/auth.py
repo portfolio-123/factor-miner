@@ -48,8 +48,6 @@ def authenticate_user():
         cookie_manager.set("jwt_token", url_token)
         del st.query_params["token"]
 
-        st.rerun()
-
     token = cookie_manager.get("jwt_token")
 
     if token:
