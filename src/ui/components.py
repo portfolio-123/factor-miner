@@ -528,16 +528,17 @@ def render_job_card(job: Job) -> None:
 
 
 def render_dataset_history_card(
-    dataset_info: DatasetConfig,
+    dataset_info: DatasetConfig | None,
     ds_ver: str,
     jobs: list[Job],
     fl_id: str,
     is_current: bool = False,
 ) -> None:
-    config = DatasetConfig.model_validate(dataset_info)
 
-    universe = config.universeName
-    currency = config.currency
+    config = dataset_info or DatasetConfig()
+
+    universe = config.universeName or "N/A"
+    currency = config.currency or "N/A"
     ds_label = format_timestamp(ds_ver)
 
     with st.container(border=True):
@@ -566,11 +567,11 @@ def render_dataset_history_card(
         with stats_col:
             render_dataset_info_row(
                 config.benchmark or "N/A",
-                config.frequency,
+                config.frequency or 1,
                 config.startDt or "N/A",
                 config.endDt or "N/A",
                 config.normalization,
-                config.precision,
+                config.precision or "N/A",
             )
         with formulas_col:
             st.markdown(

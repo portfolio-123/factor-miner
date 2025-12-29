@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -39,6 +39,7 @@ class NormalizationConfig(BaseModel):
 class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    flName: Optional[str] = Field(default="Unknown Name")
     universeName: str = Field(default="Unknown Universe")
     frequency: int = Field(default=1)
     currency: str = Field(default="USD")

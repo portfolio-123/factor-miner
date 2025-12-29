@@ -26,12 +26,10 @@ class ParquetDataReader:
             if schema_metadata is None:
                 return {}
             return {
-                k.decode("utf-8"): v.decode("utf-8")
-                for k, v in schema_metadata.items()
+                k.decode("utf-8"): v.decode("utf-8") for k, v in schema_metadata.items()
             }
         except Exception:
             return {}
-
 
     def validate(self) -> Tuple[bool, Optional[str]]:
         try:
@@ -89,19 +87,19 @@ class ParquetDataReader:
             columns = pf.schema_arrow.names
             unique_dates = None
 
-            if 'Date' in columns:
-                date_df = self.read_columns(['Date'])
+            if "Date" in columns:
+                date_df = self.read_columns(["Date"])
                 if date_df is not None:
-                    unique_dates = pd.to_datetime(date_df['Date']).nunique()
+                    unique_dates = pd.to_datetime(date_df["Date"]).nunique()
             return {
-                'valid': True,
-                'num_rows': num_rows,
-                'num_columns': len(columns),
-                'columns': columns,
-                'unique_dates': unique_dates
+                "valid": True,
+                "num_rows": num_rows,
+                "num_columns": len(columns),
+                "columns": columns,
+                "unique_dates": unique_dates,
             }
         except Exception as e:
-            return {'valid': False, 'error': str(e)}
+            return {"valid": False, "error": str(e)}
 
     def _get_custom_metadata_json(self, key: str) -> Optional[Any]:
         raw = self._custom_metadata.get(key)
@@ -132,10 +130,9 @@ class ParquetDataReader:
         except Exception:
             return None
 
-    def get_dataset_info(self) -> Optional[DatasetConfig]:
+    def get_dataset_info(self) -> DatasetConfig:
         dataset_info = self._get_custom_metadata_json("dataset")
-        if not dataset_info:
-            return None
+
         norm = dataset_info.get("normalization")
         if isinstance(norm, str):
             try:
@@ -147,17 +144,19 @@ class ParquetDataReader:
         return DatasetConfig(**dataset_info)
 
 
-def get_current_dataset_info(fl_id: str) -> Tuple[Optional[str], Optional[DatasetConfig]]:
+def get_current_dataset_info(
+    fl_id: str,
+) -> Tuple[Optional[str], Optional[DatasetConfig]]:
     try:
         dataset_path = locate_factor_list_file(fl_id)
-        
+
         # get modification timestamp as id
         ts = os.path.getmtime(dataset_path)
         current_version = str(int(ts))
-        
+
         reader = ParquetDataReader(dataset_path)
         dataset_info = reader.get_dataset_info()
-        
+
         return current_version, dataset_info
     except (FileNotFoundError, ValueError, Exception):
         return None, None

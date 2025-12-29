@@ -2,6 +2,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
+from src.services.readers import get_current_dataset_info
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.utils import locate_factor_list_file
 from src.ui.styles import apply_custom_styles
@@ -17,13 +18,16 @@ st.set_page_config(
     layout="wide",
 )
 
-st.markdown('''
+st.markdown(
+    """
 <style>
 .stApp [data-testid="stToolbar"]{
     display:none;
 }
 </style>
-''', unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 def initialize_app() -> None:
@@ -90,12 +94,60 @@ def main() -> None:
     if not user_claims:
         st.stop()
 
-
     apply_custom_styles()
 
     initialize_app()
 
     state = get_state()
+
+    def render_breadcrumb(steps):
+        html_code = """
+        <style>
+            .breadcrumb {
+                font-size: 14px;
+                margin-bottom: -15px;
+            }
+            .breadcrumb a {
+                text-decoration: none;
+                color: #666;
+            }
+            .breadcrumb a:hover {
+                text-decoration: underline;
+                color: #2196F3
+            }
+            .breadcrumb span {
+                font-weight: bold;
+                color: #333;
+            }
+        </style>
+        <div class="breadcrumb">
+        """
+
+        for i, (label, link) in enumerate(steps):
+            if i > 0:
+                html_code += " &gt; "
+
+            if link:
+                html_code += f"<a href='{link}' target='_blank'>{label}</a>"
+            else:
+                html_code += f"<span>{label}</span>"
+
+        html_code += "</div>"
+
+        st.markdown(html_code, unsafe_allow_html=True)
+
+    steps = [
+        (
+            "Factor List",
+            f"{os.getenv("P123_BASE_URL")}/sv/factorList/{st.query_params.get("fl_id")}/download",
+        ),
+        ("FactorMiner", None),
+    ]
+
+    _, dataset_info = get_current_dataset_info(st.query_params.get("fl_id"))
+
+    render_breadcrumb(steps)
+    st.title(f"{dataset_info.flName} ({st.query_params.get("fl_id")})")
 
     if state.page == "history":
         history_page()
