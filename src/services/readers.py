@@ -141,6 +141,10 @@ class ParquetDataReader:
                 loaded = None
             dataset_info["normalization"] = loaded if isinstance(loaded, dict) else None
 
+        features_json = self._get_custom_metadata_json("features")
+        if features_json and isinstance(features_json, list):
+            dataset_info["factorCount"] = len(features_json)
+
         return DatasetConfig(**dataset_info)
 
 

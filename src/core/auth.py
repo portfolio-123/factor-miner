@@ -39,14 +39,16 @@ def _decrypt_token(token, secret_key):
 def authenticate_user():
     if st.session_state.get("user_payload"):
         payload = st.session_state["user_payload"]
-        
+
         url_fl_id = st.query_params.get("fl_id")
         if url_fl_id:
             token_fl_id = payload.get("factorListUid")
             if not token_fl_id or str(token_fl_id) != str(url_fl_id):
-                st.error("Unauthorized: Your session does not have access to this Factor List.")
+                st.error(
+                    "Unauthorized: Your session does not have access to this Factor List."
+                )
                 st.stop()
-                
+
         return payload
 
     secret_key = load_secret()
@@ -66,7 +68,9 @@ def authenticate_user():
             if url_fl_id:
                 token_fl_id = payload.get("factorListUid")
                 if not token_fl_id or str(token_fl_id) != str(url_fl_id):
-                    st.error("Unauthorized: Your session does not have access to this Factor List.")
+                    st.error(
+                        "Unauthorized: Your session does not have access to this Factor List."
+                    )
                     st.stop()
 
             st.session_state["user_payload"] = payload
@@ -85,7 +89,7 @@ def authenticate_user():
     with col:
         st.warning(
             "**Session expired or invalid**\n\n"
-            'Access this tool via the main website with the "Factor Evaluator" button.',
+            "Access this tool via the main website.",
         )
 
         if fl_id:

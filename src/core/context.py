@@ -11,6 +11,7 @@ from typing import Set, Optional
 @dataclass
 class AppState:
     """Central state management for the application."""
+
     page: str = "history"
     current_step: int = 1
     completed_steps: Set[int] = field(default_factory=set)
@@ -18,6 +19,8 @@ class AppState:
     # internal app config
     is_internal_app: bool = False
     factor_list_uid: Optional[str] = None
+
+    is_editing_dataset: bool = False
 
     # data state
     benchmark_data: Optional[pd.DataFrame] = None
@@ -49,7 +52,7 @@ class AppState:
 
 
 def get_state() -> AppState:
-    if 'app_state' not in st.session_state:
+    if "app_state" not in st.session_state:
         st.session_state.app_state = AppState()
     return st.session_state.app_state
 
@@ -60,7 +63,7 @@ def update_state(**kwargs) -> None:
     for key, value in kwargs.items():
         if hasattr(state, key):
             setattr(state, key, value)
-    
+
     # preserve fl_id if it exists in state
     if state.factor_list_uid:
         st.query_params["fl_id"] = state.factor_list_uid
@@ -75,7 +78,7 @@ def update_state(**kwargs) -> None:
         else:
             st.query_params["new_analysis"] = "true"
             st.query_params.pop("job_id", None)
-        
+
         # Don't track step in URL to avoid polluting browser history
         st.query_params.pop("step", None)
 
@@ -93,31 +96,27 @@ def reset_analysis_state() -> None:
         current_step=1,
         current_job_id=None,
         completed_steps=set(),
-        
         # Calculation parameters defaults
         min_alpha=0.5,
         top_x_pct=20.0,
         bottom_x_pct=20.0,
         correlation_threshold=0.5,
         n_features=10,
-        
         # Data state
         benchmark_data=None,
         benchmark_ticker=None,
         api_id=None,
         api_key=None,
-        
         # Results
         all_metrics=None,
         all_corr_matrix=None,
-        
-        dataset_path_input=None
+        dataset_path_input=None,
     )
 
 
 def add_debug_log(message: str, without_timestamp: bool = False) -> None:
     state = get_state()
-    timestamp = datetime.now().strftime('%H:%M:%S')
+    timestamp = datetime.now().strftime("%H:%M:%S")
     message = message if without_timestamp else f"[{timestamp}] {message}"
     state.debug_logs.append(message)
     # keep only the last 100 logs

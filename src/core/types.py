@@ -51,6 +51,8 @@ class DatasetConfig(BaseModel):
     benchmark: str | None = Field(default=None)
     precision: str | None = Field(default=None)
     normalization: NormalizationConfig | None = Field(default=None)
+    factorCount: int | None = Field(default=None)
+    pitMethod: str | None = Field(default=None)
 
 
 class Job(BaseModel):

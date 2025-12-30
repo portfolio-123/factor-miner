@@ -14,7 +14,7 @@ from src.core.auth import authenticate_user
 load_dotenv()
 
 st.set_page_config(
-    page_title="Factor Evaluator - Portfolio123",
+    page_title="Factor Miner - Portfolio123",
     page_icon="assets/favicon.png",
     layout="wide",
 )
@@ -101,7 +101,9 @@ def main() -> None:
     _, dataset_info = get_current_dataset_info(st.query_params.get("fl_id"))
 
     render_breadcrumb(steps)
-    st.title(f"{dataset_info.flName if dataset_info else 'Unknown'} ({st.query_params.get("fl_id")})")
+    st.title(
+        f"{dataset_info.flName if dataset_info else 'Unknown'} ({st.query_params.get("fl_id")})"
+    )
 
     if state.page == "history":
         history_page()

@@ -5,13 +5,14 @@ import streamlit as st
 
 def apply_custom_styles() -> None:
     """Apply custom CSS styles to the Streamlit app."""
-    st.markdown("""
+    st.markdown(
+        """
     <style>
     /* Reduce main content padding */
     .stMainBlockContainer,
     .block-container,
     [data-testid="stMainBlockContainer"] {
-        padding: 1rem 2rem 2rem 2rem !important;
+        padding: 0.5rem 2rem 2rem 2rem !important;
         max-width: 1000px !important;
         margin: 0 auto !important;
     }
@@ -243,6 +244,58 @@ def apply_custom_styles() -> None:
         font-weight: 500;
         color: #212529;
     }
+    .dataset-info-item.big .label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #2196F3;
+        margin-bottom: 1px;
+    }
+    .dataset-info-item.big .value {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1a1a1a;
+        line-height: 1.2;
+    }
+    
+    /* Hide the button that follows factors-view-link */
+    .element-container:has(.factors-view-link) ~ .element-container,
+    div[data-testid="stElementContainer"]:has(.factors-view-link) ~ div[data-testid="stElementContainer"] {
+        display: none !important;
+    }
+    
+    .element-container:has(.factors-with-button) ~ .element-container button,
+    div[data-testid="stElementContainer"]:has(.factors-with-button) ~ div[data-testid="stElementContainer"] button {
+        padding: 0 4px !important;
+        height: auto !important;
+        min-height: 0 !important;
+        font-size: 14px !important;
+        font-weight: 400 !important;
+        border: none !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #2196F3 !important;
+        text-decoration: underline !important;
+        display: inline-block !important;
+        vertical-align: baseline !important;
+        box-shadow: none !important;
+        width: auto !important;
+        margin: 0 !important;
+    }
+    
+    .element-container:has(.factors-with-button) ~ .element-container button:hover,
+    div[data-testid="stElementContainer"]:has(.factors-with-button) ~ div[data-testid="stElementContainer"] button:hover {
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #1976D2 !important;
+    }
+    
+    .element-container:has(.factors-with-button) ~ .element-container button p,
+    div[data-testid="stElementContainer"]:has(.factors-with-button) ~ div[data-testid="stElementContainer"] button p {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 14px !important;
+        font-weight: 400 !important;
+    }
     .dataset-info-item .value.muted {
         color: #6c757d;
     }
@@ -371,69 +424,98 @@ def apply_custom_styles() -> None:
         font-weight: 400 !important;
     }
 
-    /* ===== View Formulas Button Styles (Styled to look like a link) ===== */
-    
-    /* 1. Hide the trigger container (using multiple selectors for robustness) */
+
     .element-container:has(.view-formulas-trigger),
     div[data-testid="stElementContainer"]:has(.view-formulas-trigger) {
+        display: block !important;
+        position: relative !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .element-container:has(.view-formulas-trigger) .view-formulas-trigger,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) .view-formulas-trigger {
         display: none !important;
     }
 
-    /* 2. Target the BUTTON directly following the trigger container */
-    /* We target the container of the button to align it right */
     .element-container:has(.view-formulas-trigger) ~ .element-container,
     div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] {
         display: flex !important;
-        justify-content: flex-end !important;
+        justify-content: flex-start !important;
         width: 100% !important;
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
     }
     
-    /* Ensure the wrapper div (.stButton) doesn't take full width and allows alignment */
     .element-container:has(.view-formulas-trigger) ~ .element-container .stButton,
     div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] .stButton {
         width: auto !important;
         display: inline-flex !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
-    /* 3. Target the button itself to make it look like a link */
     .element-container:has(.view-formulas-trigger) ~ .element-container button,
     div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button {
-        /* Remove button-ness */
         border: none !important;
         background: transparent !important;
         background-color: transparent !important;
         box-shadow: none !important;
         outline: none !important;
         
-        /* Remove sizing/padding constraints */
         padding: 0px !important;
         margin: 0px !important;
         height: auto !important;
         min-height: 0px !important;
-        line-height: 1.5 !important;
+        line-height: 1.2 !important;
         width: auto !important;
         
-        /* Positional adjustment */
         position: relative !important;
-        top: 13px !important;
+        top: 0px !important;
         
-        /* Font styling */
         color: #2196F3 !important;
         text-decoration: underline !important;
-        font-size: 13px !important;
-        font-weight: 400 !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
     }
 
-    /* 4. Target the inner text paragraph of the button */
     .element-container:has(.view-formulas-trigger) ~ .element-container button p,
     div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button p {
-        font-size: 13px !important;
-        font-weight: 400 !important;
-        padding: 0 !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        color: #2196F3 !important;
+        text-decoration: none !important;
+        line-height: 1.2 !important;
         margin: 0 !important;
+        padding: 0 !important;
+        display: inline-block !important;
+    }
+    
+    .element-container:has(.view-formulas-trigger) ~ .element-container button:hover p,
+    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:hover p {
+        text-decoration: underline !important;
+        color: #1976D2 !important;
     }
 
-    /* 5. Hover/Focus/Active states */
+    .element-container:has(.view-formulas-trigger)::before {
+        content: "FACTORS";
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: #2196F3;
+        margin-bottom: 1px;
+        margin-top: 0px;
+        padding: 0px;
+        line-height: 1.2;
+        font-family: "Source Sans Pro", sans-serif;
+        letter-spacing: 0.5px;
+        height: auto;
+    }
+
     .element-container:has(.view-formulas-trigger) ~ .element-container button:hover,
     div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:hover {
         color: #1976D2 !important;
@@ -451,7 +533,6 @@ def apply_custom_styles() -> None:
         outline: none !important;
     }
 
-    /* Row layout for analysis params + formulas link */
     .analysis-params-row {
         display: flex;
         align-items: flex-end;
@@ -476,9 +557,10 @@ def apply_custom_styles() -> None:
         color: #333;
     }
 
-    /* Hide toolbar */
     .stApp [data-testid="stToolbar"] {
         display: none;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )

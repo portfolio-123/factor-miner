@@ -334,74 +334,121 @@ def render_info_item(label: str, value: str, muted: bool = False) -> str:
     return f'<div class="dataset-info-item"><div class="label">{label}</div><div class="{value_class}">{value}</div></div>'
 
 
+def render_big_info_item(label: str, value: str) -> str:
+    return f'<div class="dataset-info-item big"><div class="label">{label}</div><div class="value">{value}</div></div>'
+
+
 def render_dataset_info_row(
-    benchmark: str,
-    frequency: int,
-    start_date: str,
-    end_date: str,
-    normalization: NormalizationConfig | None,
-    precision: str | None,
+    config: DatasetConfig,
+    ds_ver: str | None = None,
 ) -> None:
 
-    base_items = [
-        render_info_item("Benchmark", benchmark),
-        render_info_item("Frequency", frequency_map[frequency]),
-        render_info_item("Start Date", start_date),
-        render_info_item("End Date", end_date),
-    ]
+    c1, c2, c3, c4 = st.columns([1.5, 2, 1, 1], vertical_alignment="top")
 
-    if normalization:
-        norm_items = [
-            render_info_item(
-                "Scaling",
-                (
-                    SCALING_LABELS.get(
-                        normalization.scaling, str(normalization.scaling)
-                    )
-                    if normalization.scaling
-                    else "None"
-                ),
+    with c1:
+        st.markdown(
+            render_big_info_item("Universe", config.universeName),
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            render_big_info_item(
+                "Period", f"{config.startDt or 'N/A'} - {config.endDt or 'N/A'}"
             ),
-            render_info_item(
-                "Scope", normalization.scope.title() if normalization.scope else "None"
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            render_big_info_item(
+                "Frequency", frequency_map.get(config.frequency, str(config.frequency))
             ),
-            render_info_item(
-                "Trim",
-                (
-                    f"{normalization.trimPct}%"
-                    if normalization.trimPct is not None
-                    else "N/A"
-                ),
-            ),
-            render_info_item("Precision", precision or "N/A"),
-            render_info_item(
-                "Outlier",
-                (
-                    str(normalization.outlierLimit)
-                    if normalization.outlierLimit is not None
-                    else "None"
-                ),
-            ),
-            render_info_item(
-                "N/A Handling", "Middle" if normalization.naFill else "None"
-            ),
+            unsafe_allow_html=True,
+        )
+    with c4:
+        count = config.factorCount or 0
+        st.markdown(render_big_info_item("Factors", str(count)), unsafe_allow_html=True)
+
+    st.markdown('<div style="margin-bottom: 16px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height: 5px;"></div>', unsafe_allow_html=True)
+
+    col_left, col_divider, col_right = st.columns(
+        [1, 0.05, 1], vertical_alignment="top"
+    )
+
+    with col_left:
+        st.markdown(
+            '<div class="dataset-info-item"><div class="label" style="margin-bottom: 8px; font-size: 14px; font-weight: 600; color: #212529; letter-spacing: 0.5px; text-transform: none;">Other Settings</div></div>',
+            unsafe_allow_html=True,
+        )
+        middle_items = [
+            render_info_item("Currency", config.currency),
+            render_info_item("Benchmark", config.benchmark or "N/A"),
+            render_info_item("Precision", config.precision or "N/A"),
+            render_info_item("Pit Method", config.pitMethod or "N/A"),
         ]
+        st.markdown(
+            f'<div class="dataset-info-group">{"".join(middle_items)}</div>',
+            unsafe_allow_html=True,
+        )
 
-        if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
-            norm_items.append(
-                render_info_item("ML Training End", normalization.mlTrainingEnd)
+    with col_divider:
+        st.markdown(
+            '<div class="dataset-info-divider" style="height: 100%;"></div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_right:
+        normalization = config.normalization
+        if normalization:
+            norm_items = [
+                render_info_item(
+                    "Scaling",
+                    (
+                        SCALING_LABELS.get(
+                            normalization.scaling, str(normalization.scaling)
+                        )
+                        if normalization.scaling
+                        else "None"
+                    ),
+                ),
+                render_info_item(
+                    "Scope",
+                    normalization.scope.title() if normalization.scope else "None",
+                ),
+                render_info_item(
+                    "Trim",
+                    (
+                        f"{normalization.trimPct}%"
+                        if normalization.trimPct is not None
+                        else "N/A"
+                    ),
+                ),
+                render_info_item(
+                    "Outlier",
+                    (
+                        str(normalization.outlierLimit)
+                        if normalization.outlierLimit is not None
+                        else "None"
+                    ),
+                ),
+                render_info_item(
+                    "N/A Handling", "Middle" if normalization.naFill else "None"
+                ),
+            ]
+
+            if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
+                norm_items.append(
+                    render_info_item("ML Training End", normalization.mlTrainingEnd)
+                )
+
+            st.markdown(
+                '<div class="dataset-info-item"><div class="label" style="margin-bottom: 8px; font-size: 14px; font-weight: 600; color: #212529; letter-spacing: 0.5px; text-transform: none;">Normalization</div></div>',
+                unsafe_allow_html=True,
             )
-    else:
-        norm_items = [render_info_item("Normalization", "None", muted=True)]
-
-    html = f"""
-    <div class="dataset-info-row">
-        <div class="dataset-info-group">{"".join(base_items)}</div>
-        <div class="dataset-info-divider"></div>
-        <div class="dataset-info-group">{"".join(norm_items)}</div>
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="dataset-info-group">{"".join(norm_items)}</div>',
+                unsafe_allow_html=True,
+            )
 
 
 def handle_view_formulas(ds_ver: str) -> None:
@@ -416,33 +463,8 @@ def render_dataset_header(
 ) -> None:
     config = DatasetConfig.model_validate(dataset_info)
 
-    universe = config.universeName
-    currency = config.currency
-    ds_label = format_timestamp(dataset_version)
-
     with st.container(border=True):
-        st.markdown(
-            f"""<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
-                        {universe}
-                    </div>
-                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
-                </div>
-                <span style="font-size: 14px; color: #888; font-weight: 400;">{ds_label}</span>
-            </div>""",
-            unsafe_allow_html=True,
-        )
-
-        render_dataset_info_row(
-            config.benchmark or "N/A",
-            config.frequency,
-            config.startDt or "N/A",
-            config.endDt or "N/A",
-            config.normalization,
-            config.precision,
-        )
+        render_dataset_info_row(config, dataset_version if fl_id else None)
 
         if analysis_params:
             st.divider()
@@ -463,31 +485,14 @@ def render_dataset_header(
 
             params_html = f'<div class="dataset-info-group">{"".join(items)}</div>'
 
-            col_params, col_btn = st.columns([5, 1], vertical_alignment="bottom")
-
-            with col_params:
-                st.markdown(
-                    f"""
-                <div class="analysis-params-row" style="padding-bottom: 0;">
-                    {params_html}
-                </div>
-                """,
-                    unsafe_allow_html=True,
-                )
-
-            with col_btn:
-                if fl_id:
-                    st.markdown(
-                        '<span class="view-formulas-trigger">&nbsp;</span>',
-                        unsafe_allow_html=True,
-                    )
-                    st.button(
-                        "View Formulas",
-                        key="view_formulas_btn_header",
-                        type="tertiary",
-                        on_click=handle_view_formulas,
-                        args=(dataset_version,),
-                    )
+            st.markdown(
+                f"""
+            <div class="analysis-params-row" style="padding-bottom: 0;">
+                {params_html}
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
 
             st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
 
@@ -551,95 +556,12 @@ def render_dataset_history_card(
     ds_ver: str,
     jobs: list[Job],
     fl_id: str,
-    is_current: bool = False,
 ) -> None:
 
     config = dataset_info or DatasetConfig()
 
-    universe = config.universeName or "N/A"
-    currency = config.currency or "N/A"
-    ds_label = format_timestamp(ds_ver)
-
     with st.container(border=True):
-        header_left, header_right = st.columns([5, 1])
 
-        with header_left:
-            st.markdown(
-                f"""<div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
-                        {universe}
-                    </div>
-                    <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">{currency}</span>
-                </div>""",
-                unsafe_allow_html=True,
-            )
-
-        with header_right:
-            st.markdown(
-                f'<div style="text-align: right; font-size: 14px; color: #888;">{ds_label}</div>',
-                unsafe_allow_html=True,
-            )
-
-        st.space(size=2)
-        stats_col, formulas_col = st.columns([8, 1], vertical_alignment="bottom")
-        with stats_col:
-            render_dataset_info_row(
-                config.benchmark or "N/A",
-                config.frequency or 1,
-                config.startDt or "N/A",
-                config.endDt or "N/A",
-                config.normalization,
-                config.precision or "N/A",
-            )
-        with formulas_col:
-            st.markdown(
-                '<span class="view-formulas-trigger">&nbsp;</span>',
-                unsafe_allow_html=True,
-            )
-            st.button(
-                "View Formulas",
-                key=f"view_formulas_{ds_ver}",
-                type="tertiary",
-                on_click=handle_view_formulas,
-                args=(ds_ver,),
-            )
-
-        st.divider()
-
-        title_text = (
-            "PAST ANALYSES" if jobs else "No analyses yet for this dataset version"
-        )
-        title_style = (
-            "font-size: 15px; font-weight: 400; color: #60646A;"
-            if jobs
-            else "font-size: 14px; color: #9ca3af; font-style: italic; margin-top: 0.25rem;"
-        )
-
-        if is_current:
-            title_style += " padding-top: 4px;"
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.markdown(
-                    f"<div style='{title_style}'>{title_text}</div>",
-                    unsafe_allow_html=True,
-                )
-            with col2:
-                st.button(
-                    "New Analysis",
-                    type="primary",
-                    key="new_analysis_btn" if jobs else "new_analysis_btn_empty",
-                    use_container_width=True,
-                    on_click=reset_analysis_state,
-                )
-        else:
-            title_style += " margin-bottom: 10px;" if jobs else " padding: 8px 0;"
-            st.markdown(
-                f"<div style='{title_style}'>{title_text}</div>",
-                unsafe_allow_html=True,
-            )
-
-        for job in jobs:
-            render_job_card(job)
+        render_dataset_info_row(config, ds_ver)
 
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)

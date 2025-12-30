@@ -1,7 +1,12 @@
 import streamlit as st
 from src.core.utils import format_timestamp
-from src.core.context import get_state
-from src.ui.components import show_formulas_modal, render_dataset_history_card
+from src.core.context import get_state, reset_analysis_state
+from src.ui.components import (
+    show_formulas_modal,
+    render_dataset_history_card,
+    render_job_card,
+    handle_view_formulas,
+)
 from src.services.readers import get_current_dataset_info
 from src.workers.manager import (
     get_dataset_info_from_backup,
@@ -27,28 +32,40 @@ def render() -> None:
 
     current_version_has_jobs = current_version and current_version in grouped_jobs
 
-    sorted_datasets = sort_dataset_versions(list(grouped_jobs.keys()))
+    all_versions = set(grouped_jobs.keys())
+    if current_version:
+        all_versions.add(current_version)
+
+    sorted_datasets = sort_dataset_versions(list(all_versions))
 
     ds_info_map = {}
+    if current_version and current_dataset_info:
+        ds_info_map[current_version] = current_dataset_info
+
     for ver in sorted_datasets:
-        info = get_dataset_info_from_backup(fl_id, ver)
-        if info:
-            ds_info_map[ver] = info
+        if ver not in ds_info_map:
+            info = get_dataset_info_from_backup(fl_id, ver)
+            if info:
+                ds_info_map[ver] = info
 
     def _format_dataset_option(ver: str) -> str:
         info = ds_info_map.get(ver)
         timestamp_str = format_timestamp(ver)
-        
-        if not info or not info.name:
-            return f"Unnamed - {timestamp_str}"
-            
-        label = f"{info.name}"
-        if info.description:
-            # Show first 30 chars of description if available
-            short_desc = (info.description[:30] + '..') if len(info.description) > 30 else info.description
-            label += f" ({short_desc})"
-            
-        return f"{label} - {timestamp_str}"
+
+        name = "Unnamed"
+        if info and info.name:
+            name = info.name
+
+        if ver == current_version:
+            return f"🟢​ [READY] {name} - {timestamp_str}"
+
+        return f"{name} - {timestamp_str}"
+
+    default_index = None
+    if current_version and current_version in sorted_datasets:
+        default_index = sorted_datasets.index(current_version)
+    elif sorted_datasets:
+        default_index = 0
 
     col1, col2 = st.columns([6, 1], vertical_alignment="bottom")
 
@@ -56,7 +73,7 @@ def render() -> None:
         selected_ver = st.selectbox(
             "Datasets",
             sorted_datasets,
-            index=None,
+            index=default_index,
             placeholder="Select a dataset",
             format_func=_format_dataset_option,
         )
@@ -65,36 +82,43 @@ def render() -> None:
         st.session_state.edit_dataset_mode = False
 
     with col2:
-        btn_label = "Cancel" if st.session_state.edit_dataset_mode else "Edit Info"
-        btn_type = "secondary" if st.session_state.edit_dataset_mode else "primary"
-
         if st.button(
-            btn_label, 
-            type=btn_type, 
-            width="stretch", 
+            "Edit Details",
+            type="primary",
+            width="stretch",
             disabled=not selected_ver,
-            key="toggle_edit_ds"
+            key="toggle_edit_ds",
         ):
-            st.session_state.edit_dataset_mode = not st.session_state.edit_dataset_mode
-            st.rerun()
+            st.session_state.edit_dataset_mode = True
 
     if st.session_state.edit_dataset_mode and selected_ver:
-        with st.container(border=True):
-            st.caption("Edit Dataset Details")
-            
+
+        @st.dialog("Edit Dataset Details", width="large")
+        def edit_dialog():
             curr_info = ds_info_map.get(selected_ver)
             curr_name = curr_info.name if curr_info else ""
             curr_desc = curr_info.description if curr_info else ""
 
-            with st.form(key="edit_dataset_form"):
-                new_name = st.text_input("Name", value=curr_name)
-                new_desc = st.text_area("Description", value=curr_desc, height=80)
-                
-                if st.form_submit_button("Save Changes", type="primary"):
+            with st.form(key="edit_dataset_form", border=False):
+                new_name = st.text_input(
+                    "Name", value=curr_name, placeholder="Enter dataset name"
+                )
+                new_desc = st.text_area(
+                    "Description",
+                    value=curr_desc,
+                    height=120,
+                    placeholder="Enter dataset description",
+                )
+
+                _, col_btn = st.columns([5, 1])
+                with col_btn:
+                    submitted = st.form_submit_button(
+                        "Save Changes", type="primary", use_container_width=True
+                    )
+
+                if submitted:
                     success = update_dataset_info(
-                        fl_id, 
-                        selected_ver, 
-                        {"name": new_name, "description": new_desc}
+                        fl_id, selected_ver, {"name": new_name, "description": new_desc}
                     )
                     if success:
                         st.success("Updated!")
@@ -103,34 +127,70 @@ def render() -> None:
                     else:
                         st.error("Failed to update.")
 
-    # render current dataset card if it doesn't have jobs in it yet. if it does, it will be rendered in the loop below
-    if current_version and current_dataset_info and not current_version_has_jobs:
-        render_dataset_history_card(
-            dataset_info=current_dataset_info,
-            ds_ver=current_version,
-            jobs=[],
-            fl_id=fl_id,
-            is_current=True,
-        )
+        edit_dialog()
 
-    # render existing dataset cards
-    for ds_ver in sorted_datasets:
-        ds_jobs = grouped_jobs[ds_ver]
-        is_current_version = ds_ver == current_version
+    if selected_ver:
+        ds_jobs = grouped_jobs.get(selected_ver, [])
+        is_current_version = selected_ver == current_version
+
+        info = ds_info_map.get(selected_ver)
+
+        if info:
+            description = (
+                info.description if info.description else "No description provided"
+            )
+            st.markdown(f"**Description:** {description}")
 
         render_dataset_history_card(
-            dataset_info=(
-                current_dataset_info
-                if is_current_version
-                else get_dataset_info_from_backup(fl_id, ds_ver)
-            ),
-            ds_ver=ds_ver,
+            dataset_info=info,
+            ds_ver=selected_ver,
             jobs=ds_jobs,
             fl_id=fl_id,
-            is_current=is_current_version,
         )
 
-    if not jobs and not current_dataset_info:
+        if is_current_version:
+
+            col_spacer, col1, col2 = st.columns([3, 1, 1])
+            with col_spacer:
+                st.empty()
+            with col1:
+                if info and info.factorCount:
+                    count = info.factorCount
+                    st.button(
+                        f"View Factors ({count})",
+                        key=f"view_factors_btn_{selected_ver}",
+                        type="secondary",
+                        on_click=handle_view_formulas,
+                        args=(selected_ver,),
+                        use_container_width=True,
+                    )
+            with col2:
+                st.button(
+                    "New Analysis",
+                    type="primary",
+                    key="new_analysis_btn" if ds_jobs else "new_analysis_btn_empty",
+                    use_container_width=True,
+                    on_click=reset_analysis_state,
+                )
+
+            # Show title if there are jobs
+            if ds_jobs:
+                st.markdown(
+                    "<div style='font-size: 15px; font-weight: 400; color: #60646A; padding-top: 16px;'>PAST ANALYSES</div>",
+                    unsafe_allow_html=True,
+                )
+
+            # Render job cards
+            for job in ds_jobs:
+                render_job_card(job)
+
+            # Show "No analyses yet" message at bottom if no jobs
+            if not ds_jobs:
+                st.markdown(
+                    "<div style='text-align: center; font-size: 14px; color: #9ca3af; font-style: italic; margin-top: 2rem; padding-top: 4px;'>No analyses yet for this dataset version</div>",
+                    unsafe_allow_html=True,
+                )
+    elif not jobs and not current_dataset_info:
         st.info("No past analysis found for this Factor List.")
 
     formulas_ds_ver = st.session_state.get("formulas_ds_ver")
