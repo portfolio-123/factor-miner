@@ -79,6 +79,26 @@ def get_dataset_info_from_backup(fl_id: str, dataset_version: str) -> Optional[D
     except Exception:
         return None
 
+def update_dataset_info(fl_id: str, dataset_version: str, updates: Dict[str, Any]) -> bool:
+    path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
+    if not path.exists():
+        return False
+    try:
+        table = pq.read_table(path)
+
+        existing_meta = table.schema.metadata or {}
+        dataset_meta_json = existing_meta.get(b'dataset')
+        
+        dataset_info = json.loads(dataset_meta_json) if dataset_meta_json else {}
+        dataset_info.update(updates)
+        
+        new_meta = existing_meta.copy()
+        new_meta[b'dataset'] = json.dumps(dataset_info).encode('utf-8')
+        new_table = table.replace_schema_metadata(new_meta)
+        pq.write_table(new_table, path)
+        return True
+    except Exception:
+        return False
 
 def get_formulas_df_for_version(fl_id: str, ds_ver: str) -> Optional[pd.DataFrame]:
     try:

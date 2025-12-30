@@ -8,6 +8,7 @@ from src.workers.manager import (
     get_formulas_df_for_version,
     get_grouped_jobs,
     sort_dataset_versions,
+    update_dataset_info,
 )
 
 
@@ -28,19 +29,79 @@ def render() -> None:
 
     sorted_datasets = sort_dataset_versions(list(grouped_jobs.keys()))
 
+    ds_info_map = {}
+    for ver in sorted_datasets:
+        info = get_dataset_info_from_backup(fl_id, ver)
+        if info:
+            ds_info_map[ver] = info
+
+    def _format_dataset_option(ver: str) -> str:
+        info = ds_info_map.get(ver)
+        timestamp_str = format_timestamp(ver)
+        
+        if not info or not info.name:
+            return f"Unnamed - {timestamp_str}"
+            
+        label = f"{info.name}"
+        if info.description:
+            # Show first 30 chars of description if available
+            short_desc = (info.description[:30] + '..') if len(info.description) > 30 else info.description
+            label += f" ({short_desc})"
+            
+        return f"{label} - {timestamp_str}"
+
     col1, col2 = st.columns([6, 1], vertical_alignment="bottom")
 
     with col1:
-        st.selectbox(
+        selected_ver = st.selectbox(
             "Datasets",
             sorted_datasets,
             index=None,
             placeholder="Select a dataset",
-            format_func=lambda x: f"Unnamed - {format_timestamp(x)}",
+            format_func=_format_dataset_option,
         )
 
+    if "edit_dataset_mode" not in st.session_state:
+        st.session_state.edit_dataset_mode = False
+
     with col2:
-        st.button("Rename", type="primary", width="stretch")
+        btn_label = "Cancel" if st.session_state.edit_dataset_mode else "Edit Info"
+        btn_type = "secondary" if st.session_state.edit_dataset_mode else "primary"
+
+        if st.button(
+            btn_label, 
+            type=btn_type, 
+            width="stretch", 
+            disabled=not selected_ver,
+            key="toggle_edit_ds"
+        ):
+            st.session_state.edit_dataset_mode = not st.session_state.edit_dataset_mode
+            st.rerun()
+
+    if st.session_state.edit_dataset_mode and selected_ver:
+        with st.container(border=True):
+            st.caption("Edit Dataset Details")
+            
+            curr_info = ds_info_map.get(selected_ver)
+            curr_name = curr_info.name if curr_info else ""
+            curr_desc = curr_info.description if curr_info else ""
+
+            with st.form(key="edit_dataset_form"):
+                new_name = st.text_input("Name", value=curr_name)
+                new_desc = st.text_area("Description", value=curr_desc, height=80)
+                
+                if st.form_submit_button("Save Changes", type="primary"):
+                    success = update_dataset_info(
+                        fl_id, 
+                        selected_ver, 
+                        {"name": new_name, "description": new_desc}
+                    )
+                    if success:
+                        st.success("Updated!")
+                        st.session_state.edit_dataset_mode = False
+                        st.rerun()
+                    else:
+                        st.error("Failed to update.")
 
     # render current dataset card if it doesn't have jobs in it yet. if it does, it will be rendered in the loop below
     if current_version and current_dataset_info and not current_version_has_jobs:

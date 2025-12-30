@@ -459,5 +459,26 @@ def apply_custom_styles() -> None:
         width: 100%;
         padding-bottom: 16px;
     }
+    .breadcrumb {
+        font-size: 14px;
+        margin-bottom: -15px;
+    }
+    .breadcrumb a {
+        text-decoration: none;
+        color: #666;
+    }
+    .breadcrumb a:hover {
+        text-decoration: underline;
+        color: #2196F3
+    }
+    .breadcrumb span {
+        font-weight: bold;
+        color: #333;
+    }
+
+    /* Hide toolbar */
+    .stApp [data-testid="stToolbar"] {
+        display: none;
+    }
     </style>
     """, unsafe_allow_html=True)

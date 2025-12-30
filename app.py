@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from src.services.readers import get_current_dataset_info
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.utils import locate_factor_list_file
+from src.ui.components import render_breadcrumb
 from src.ui.styles import apply_custom_styles
 from src.ui.pages import history_page, analysis_page
 from src.core.job_restore import restore_job_state
@@ -16,17 +17,6 @@ st.set_page_config(
     page_title="Factor Evaluator - Portfolio123",
     page_icon="assets/favicon.png",
     layout="wide",
-)
-
-st.markdown(
-    """
-<style>
-.stApp [data-testid="stToolbar"]{
-    display:none;
-}
-</style>
-""",
-    unsafe_allow_html=True,
 )
 
 
@@ -100,42 +90,6 @@ def main() -> None:
 
     state = get_state()
 
-    def render_breadcrumb(steps):
-        html_code = """
-        <style>
-            .breadcrumb {
-                font-size: 14px;
-                margin-bottom: -15px;
-            }
-            .breadcrumb a {
-                text-decoration: none;
-                color: #666;
-            }
-            .breadcrumb a:hover {
-                text-decoration: underline;
-                color: #2196F3
-            }
-            .breadcrumb span {
-                font-weight: bold;
-                color: #333;
-            }
-        </style>
-        <div class="breadcrumb">
-        """
-
-        for i, (label, link) in enumerate(steps):
-            if i > 0:
-                html_code += " &gt; "
-
-            if link:
-                html_code += f"<a href='{link}' target='_blank'>{label}</a>"
-            else:
-                html_code += f"<span>{label}</span>"
-
-        html_code += "</div>"
-
-        st.markdown(html_code, unsafe_allow_html=True)
-
     steps = [
         (
             "Factor List",
@@ -147,7 +101,7 @@ def main() -> None:
     _, dataset_info = get_current_dataset_info(st.query_params.get("fl_id"))
 
     render_breadcrumb(steps)
-    st.title(f"{dataset_info.flName} ({st.query_params.get("fl_id")})")
+    st.title(f"{dataset_info.flName if dataset_info else 'Unknown'} ({st.query_params.get("fl_id")})")
 
     if state.page == "history":
         history_page()

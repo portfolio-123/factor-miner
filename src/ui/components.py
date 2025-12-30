@@ -37,6 +37,25 @@ def header_simple_back(create_columns: bool = True) -> None:
                 st.rerun()
 
 
+def render_breadcrumb(steps: list[tuple[str, str | None]]) -> None:
+    html_code = """
+    <div class="breadcrumb">
+    """
+
+    for i, (label, link) in enumerate(steps):
+        if i > 0:
+            html_code += " &gt; "
+
+        if link:
+            html_code += f"<a href='{link}' target='_blank'>{label}</a>"
+        else:
+            html_code += f"<span>{label}</span>"
+
+    html_code += "</div>"
+
+    st.markdown(html_code, unsafe_allow_html=True)
+
+
 def header_with_navigation() -> None:
     state = get_state()
 

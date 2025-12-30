@@ -39,6 +39,9 @@ class NormalizationConfig(BaseModel):
 class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    name: str | None = Field(default=None)
+    description: str | None = Field(default=None)
+
     flName: Optional[str] = Field(default="Unknown Name")
     universeName: str = Field(default="Unknown Universe")
     frequency: int = Field(default=1)
