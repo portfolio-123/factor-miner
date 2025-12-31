@@ -99,4 +99,4 @@ def authenticate_user():
                 unsafe_allow_html=True,
             )
 
-    return None
+    st.stop()
