@@ -26,52 +26,41 @@ def initialize_app() -> None:
 
     add_debug_log("Initializing application...")
 
-    # check env variable to see if it's internal or external app.
-    is_internal_app = os.getenv("INTERNAL_APP", "false").lower() == "true"
-    state = get_state()
-    state.is_internal_app = is_internal_app
+    fl_id = st.query_params.get("fl_id", None)
 
-    if is_internal_app:
-        add_debug_log("Running in internal app mode")
+    if fl_id:
+        add_debug_log(f"Factor list ID from URL: {fl_id}")
+        update_state(factor_list_uid=fl_id)
 
-        fl_id = st.query_params.get("fl_id", None)
+        try:
+            dataset_path = locate_factor_list_file(fl_id)
+            update_state(dataset_path=dataset_path)
 
-        if fl_id:
-            add_debug_log(f"Factor list ID from URL: {fl_id}")
-            update_state(factor_list_uid=fl_id)
+            qp_job_id = st.query_params.get("job_id")
+            qp_step = st.query_params.get("step")
+            is_new_analysis = st.query_params.get("new_analysis")
 
-            try:
-                dataset_path = locate_factor_list_file(fl_id)
-                update_state(dataset_path=dataset_path)
+            restored = False
 
-                qp_job_id = st.query_params.get("job_id")
-                qp_step = st.query_params.get("step")
-                is_new_analysis = st.query_params.get("new_analysis")
-
-                restored = False
-
-                if qp_job_id:
-                    if restore_job_state(qp_job_id):
-                        restored = True
-                        update_state(page="analysis")
-
-                        if qp_step:
-                            try:
-                                update_state(current_step=int(qp_step))
-                            except ValueError:
-                                pass
-                elif is_new_analysis:
-                    update_state(page="analysis", current_step=1)
+            if qp_job_id:
+                if restore_job_state(qp_job_id):
                     restored = True
+                    update_state(page="analysis")
 
-                if not restored:
-                    update_state(page="history")
+                    if qp_step:
+                        try:
+                            update_state(current_step=int(qp_step))
+                        except ValueError:
+                            pass
+            elif is_new_analysis:
+                update_state(page="analysis", current_step=1)
+                restored = True
 
-            except (ValueError, FileNotFoundError) as e:
+            if not restored:
                 update_state(page="history")
-    else:
-        # TODO: think how to handle external app. we don't know the dataset path until they add it in step 1 form. wait until the results redesign to support multiple results.
-        add_debug_log("Running in external app mode")
+
+        except (ValueError, FileNotFoundError):
+            update_state(page="history")
 
     # to avoid re-initialization if it has already been done
     st.session_state.initialized = True

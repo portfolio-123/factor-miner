@@ -27,29 +27,17 @@ def render() -> None:
 
     section_header("Data Sources")
 
-    if state.is_internal_app:
-        # Internal app - search file-system with factor list uid
-        st.text_input(
-            "Factor List UID",
-            value=state.factor_list_uid or "",
-            disabled=True,
-            key="factor_list_uid",
-        )
+    st.text_input(
+        "Factor List UID",
+        value=state.factor_list_uid or "",
+        disabled=True,
+        key="factor_list_uid",
+    )
 
-        if not state.factor_list_uid:
-            st.warning("No fl_id provided in URL")
-        elif not state.dataset_path:
-            st.error(f"Dataset file not found for: {state.factor_list_uid}")
-    else:
-        # External app - dataset path input
-        st.text_input(
-            "Dataset Path",
-            placeholder="data/dataset.parquet",
-            key="dataset_path",
-        )
-        st.caption(
-            "**Note:** Parquet files include formulas in metadata. Your dataset must contain 'Last Close' for price data."
-        )
+    if not state.factor_list_uid:
+        st.warning("No fl_id provided in URL")
+    elif not state.dataset_path:
+        st.error(f"Dataset file not found for: {state.factor_list_uid}")
 
     section_header("Configuration")
 

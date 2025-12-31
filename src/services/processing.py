@@ -1,7 +1,5 @@
-import json
 import os
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 import streamlit as st
@@ -43,15 +41,7 @@ def process_step1() -> bool:
     )
 
     try:
-        if state.is_internal_app:
-            dataset_file = state.dataset_path
-        else:
-            dataset_path = st.session_state.get("dataset_path", "").strip()
-            path = Path(dataset_path)
-            if not path.is_absolute():
-                path = path.resolve()
-            dataset_file = str(path)
-
+        dataset_file = state.dataset_path
         add_debug_log(f"Dataset file: {dataset_file}")
 
         dataset_reader = ParquetDataReader(dataset_file)
@@ -91,7 +81,7 @@ def process_step1() -> bool:
 
         add_debug_log("Benchmark data fetched successfully")
 
-        state_updates = dict(
+        update_state(
             dataset_path=dataset_file,
             formulas_data=formulas_data,
             benchmark_data=benchmark_data,
@@ -102,12 +92,6 @@ def process_step1() -> bool:
             top_x_pct=float(top_x_pct),
             bottom_x_pct=float(bottom_x_pct),
         )
-        # store original paths that the user entered for form restoration, not the resolved ones
-        if not state.is_internal_app:
-            state_updates["dataset_path_input"] = st.session_state.get(
-                "dataset_path", ""
-            )
-        update_state(**state_updates)
 
         state.completed_steps.add(1)
         state.current_step = 2

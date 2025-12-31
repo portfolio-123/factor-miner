@@ -17,7 +17,6 @@ class AppState:
     completed_steps: Set[int] = field(default_factory=set)
 
     # internal app config
-    is_internal_app: bool = False
     factor_list_uid: Optional[str] = None
 
     is_editing_dataset: bool = False
@@ -30,8 +29,6 @@ class AppState:
 
     dataset_path: Optional[str] = None
     formulas_data: Optional[pd.DataFrame] = None
-    # original user-entered paths (for form restoration when going back to step 1)
-    dataset_path_input: Optional[str] = None
 
     # calculation parameters
     min_alpha: float = 0.5
@@ -110,7 +107,6 @@ def reset_analysis_state() -> None:
         # Results
         all_metrics=None,
         all_corr_matrix=None,
-        dataset_path_input=None,
     )
 
 

@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import streamlit as st
 
@@ -12,15 +11,8 @@ def validate_inputs() -> tuple[bool, str]:
     """Validate all required inputs after continue button is clicked."""
     state = get_state()
 
-    if state.is_internal_app:
-        if state.dataset_path is None:
-            return False, "Dataset file not found"
-    else:
-        dataset_path = st.session_state.get("dataset_path", "").strip()
-        if not dataset_path:
-            return False, "Dataset path is required"
-        if not Path(dataset_path).resolve().exists():
-            return False, f"Dataset file not found"
+    if state.dataset_path is None:
+        return False, "Dataset file not found"
 
     return True, ""
 
@@ -48,7 +40,3 @@ def restore_session_defaults(state) -> None:
     for key, value in defaults.items():
         if key not in st.session_state and value is not None:
             st.session_state[key] = value
-
-    if not state.is_internal_app:
-        if "dataset_path" not in st.session_state and state.dataset_path_input:
-            st.session_state["dataset_path"] = state.dataset_path_input
