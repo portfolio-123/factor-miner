@@ -5,7 +5,6 @@ from src.ui.components import (
     show_formulas_modal,
     render_dataset_history_card,
     render_job_card,
-    handle_view_formulas,
 )
 from src.services.readers import get_current_dataset_info
 from src.workers.manager import (
@@ -81,6 +80,14 @@ def render() -> None:
     if "edit_dataset_mode" not in st.session_state:
         st.session_state.edit_dataset_mode = False
 
+    # Check formulas_ds_ver first - if it's set, formulas modal takes priority
+    formulas_ds_ver = st.session_state.get("formulas_ds_ver")
+    should_show_formulas = formulas_ds_ver is not None
+
+    # Reset edit mode if formulas modal should be shown
+    if should_show_formulas:
+        st.session_state.edit_dataset_mode = False
+
     with col2:
         if st.button(
             "Edit Details",
@@ -90,11 +97,18 @@ def render() -> None:
             key="toggle_edit_ds",
         ):
             st.session_state.edit_dataset_mode = True
+            # Clear formulas modal state when opening edit dialog
+            st.session_state.formulas_ds_ver = None
+            should_show_formulas = False
 
-    if st.session_state.edit_dataset_mode and selected_ver:
+    # Only show edit dialog if formulas modal is not being shown
+    if st.session_state.edit_dataset_mode and selected_ver and not should_show_formulas:
 
         @st.dialog("Edit Dataset Details", width="large")
         def edit_dialog():
+            # Reset flag immediately - dialog is already open, so dismissing it won't retrigger
+            st.session_state.edit_dataset_mode = False
+
             curr_info = ds_info_map.get(selected_ver)
             curr_name = curr_info.name if curr_info else ""
             curr_desc = curr_info.description if curr_info else ""
@@ -110,19 +124,24 @@ def render() -> None:
                     placeholder="Enter dataset description",
                 )
 
-                _, col_btn = st.columns([5, 1])
-                with col_btn:
+                col_cancel, col_save = st.columns([1, 1])
+                with col_cancel:
+                    cancelled = st.form_submit_button(
+                        "Cancel", use_container_width=True
+                    )
+                with col_save:
                     submitted = st.form_submit_button(
                         "Save Changes", type="primary", use_container_width=True
                     )
 
-                if submitted:
+                if cancelled:
+                    st.rerun()
+                elif submitted:
                     success = update_dataset_info(
                         fl_id, selected_ver, {"name": new_name, "description": new_desc}
                     )
                     if success:
                         st.success("Updated!")
-                        st.session_state.edit_dataset_mode = False
                         st.rerun()
                     else:
                         st.error("Failed to update.")
@@ -149,22 +168,11 @@ def render() -> None:
         )
 
         if is_current_version:
-
-            col_spacer, col1, col2 = st.columns([3, 1, 1])
+            # View Factors is now in the dataset card, so just show New Analysis button
+            col_spacer, col_new = st.columns([5, 1])
             with col_spacer:
                 st.empty()
-            with col1:
-                if info and info.factorCount:
-                    count = info.factorCount
-                    st.button(
-                        f"View Factors ({count})",
-                        key=f"view_factors_btn_{selected_ver}",
-                        type="secondary",
-                        on_click=handle_view_formulas,
-                        args=(selected_ver,),
-                        use_container_width=True,
-                    )
-            with col2:
+            with col_new:
                 st.button(
                     "New Analysis",
                     type="primary",
@@ -193,9 +201,10 @@ def render() -> None:
     elif not jobs and not current_dataset_info:
         st.info("No past analysis found for this Factor List.")
 
-    formulas_ds_ver = st.session_state.get("formulas_ds_ver")
-    if formulas_ds_ver:
-        formulas_df = get_formulas_df_for_version(fl_id, formulas_ds_ver)
+    # Show formulas modal if requested - recalculate to ensure we have latest state
+    formulas_ds_ver_final = st.session_state.get("formulas_ds_ver")
+    if formulas_ds_ver_final:
+        formulas_df = get_formulas_df_for_version(fl_id, formulas_ds_ver_final)
         if formulas_df is not None:
             show_formulas_modal(formulas_df)
         else:

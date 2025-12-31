@@ -169,8 +169,6 @@ def _show_debug_modal():
 
 
 def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
-    st.session_state.formulas_ds_ver = None
-
     total = int(len(formulas_df)) if formulas_df is not None else 0
     title = f"Dataset Formulas ({total})"
 
@@ -184,6 +182,9 @@ def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
             st.info("No formulas available for this dataset")
 
     _render()
+
+    # Clear the flag after dialog is created
+    st.session_state.formulas_ds_ver = None
 
 
 def section_header(title: str) -> None:
@@ -541,54 +542,64 @@ def handle_view_formulas(ds_ver: str) -> None:
     st.session_state.formulas_ds_ver = ds_ver
 
 
+def render_analysis_params(analysis_params: dict) -> None:
+    """Render analysis parameters (Min Alpha, Top X, Bottom X) outside the dataset info card."""
+    items = []
+    if "min_alpha" in analysis_params:
+        items.append(render_info_item("Min Alpha", f"{analysis_params['min_alpha']}"))
+    if "top_x_pct" in analysis_params:
+        items.append(render_info_item("Top X", f"{analysis_params['top_x_pct']}%"))
+    if "bottom_x_pct" in analysis_params:
+        items.append(
+            render_info_item("Bottom X", f"{analysis_params['bottom_x_pct']}%")
+        )
+
+    if items:
+        params_html = f'<div class="dataset-info-group">{"".join(items)}</div>'
+        st.markdown(
+            f"""
+        <div style="margin-top: 16px;">
+            <div style="font-size: 14px; font-weight: 600; color: #2196F3;
+                    margin: 15px 0 8px 0; padding-bottom: 5px;
+                    border-bottom: 2px solid #2196F3;">
+            Filter Parameters
+        </div>
+            {params_html}
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        # Add divider and Filter Parameters label
+        st.divider()
+        st.markdown(
+            """
+        <div style="font-size: 14px; font-weight: 600; color: #2196F3;
+                    margin: 15px 0 8px 0; padding-bottom: 5px;
+                    border-bottom: 2px solid #2196F3;">
+            Filter Parameters
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+
 def render_dataset_header(
     dataset_info: DatasetConfig | dict,
     dataset_version: str,
-    analysis_params: Optional[dict] = None,
     fl_id: Optional[str] = None,
 ) -> None:
+    """Render the dataset info card. Reusable across step 0, new analysis page, and results page."""
     config = DatasetConfig.model_validate(dataset_info)
 
     with st.container(border=True):
-        show_factors_button = (
-            config.factorCount and dataset_version and fl_id and not analysis_params
-        )
+        # Always show clickable "View (6)" when fl_id is available
         render_dataset_info_row(
             config,
             dataset_version if fl_id else None,
-            show_view_factors=show_factors_button,
-            fl_id=fl_id if show_factors_button else None,
+            show_view_factors=bool(fl_id and config.factorCount),
+            fl_id=fl_id,
         )
-
-        if analysis_params:
-            st.divider()
-
-            items = []
-            if "min_alpha" in analysis_params:
-                items.append(
-                    render_info_item("Min Alpha", f"{analysis_params['min_alpha']}")
-                )
-            if "top_x_pct" in analysis_params:
-                items.append(
-                    render_info_item("Top X", f"{analysis_params['top_x_pct']}%")
-                )
-            if "bottom_x_pct" in analysis_params:
-                items.append(
-                    render_info_item("Bottom X", f"{analysis_params['bottom_x_pct']}%")
-                )
-
-            params_html = f'<div class="dataset-info-group">{"".join(items)}</div>'
-
-            st.markdown(
-                f"""
-            <div class="analysis-params-row" style="padding-bottom: 0;">
-                {params_html}
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-            st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
 
         # Add bottom padding to the card
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
@@ -658,7 +669,12 @@ def render_dataset_history_card(
     config = dataset_info or DatasetConfig()
 
     with st.container(border=True):
-
-        render_dataset_info_row(config, ds_ver)
+        # Use the same render_dataset_info_row with clickable "View (6)"
+        render_dataset_info_row(
+            config,
+            ds_ver,
+            show_view_factors=bool(fl_id and config.factorCount),
+            fl_id=fl_id,
+        )
 
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)

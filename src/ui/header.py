@@ -4,13 +4,13 @@ from typing import Optional
 from src.core.context import get_state
 from src.services.readers import ParquetDataReader
 from src.workers.manager import get_dataset_info_from_backup
-from src.ui.components import render_dataset_header
+from src.ui.components import render_dataset_header, render_analysis_params
 from src.core.types import DatasetConfig
 
 
 def render_current_dataset_header() -> None:
     state = get_state()
-    
+
     dataset_info: Optional[DatasetConfig] = None
     ds_ver: Optional[str] = None
     fl_id: Optional[str] = None
@@ -36,12 +36,14 @@ def render_current_dataset_header() -> None:
             pass
 
     if dataset_info and ds_ver:
-        analysis_params = None
+        # Render dataset header (reusable card)
+        render_dataset_header(dataset_info, ds_ver, fl_id)
+
+        # Render analysis params separately (only on results page)
         if state.current_step == 3:
             analysis_params = {
                 "min_alpha": state.min_alpha,
                 "top_x_pct": state.top_x_pct,
                 "bottom_x_pct": state.bottom_x_pct,
             }
-
-        render_dataset_header(dataset_info, ds_ver, analysis_params, fl_id)
+            render_analysis_params(analysis_params)
