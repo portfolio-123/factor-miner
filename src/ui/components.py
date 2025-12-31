@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from datetime import datetime
 import pandas as pd
 from typing import Optional
@@ -341,6 +342,8 @@ def render_big_info_item(label: str, value: str) -> str:
 def render_dataset_info_row(
     config: DatasetConfig,
     ds_ver: str | None = None,
+    show_view_factors: bool = False,
+    fl_id: str | None = None,
 ) -> None:
 
     c1, c2, c3, c4 = st.columns([1.5, 2, 1, 1], vertical_alignment="top")
@@ -366,7 +369,90 @@ def render_dataset_info_row(
         )
     with c4:
         count = config.factorCount or 0
-        st.markdown(render_big_info_item("Factors", str(count)), unsafe_allow_html=True)
+        if show_view_factors and ds_ver and fl_id and count > 0:
+            button_key = f"view_factors_btn_{ds_ver}"
+            st.markdown(
+                f"""<div class="factors-clickable-item" data-button-key="{button_key}">
+                    <div class="dataset-info-item big">
+                        <div class="label">FACTORS</div>
+                        <div class="value factors-value">View ({count})</div>
+                    </div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+            st.button(
+                "",
+                key=button_key,
+                on_click=handle_view_formulas,
+                args=(ds_ver,),
+            )
+            # Inject JavaScript to make the markdown area clickable
+            components.html(
+                f"""
+                <script>
+                (function() {{
+                    function attachClickHandler() {{
+                        const item = window.parent.document.querySelector('[data-button-key="{button_key}"]');
+                        if (!item) return;
+                        
+                        // Remove existing handler to avoid duplicates
+                        if (item._handlerAttached) return;
+                        item._handlerAttached = true;
+                        
+                        item.addEventListener('click', function(e) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            // Find the button in the next container
+                            const container = item.closest('[data-testid="stElementContainer"]');
+                            if (container) {{
+                                const nextContainer = container.nextElementSibling;
+                                if (nextContainer) {{
+                                    const button = nextContainer.querySelector('button');
+                                    if (button) {{
+                                        button.click();
+                                        return;
+                                    }}
+                                }}
+                            }}
+                            
+                            // Fallback: search all buttons for one that matches the key
+                            const buttons = window.parent.document.querySelectorAll('button');
+                            for (const btn of buttons) {{
+                                // Check if this button is in the same column
+                                const btnContainer = btn.closest('[data-testid="stElementContainer"]');
+                                if (btnContainer && container) {{
+                                    const btnColumn = btnContainer.closest('[data-testid="stColumn"]');
+                                    const itemColumn = container.closest('[data-testid="stColumn"]');
+                                    if (btnColumn === itemColumn && btnContainer !== container) {{
+                                        // This button is in the same column but different container
+                                        btn.click();
+                                        return;
+                                    }}
+                                }}
+                            }}
+                        }});
+                    }}
+                    
+                    // Try immediately
+                    attachClickHandler();
+                    
+                    // Also watch for DOM changes
+                    const observer = new MutationObserver(attachClickHandler);
+                    observer.observe(window.parent.document.body, {{ childList: true, subtree: true }});
+                    
+                    // Also try after a short delay
+                    setTimeout(attachClickHandler, 100);
+                    setTimeout(attachClickHandler, 500);
+                }})();
+                </script>
+                """,
+                height=0,
+            )
+        else:
+            st.markdown(
+                render_big_info_item("Factors", str(count)), unsafe_allow_html=True
+            )
 
     st.markdown('<div style="margin-bottom: 16px;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="height: 5px;"></div>', unsafe_allow_html=True)
@@ -464,7 +550,15 @@ def render_dataset_header(
     config = DatasetConfig.model_validate(dataset_info)
 
     with st.container(border=True):
-        render_dataset_info_row(config, dataset_version if fl_id else None)
+        show_factors_button = (
+            config.factorCount and dataset_version and fl_id and not analysis_params
+        )
+        render_dataset_info_row(
+            config,
+            dataset_version if fl_id else None,
+            show_view_factors=show_factors_button,
+            fl_id=fl_id if show_factors_button else None,
+        )
 
         if analysis_params:
             st.divider()
@@ -495,6 +589,9 @@ def render_dataset_header(
             )
 
             st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
+
+        # Add bottom padding to the card
+        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
 
 def render_job_param(label: str, value: str) -> str:

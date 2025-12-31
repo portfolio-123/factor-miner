@@ -1,10 +1,7 @@
-"""CSS styles for the Streamlit application."""
-
 import streamlit as st
 
 
 def apply_custom_styles() -> None:
-    """Apply custom CSS styles to the Streamlit app."""
     st.markdown(
         """
     <style>
@@ -249,6 +246,7 @@ def apply_custom_styles() -> None:
         font-weight: 600;
         color: #2196F3;
         margin-bottom: 1px;
+        text-transform: uppercase;
     }
     .dataset-info-item.big .value {
         font-size: 18px;
@@ -425,112 +423,25 @@ def apply_custom_styles() -> None:
     }
 
 
-    .element-container:has(.view-formulas-trigger),
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) {
-        display: block !important;
-        position: relative !important;
-        height: auto !important;
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
+    /* Style the Factors button to look like other info items */
+    /* Make the value clickable and underlined */
+    .factors-clickable-item {
+        cursor: pointer;
     }
     
-    .element-container:has(.view-formulas-trigger) .view-formulas-trigger,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) .view-formulas-trigger {
+    .factors-clickable-item .factors-value {
+        text-decoration: underline !important;
+        transition: color 0.2s ease;
+    }
+    
+    .factors-clickable-item:hover .factors-value {
+        color: #2196F3 !important;
+    }
+    
+    /* Hide the Streamlit button completely */
+    .element-container:has(.factors-clickable-item) ~ .element-container,
+    div[data-testid="stElementContainer"]:has(.factors-clickable-item) ~ div[data-testid="stElementContainer"] {
         display: none !important;
-    }
-
-    .element-container:has(.view-formulas-trigger) ~ .element-container,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] {
-        display: flex !important;
-        justify-content: flex-start !important;
-        width: 100% !important;
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-        margin-bottom: 0 !important;
-        padding-bottom: 0 !important;
-    }
-    
-    .element-container:has(.view-formulas-trigger) ~ .element-container .stButton,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] .stButton {
-        width: auto !important;
-        display: inline-flex !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    .element-container:has(.view-formulas-trigger) ~ .element-container button,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button {
-        border: none !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        outline: none !important;
-        
-        padding: 0px !important;
-        margin: 0px !important;
-        height: auto !important;
-        min-height: 0px !important;
-        line-height: 1.2 !important;
-        width: auto !important;
-        
-        position: relative !important;
-        top: 0px !important;
-        
-        color: #2196F3 !important;
-        text-decoration: underline !important;
-        font-size: 18px !important;
-        font-weight: 600 !important;
-    }
-
-    .element-container:has(.view-formulas-trigger) ~ .element-container button p,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button p {
-        font-size: 18px !important;
-        font-weight: 600 !important;
-        color: #2196F3 !important;
-        text-decoration: none !important;
-        line-height: 1.2 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: inline-block !important;
-    }
-    
-    .element-container:has(.view-formulas-trigger) ~ .element-container button:hover p,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:hover p {
-        text-decoration: underline !important;
-        color: #1976D2 !important;
-    }
-
-    .element-container:has(.view-formulas-trigger)::before {
-        content: "FACTORS";
-        display: block;
-        font-size: 12px;
-        font-weight: 600;
-        color: #2196F3;
-        margin-bottom: 1px;
-        margin-top: 0px;
-        padding: 0px;
-        line-height: 1.2;
-        font-family: "Source Sans Pro", sans-serif;
-        letter-spacing: 0.5px;
-        height: auto;
-    }
-
-    .element-container:has(.view-formulas-trigger) ~ .element-container button:hover,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:hover {
-        color: #1976D2 !important;
-        background: transparent !important;
-        text-decoration: underline !important;
-    }
-
-    .element-container:has(.view-formulas-trigger) ~ .element-container button:focus,
-    .element-container:has(.view-formulas-trigger) ~ .element-container button:active,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:focus,
-    div[data-testid="stElementContainer"]:has(.view-formulas-trigger) ~ div[data-testid="stElementContainer"] button:active {
-        color: #2196F3 !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        outline: none !important;
     }
 
     .analysis-params-row {
