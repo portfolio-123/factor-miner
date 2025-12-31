@@ -562,7 +562,7 @@ def render_analysis_params(analysis_params: dict) -> None:
             <div style="font-size: 14px; font-weight: 600; color: #2196F3;
                     margin: 15px 0 8px 0; padding-bottom: 5px;
                     border-bottom: 2px solid #2196F3;">
-            Filter Parameters
+            Analysis Parameters
         </div>
             {params_html}
         </div>
@@ -570,8 +570,6 @@ def render_analysis_params(analysis_params: dict) -> None:
             unsafe_allow_html=True,
         )
 
-        # Add divider and Filter Parameters label
-        st.divider()
         st.markdown(
             """
         <div style="font-size: 14px; font-weight: 600; color: #2196F3;
