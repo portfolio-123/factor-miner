@@ -19,11 +19,13 @@ def process_config() -> bool:
 
     # sync form values to global state
     update_state(
-        benchmark_ticker=st.session_state.get("benchmark_ticker", DEFAULT_BENCHMARK).strip(),
+        benchmark_ticker=st.session_state.get(
+            "benchmark_ticker", DEFAULT_BENCHMARK
+        ).strip(),
         min_alpha=st.session_state.get("min_alpha", 0.5),
         top_x_pct=st.session_state.get("top_x_pct", 20),
         bottom_x_pct=st.session_state.get("bottom_x_pct", 20),
-        config_error=None
+        config_error=None,
     )
 
     add_debug_log(
@@ -64,8 +66,7 @@ def process_config() -> bool:
             benchmark_data=benchmark_data,
         )
 
-        state.config_completed = True
-        state.current_step = 2
+        update_state(config_completed=True, current_step=2)
 
         add_debug_log("Config complete - Proceeding to analysis")
         return True

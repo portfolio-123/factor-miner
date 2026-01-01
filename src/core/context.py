@@ -86,10 +86,11 @@ def update_state(**kwargs) -> None:
         if state.current_job_id:
             st.query_params["job_id"] = state.current_job_id
             st.query_params.pop("new_analysis", None)
+            st.query_params.pop("step", None)
         else:
             st.query_params["new_analysis"] = "true"
+            st.query_params["step"] = str(state.current_step)
             st.query_params.pop("job_id", None)
-        st.query_params.pop("step", None)
 
     if state.page == "results":
         st.query_params["job_id"] = state.current_job_id

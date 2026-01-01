@@ -17,10 +17,10 @@ st.set_page_config(
 
 
 def main() -> None:
+    init_state()
     authenticate_user()
     load_global_css()
 
-    init_state()
     render_page_header()
     render_content()
 
