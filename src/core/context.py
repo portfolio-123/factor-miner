@@ -119,7 +119,7 @@ def reset_analysis_state() -> None:
         n_features=10,
         # Data state
         benchmark_data=None,
-        benchmark_ticker=None,
+        benchmark_ticker=DEFAULT_BENCHMARK,
         # Results
         all_metrics=None,
         all_corr_matrix=None,

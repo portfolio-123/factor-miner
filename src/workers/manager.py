@@ -52,7 +52,7 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
         if dataset_info:
             existing_meta = table.schema.metadata
             new_meta = existing_meta.copy() if existing_meta else {}
-            new_meta[b"dataset"] = json.dumps(dataset_info).encode("utf-8")
+            new_meta[b"dataset"] = json.dumps(dataset_info.model_dump()).encode("utf-8")
 
             if formulas_df is not None:
                 new_meta[b"features"] = json.dumps(
