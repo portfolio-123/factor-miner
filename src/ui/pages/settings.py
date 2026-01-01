@@ -59,9 +59,11 @@ def render() -> None:
     if state.config_error:
         st.error(state.config_error)
 
-    _, col = st.columns([3, 1])
-    with col:
-        if st.button("Continue", type="primary", width="stretch"):
-            with st.spinner(""):
-                process_config()
+    with st.columns([4, 1])[1]:
+        button_placeholder = st.empty()
+        if button_placeholder.button("Continue", type="primary", use_container_width=True):
+            button_placeholder.button(
+                "Processing...", type="primary", icon="spinner", disabled=True, use_container_width=True
+            )
+            process_config()
             st.rerun()
