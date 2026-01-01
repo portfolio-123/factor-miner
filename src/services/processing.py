@@ -6,8 +6,7 @@ import streamlit as st
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.types import AnalysisParams
-from src.core.utils import get_local_storage, serialize_dataframe
-from src.core.validation import validate_inputs
+from src.core.utils import serialize_dataframe
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import get_dataset_date_range
 from src.core.constants import DEFAULT_BENCHMARK
@@ -15,93 +14,65 @@ from src.workers.manager import start_analysis_job, get_job_results, delete_job
 from src.services.readers import ParquetDataReader
 
 
-def process_step1() -> bool:
+def process_config() -> bool:
     state = get_state()
 
-    is_valid, error_msg = validate_inputs()
-    if not is_valid:
-        update_state(step1_error=error_msg)
-        return False
-
-    update_state(step1_error=None)
-
-    benchmark_ticker = (
-        st.session_state.get("benchmark_ticker", DEFAULT_BENCHMARK).strip()
-        or DEFAULT_BENCHMARK
+    # sync form values to global state
+    update_state(
+        benchmark_ticker=st.session_state.get("benchmark_ticker", DEFAULT_BENCHMARK).strip(),
+        min_alpha=st.session_state.get("min_alpha", 0.5),
+        top_x_pct=st.session_state.get("top_x_pct", 20),
+        bottom_x_pct=st.session_state.get("bottom_x_pct", 20),
+        config_error=None
     )
-    api_id = str(st.session_state.get("api_id", "")) or None
-    api_key = st.session_state.get("api_key", "").strip()
-    min_alpha = st.session_state.get("min_alpha", 0.5)
-    top_x_pct = st.session_state.get("top_x_pct", 20)
-    bottom_x_pct = st.session_state.get("bottom_x_pct", 20)
 
-    add_debug_log(f"Processing Step 1: Benchmark={benchmark_ticker}")
     add_debug_log(
-        f"Analysis Parameters - Min Alpha: {min_alpha}%, Top X: {top_x_pct}%, Bottom X: {bottom_x_pct}%"
+        f"Config: Min Alpha: {state.min_alpha}%, Top X: {state.top_x_pct}%, Bottom X: {state.bottom_x_pct}%"
     )
 
     try:
-        dataset_file = state.dataset_path
-        add_debug_log(f"Dataset file: {dataset_file}")
-
-        dataset_reader = ParquetDataReader(dataset_file)
-
-        is_valid, validation_error = dataset_reader.validate()
-        if not is_valid:
-            update_state(step1_error=f"Invalid dataset: {validation_error}")
-            return False
+        dataset_reader = ParquetDataReader(state.dataset_path)
 
         formulas_data = dataset_reader.get_formulas_df()
-        if formulas_data is None:
-            update_state(
-                step1_error="Parquet file missing 'features' metadata with formula definitions"
-            )
-            return False
         add_debug_log(f"Formulas loaded: {len(formulas_data)} formulas")
-
-        add_debug_log("Getting date range from dataset...")
 
         date_df = dataset_reader.read_columns(["Date"])
         try:
             start_date, end_date = get_dataset_date_range(date_df)
             add_debug_log(f"Date range: {start_date} to {end_date}")
         except ValueError as e:
-            update_state(step1_error=f"Error getting date range: {str(e)}")
+            update_state(config_error=f"Error getting date range: {str(e)}")
             return False
 
-        add_debug_log(f"Fetching benchmark data for {benchmark_ticker}...")
         benchmark_data, error = fetch_benchmark_data(
-            benchmark_ticker, api_key, start_date, end_date, api_id
+            state.benchmark_ticker,
+            state.user_payload.get("apiKey") if state.user_payload else None,
+            start_date,
+            end_date,
+            state.user_payload.get("apiId") if state.user_payload else None,
         )
 
         if error:
             add_debug_log(f"Benchmark fetch failed: {error}")
-            update_state(step1_error=f"Error fetching benchmark data: {error}")
+            update_state(config_error=f"Error fetching benchmark data: {error}")
             return False
 
         add_debug_log("Benchmark data fetched successfully")
 
         update_state(
-            dataset_path=dataset_file,
             formulas_data=formulas_data,
             benchmark_data=benchmark_data,
-            benchmark_ticker=benchmark_ticker,
-            api_id=api_id,
-            api_key=api_key,
-            min_alpha=min_alpha,
-            top_x_pct=float(top_x_pct),
-            bottom_x_pct=float(bottom_x_pct),
         )
 
-        state.completed_steps.add(1)
+        state.config_completed = True
         state.current_step = 2
 
-        add_debug_log("Step 1 complete - Proceeding to Step 2")
+        add_debug_log("Config complete - Proceeding to analysis")
         return True
 
     except Exception as e:
         add_debug_log(f"ERROR: {str(e)}")
-        update_state(step1_error=f"Error processing data: {str(e)}")
+        update_state(config_error=f"Error processing data: {str(e)}")
         return False
 
 
@@ -154,7 +125,6 @@ def process_step2_completion(job_data: dict) -> Optional[str]:
     try:
         metrics_df, corr_matrix = get_job_results(job_data)
 
-        state.completed_steps.add(2)
         update_state(
             all_metrics=metrics_df,
             all_corr_matrix=corr_matrix,

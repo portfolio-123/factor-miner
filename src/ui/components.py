@@ -135,13 +135,7 @@ def header_with_navigation() -> None:
 
             for i, (step_num, step_name) in enumerate(nav_steps):
                 is_current = step_num == state.current_step
-                is_available = True
-
-                if step_num > 1:
-                    is_available = (step_num - 1) in state.completed_steps
-
-                if step_num == 1:
-                    is_available = True
+                is_available = step_num == 1 or state.config_completed
 
                 with btn_cols[i]:
                     btn_type = "primary" if is_current else "secondary"

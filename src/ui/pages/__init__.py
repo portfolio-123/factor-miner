@@ -1,6 +1,6 @@
 from src.core.context import get_state, update_state
 from src.ui.pages.history import render as render_history
-from src.ui.pages.config import render as render_config
+from src.ui.pages.settings import render as render_settings
 from src.ui.pages.review import render as render_review
 from src.ui.pages.results import render as _render_results_content
 from src.ui.components import (
@@ -39,7 +39,7 @@ def render_new_analysis() -> None:
     if state.current_step == 2:
         render_review()
     else:
-        render_config()
+        render_settings()
 
 
 def render_results() -> None:

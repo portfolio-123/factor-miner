@@ -32,7 +32,7 @@ def restore_running_job(job_id: str, params: AnalysisParams) -> None:
     formulas_data = _load_formulas(job_id)
 
     state = get_state()
-    state.completed_steps.add(1)
+    state.config_completed = True
     update_state(
         page="new_analysis",
         current_job_id=job_id,
@@ -54,8 +54,7 @@ def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -
         formulas_data = _load_formulas(job_id)
 
         state = get_state()
-        state.completed_steps.add(1)
-        state.completed_steps.add(2)
+        state.config_completed = True
         update_state(
             page="results",
             current_job_id=job_id,

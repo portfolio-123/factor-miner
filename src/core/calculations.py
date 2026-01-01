@@ -3,22 +3,9 @@ import numpy as np
 import scipy.stats as stats
 from typing import Callable, List, Optional, Tuple
 from src.services.readers import ParquetDataReader
-from src.core.constants import REQUIRED_COLUMNS
 
 
 def get_dataset_date_range(df: pd.DataFrame) -> Tuple[str, str]:
-    """
-    Get the date range from dataset with padding for benchmark data.
-
-    Args:
-        df: DataFrame with 'Date' column
-
-    Returns:
-        Tuple of (start_date, end_date) as strings
-
-    Raises:
-        ValueError: If Date column missing or no valid dates
-    """
     if 'Date' not in df.columns:
         raise ValueError("Dataset must contain a 'Date' column")
 

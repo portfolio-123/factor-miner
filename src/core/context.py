@@ -4,8 +4,7 @@ from typing import Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
 
-
-from typing import Set, Optional
+from src.core.constants import DEFAULT_BENCHMARK
 
 
 @dataclass
@@ -14,7 +13,7 @@ class AppState:
 
     page: str = "history"
     current_step: int = 1
-    completed_steps: Set[int] = field(default_factory=set)
+    config_completed: bool = False
 
     # internal app config
     factor_list_uid: Optional[str] = None
@@ -23,9 +22,7 @@ class AppState:
 
     # data state
     benchmark_data: Optional[pd.DataFrame] = None
-    benchmark_ticker: Optional[str] = None
-    api_id: Optional[str] = None
-    api_key: Optional[str] = None
+    benchmark_ticker: Optional[str] = DEFAULT_BENCHMARK
 
     dataset_path: Optional[str] = None
     formulas_data: Optional[pd.DataFrame] = None
@@ -48,11 +45,8 @@ class AppState:
     current_job_id: Optional[str] = None
 
     # error states
-    step1_error: Optional[str] = None
+    config_error: Optional[str] = None
     step2_error: Optional[str] = None
-
-    # loading states
-    step1_loading: bool = False
 
     # UI modal states
     show_debug_modal: bool = False
@@ -115,7 +109,7 @@ def reset_analysis_state() -> None:
         page="new_analysis",
         current_step=1,
         current_job_id=None,
-        completed_steps=set(),
+        config_completed=False,
         # Calculation parameters defaults
         min_alpha=0.5,
         top_x_pct=20.0,
@@ -125,15 +119,12 @@ def reset_analysis_state() -> None:
         # Data state
         benchmark_data=None,
         benchmark_ticker=None,
-        api_id=None,
-        api_key=None,
         # Results
         all_metrics=None,
         all_corr_matrix=None,
-        # Error/loading states
-        step1_error=None,
+        # Error states
+        config_error=None,
         step2_error=None,
-        step1_loading=False,
         # Filter states
         filter_correlation=None,
         filter_n_features=None,

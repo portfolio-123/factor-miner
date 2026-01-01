@@ -6,6 +6,11 @@ from src.core.utils import locate_factor_list_file
 
 def init_state() -> None:
     fl_id = st.query_params.get("fl_id")
+
+    if not fl_id:
+        st.error("No Factor List ID provided in URL.")
+        st.stop()
+
     update_state(factor_list_uid=fl_id)
 
     try:

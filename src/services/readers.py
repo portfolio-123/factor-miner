@@ -30,16 +30,6 @@ class ParquetDataReader:
         except Exception:
             return {}
 
-    def validate(self) -> Tuple[bool, Optional[str]]:
-        try:
-            columns = self._parquet_file.schema_arrow.names
-            missing = [col for col in REQUIRED_COLUMNS if col not in columns]
-            if missing:
-                return False, f"Missing required columns: {', '.join(missing)}"
-            return True, None
-        except Exception as e:
-            return False, str(e)
-
     def read_full(self) -> Optional[pd.DataFrame]:
         try:
             return self._parquet_file.read().to_pandas()
