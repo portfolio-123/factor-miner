@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-def apply_custom_styles() -> None:
+def load_global_css() -> None:
     st.markdown(
         """
     <style>

@@ -37,7 +37,7 @@ class AppState:
     correlation_threshold: float = 0.5
     n_features: int = 10
 
-    # results storage for step 3 filtering
+    # results storage for results page filtering
     all_metrics: Optional[pd.DataFrame] = None
     all_corr_matrix: Optional[pd.DataFrame] = None
 
@@ -46,6 +46,26 @@ class AppState:
 
     # background job tracking
     current_job_id: Optional[str] = None
+
+    # error states
+    step1_error: Optional[str] = None
+    step2_error: Optional[str] = None
+
+    # loading states
+    step1_loading: bool = False
+
+    # UI modal states
+    show_debug_modal: bool = False
+    formulas_ds_ver: Optional[str] = None
+    edit_dataset_mode: bool = False
+
+    # auth states
+    user_payload: Optional[dict] = None
+    auth_check_complete: bool = False
+
+    # filter states (results page)
+    filter_correlation: Optional[float] = None
+    filter_n_features: Optional[int] = None
 
 
 def get_state() -> AppState:
@@ -68,15 +88,18 @@ def update_state(**kwargs) -> None:
     # determine if this call explicitly navigated to history
     explicit_history_nav = ("page" in kwargs) and (kwargs["page"] == "history")
 
-    if state.page == "analysis":
+    if state.page == "new_analysis":
         if state.current_job_id:
             st.query_params["job_id"] = state.current_job_id
             st.query_params.pop("new_analysis", None)
         else:
             st.query_params["new_analysis"] = "true"
             st.query_params.pop("job_id", None)
+        st.query_params.pop("step", None)
 
-        # Don't track step in URL to avoid polluting browser history
+    if state.page == "results":
+        st.query_params["job_id"] = state.current_job_id
+        st.query_params.pop("new_analysis", None)
         st.query_params.pop("step", None)
 
     # clear analysis params when explicitly navigating to history.
@@ -89,7 +112,7 @@ def update_state(**kwargs) -> None:
 def reset_analysis_state() -> None:
     """Resets the analysis state to default values for a new analysis."""
     update_state(
-        page="analysis",
+        page="new_analysis",
         current_step=1,
         current_job_id=None,
         completed_steps=set(),
@@ -107,6 +130,13 @@ def reset_analysis_state() -> None:
         # Results
         all_metrics=None,
         all_corr_matrix=None,
+        # Error/loading states
+        step1_error=None,
+        step2_error=None,
+        step1_loading=False,
+        # Filter states
+        filter_correlation=None,
+        filter_n_features=None,
     )
 
 

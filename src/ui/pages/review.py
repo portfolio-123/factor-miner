@@ -16,16 +16,16 @@ from src.services.processing import start_step2_analysis, process_step2_completi
 
 def _on_run_analysis() -> None:
     """Callback for Run Analysis button. Streamlit handles rerun automatically."""
-    st.session_state['step2_error'] = None
+    update_state(step2_error=None)
     _, error = start_step2_analysis()
     if error:
-        st.session_state['step2_error'] = error
+        update_state(step2_error=error)
 
 
 def _on_job_completed(job_data: dict) -> None:
     error = process_step2_completion(job_data)
     if error:
-        st.session_state['step2_error'] = error
+        update_state(step2_error=error)
     st.rerun()
 
 
@@ -35,7 +35,7 @@ def _on_job_error(job_id: str, job_data: dict) -> None:
 
     error_msg = job_data.get('error', '')
     display_msg = error_msg.split('\n')[0] if error_msg else 'Unknown error'
-    st.session_state['step2_error'] = f"Analysis failed: {display_msg}"
+    update_state(step2_error=f"Analysis failed: {display_msg}")
     delete_job(job_id)
     update_state(current_job_id=None)
     st.rerun()
@@ -116,8 +116,9 @@ def _render_review_content() -> None:
         else:
             st.warning("Preview unavailable")
 
-    if st.session_state.get('step2_error'):
-        st.error(st.session_state['step2_error'])
+    state = get_state()
+    if state.step2_error:
+        st.error(state.step2_error)
 
     _, _, col3 = st.columns([2, 1, 1])
     with col3:

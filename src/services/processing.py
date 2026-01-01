@@ -20,10 +20,10 @@ def process_step1() -> bool:
 
     is_valid, error_msg = validate_inputs()
     if not is_valid:
-        st.session_state["step1_error"] = error_msg
+        update_state(step1_error=error_msg)
         return False
 
-    st.session_state["step1_error"] = None
+    update_state(step1_error=None)
 
     benchmark_ticker = (
         st.session_state.get("benchmark_ticker", DEFAULT_BENCHMARK).strip()
@@ -48,13 +48,13 @@ def process_step1() -> bool:
 
         is_valid, validation_error = dataset_reader.validate()
         if not is_valid:
-            st.session_state["step1_error"] = f"Invalid dataset: {validation_error}"
+            update_state(step1_error=f"Invalid dataset: {validation_error}")
             return False
 
         formulas_data = dataset_reader.get_formulas_df()
         if formulas_data is None:
-            st.session_state["step1_error"] = (
-                "Parquet file missing 'features' metadata with formula definitions"
+            update_state(
+                step1_error="Parquet file missing 'features' metadata with formula definitions"
             )
             return False
         add_debug_log(f"Formulas loaded: {len(formulas_data)} formulas")
@@ -66,7 +66,7 @@ def process_step1() -> bool:
             start_date, end_date = get_dataset_date_range(date_df)
             add_debug_log(f"Date range: {start_date} to {end_date}")
         except ValueError as e:
-            st.session_state["step1_error"] = f"Error getting date range: {str(e)}"
+            update_state(step1_error=f"Error getting date range: {str(e)}")
             return False
 
         add_debug_log(f"Fetching benchmark data for {benchmark_ticker}...")
@@ -76,7 +76,7 @@ def process_step1() -> bool:
 
         if error:
             add_debug_log(f"Benchmark fetch failed: {error}")
-            st.session_state["step1_error"] = f"Error fetching benchmark data: {error}"
+            update_state(step1_error=f"Error fetching benchmark data: {error}")
             return False
 
         add_debug_log("Benchmark data fetched successfully")
@@ -101,7 +101,7 @@ def process_step1() -> bool:
 
     except Exception as e:
         add_debug_log(f"ERROR: {str(e)}")
-        st.session_state["step1_error"] = f"Error processing data: {str(e)}"
+        update_state(step1_error=f"Error processing data: {str(e)}")
         return False
 
 
@@ -155,11 +155,10 @@ def process_step2_completion(job_data: dict) -> Optional[str]:
         metrics_df, corr_matrix = get_job_results(job_data)
 
         state.completed_steps.add(2)
-        state.completed_steps.add(3)
         update_state(
             all_metrics=metrics_df,
             all_corr_matrix=corr_matrix,
-            current_step=3,
+            page="results",
         )
         return None
     except Exception as e:

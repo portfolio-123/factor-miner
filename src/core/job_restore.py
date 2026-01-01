@@ -34,7 +34,7 @@ def restore_running_job(job_id: str, params: AnalysisParams) -> None:
     state = get_state()
     state.completed_steps.add(1)
     update_state(
-        page="analysis",
+        page="new_analysis",
         current_job_id=job_id,
         current_step=2,
         benchmark_ticker=params.benchmark_ticker,
@@ -43,7 +43,7 @@ def restore_running_job(job_id: str, params: AnalysisParams) -> None:
 
 
 def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -> None:
-    """Restore UI state for COMPLETED jobs (step 3)."""
+    """Restore UI state for COMPLETED jobs (results page)."""
     add_debug_log(f"Found completed job for {job_id}, loading results")
 
     try:
@@ -56,11 +56,9 @@ def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -
         state = get_state()
         state.completed_steps.add(1)
         state.completed_steps.add(2)
-        state.completed_steps.add(3)
         update_state(
-            page="analysis",
+            page="results",
             current_job_id=job_id,
-            current_step=3,
             benchmark_ticker=params.benchmark_ticker,
             formulas_data=formulas_data,
             all_metrics=metrics_df,

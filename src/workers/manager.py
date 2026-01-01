@@ -12,7 +12,7 @@ import pyarrow.parquet as pq
 from dotenv import load_dotenv
 
 from src.core.context import get_state
-from src.core.utils import deserialize_dataframe, locate_factor_list_file
+from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus, JobProgress
 from src.services.readers import ParquetDataReader
 from src.core.types import Job, DatasetConfig
@@ -87,16 +87,17 @@ def get_dataset_info_from_backup(
 
 
 def update_dataset_info(
-    fl_id: str, dataset_version: str, updates: Dict[str, Any]
+    dataset_path: str, dataset_version: str, updates: Dict[str, Any]
 ) -> bool:
     try:
+        state = get_state()
+        fl_id = state.factor_list_uid
+
         try:
-            live_dataset_path = locate_factor_list_file(fl_id)
-            ts = os.path.getmtime(live_dataset_path)
+            ts = os.path.getmtime(dataset_path)
             current_version = str(int(ts))
             if dataset_version == current_version:
-
-                path = Path(live_dataset_path)
+                path = Path(dataset_path)
             else:
                 path = (
                     INTEGRATIONS_DIR

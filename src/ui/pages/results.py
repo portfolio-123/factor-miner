@@ -15,11 +15,18 @@ def _render_filter_and_results() -> None:
 
     # Filter Parameters header is now rendered in render_analysis_params
 
-    # initialize widget keys with state values if not set
+    # Initialize widget keys with state values if not set
+    # Note: These must remain in st.session_state as Streamlit widget keys
     if "filter_correlation" not in st.session_state:
-        st.session_state.filter_correlation = state.correlation_threshold
+        st.session_state.filter_correlation = (
+            state.filter_correlation if state.filter_correlation is not None
+            else state.correlation_threshold
+        )
     if "filter_n_features" not in st.session_state:
-        st.session_state.filter_n_features = state.n_features
+        st.session_state.filter_n_features = (
+            state.filter_n_features if state.filter_n_features is not None
+            else state.n_features
+        )
 
     col1, col2, _ = st.columns([1, 1, 2])
 

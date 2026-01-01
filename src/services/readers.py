@@ -7,7 +7,6 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from src.core.constants import REQUIRED_COLUMNS
-from src.core.utils import locate_factor_list_file
 from src.core.types import DatasetConfig
 
 
@@ -149,11 +148,9 @@ class ParquetDataReader:
 
 
 def get_current_dataset_info(
-    fl_id: str,
+    dataset_path: str,
 ) -> Tuple[Optional[str], Optional[DatasetConfig]]:
     try:
-        dataset_path = locate_factor_list_file(fl_id)
-
         # get modification timestamp as id
         ts = os.path.getmtime(dataset_path)
         current_version = str(int(ts))
@@ -162,5 +159,5 @@ def get_current_dataset_info(
         dataset_info = reader.get_dataset_info()
 
         return current_version, dataset_info
-    except (FileNotFoundError, ValueError, Exception):
+    except (ValueError, Exception):
         return None, None

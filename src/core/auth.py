@@ -4,25 +4,15 @@ import streamlit as st
 import json
 from extra_streamlit_components import CookieManager
 
+from src.core.context import get_state, update_state
+from src.ui.components import render_session_expired
 
+
+@st.cache_resource
 def load_secret():
-    secret_filename = os.getenv("JWT_SECRET_PATH")
-
-    if not secret_filename:
-        st.error("Environment variable for JWT_SECRET_PATH is missing.")
-        st.stop()
-
-    secret_path = os.path.abspath(secret_filename)
-
-    if not os.path.exists(secret_path):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(current_dir))
-
-        secret_path = os.path.join(project_root, secret_filename)
-
-    if not os.path.exists(secret_path):
-        st.error(f"JWT verification failed. Checked: {secret_filename}")
-        st.stop()
+    secret_path = os.getenv("JWT_SECRET_PATH")
+    if not secret_path or not os.path.exists(secret_path):
+        return None
 
     with open(secret_path, "r", encoding="utf-8") as f:
         return f.read().strip().encode("utf-8")
@@ -36,67 +26,43 @@ def _decrypt_token(token, secret_key):
         return None
 
 
+def _validate_fl_access(payload, fl_id):
+    token_fl_id = payload.get("factorListUid")
+    if not token_fl_id or str(token_fl_id) != str(fl_id):
+        st.error("Unauthorized: Your session does not have access to this Factor List.")
+        st.stop()
+
+
 def authenticate_user():
-    if st.session_state.get("user_payload"):
-        payload = st.session_state["user_payload"]
+    state = get_state()
+    fl_id = state.factor_list_uid
 
-        url_fl_id = st.query_params.get("fl_id")
-        if url_fl_id:
-            token_fl_id = payload.get("factorListUid")
-            if not token_fl_id or str(token_fl_id) != str(url_fl_id):
-                st.error(
-                    "Unauthorized: Your session does not have access to this Factor List."
-                )
-                st.stop()
-
-        return payload
+    if state.user_payload:
+        _validate_fl_access(state.user_payload, fl_id)
+        return
 
     secret_key = load_secret()
-    cookie_manager = CookieManager(key="auth_manager")
+    if not secret_key:
+        st.error("Error loading JWT secret")
+        st.stop()
 
+    cookie_manager = CookieManager(key="auth_manager")
     url_token = st.query_params.get("token")
     if url_token:
         cookie_manager.set("jwt_token", url_token)
         del st.query_params["token"]
 
     token = cookie_manager.get("jwt_token")
-
     if token:
         payload = _decrypt_token(token, secret_key)
         if payload:
-            url_fl_id = st.query_params.get("fl_id")
-            if url_fl_id:
-                token_fl_id = payload.get("factorListUid")
-                if not token_fl_id or str(token_fl_id) != str(url_fl_id):
-                    st.error(
-                        "Unauthorized: Your session does not have access to this Factor List."
-                    )
-                    st.stop()
+            update_state(user_payload=payload)
+            _validate_fl_access(payload, fl_id)
+            return
 
-            st.session_state["user_payload"] = payload
-            return payload
-
-    if "auth_check_complete" not in st.session_state:
-        st.session_state["auth_check_complete"] = True
+    if not state.auth_check_complete:
+        update_state(auth_check_complete=True)
         st.stop()
 
-    fl_id = st.query_params.get("fl_id")
-
-    st.markdown("<div style='height: 25vh'></div>", unsafe_allow_html=True)
-
-    _, col, _ = st.columns([1, 2, 1])
-
-    with col:
-        st.warning(
-            "**Session expired or invalid**\n\n"
-            "Access this tool via the main website.",
-        )
-
-        if fl_id:
-            base_url = os.getenv("P123_BASE_URL")
-            st.markdown(
-                f"<div style='text-align: center; margin-top: 10px;'><a href='{base_url}/sv/factorList/{fl_id}/download'>Return to Factor List</a></div>",
-                unsafe_allow_html=True,
-            )
-
+    render_session_expired(fl_id)
     st.stop()

@@ -1,3 +1,5 @@
+import os
+
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
@@ -11,9 +13,29 @@ from src.core.context import (
     reset_analysis_state,
 )
 from src.core.utils import format_timestamp
+from src.services.readers import get_current_dataset_info
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Job
 from src.core.job_restore import restore_job_state
+
+
+def render_session_expired(fl_id: str | None) -> None:
+    """Render the session expired message. Does not call st.stop()."""
+    st.markdown("<div style='height: 25vh'></div>", unsafe_allow_html=True)
+    _, col, _ = st.columns([1, 2, 1])
+    with col:
+        st.warning(
+            "**Session expired or invalid**\n\n"
+            "Access this tool via the main website."
+        )
+        if fl_id:
+            base_url = os.getenv("P123_BASE_URL")
+            st.markdown(
+                f"<div style='text-align: center; margin-top: 10px;'>"
+                f"<a href='{base_url}/sv/factorList/{fl_id}/download'>Return to Factor List</a>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def header_simple_back(create_columns: bool = True) -> None:
@@ -57,6 +79,24 @@ def render_breadcrumb(steps: list[tuple[str, str | None]]) -> None:
     st.markdown(html_code, unsafe_allow_html=True)
 
 
+def render_page_header() -> None:
+    state = get_state()
+    fl_id = state.factor_list_uid
+    base_url = os.getenv("P123_BASE_URL")
+    steps = [
+        ("Factor List", f"{base_url}/sv/factorList/{fl_id}/download"),
+        ("FactorMiner", None),
+    ]
+
+    # TODO: ask marco, do we need to handle the case where the dataset info is not found but they have past results? consider cleanup, etc
+    _, dataset_info = get_current_dataset_info(state.dataset_path)
+
+    render_breadcrumb(steps)
+    st.title(
+        f"{dataset_info.flName if dataset_info else 'Unknown'} ({fl_id})"
+    )
+
+
 def header_with_navigation() -> None:
     state = get_state()
 
@@ -76,7 +116,7 @@ def header_with_navigation() -> None:
 
         with col_logs:
             if st.button("Logs", key="debug_btn", width="stretch"):
-                st.session_state.show_debug_modal = True
+                update_state(show_debug_modal=True)
 
     else:
         col_brand, col_nav, col_logs = st.columns(
@@ -89,9 +129,9 @@ def header_with_navigation() -> None:
                 header_simple_back(create_columns=False)
 
         with col_nav:
-            btn_cols = st.columns([1, 1, 1])
+            btn_cols = st.columns([1, 1])
 
-            nav_steps = [(1, "Settings"), (2, "Review"), (3, "Results")]
+            nav_steps = [(1, "Settings"), (2, "Review")]
 
             for i, (step_num, step_name) in enumerate(nav_steps):
                 is_current = step_num == state.current_step
@@ -124,16 +164,16 @@ def header_with_navigation() -> None:
                     use_container_width=True,
                     type="primary",
                 ):
-                    st.session_state.show_debug_modal = True
+                    update_state(show_debug_modal=True)
 
-    if st.session_state.get("show_debug_modal", False):
+    if state.show_debug_modal:
         _show_debug_modal()
 
 
 @st.dialog("Debug Logs", width="large")
 def _show_debug_modal():
     # reset flag immediately - dialog is already open, so dismissing it won't retrigger
-    st.session_state.show_debug_modal = False
+    update_state(show_debug_modal=False)
 
     @st.fragment
     def _logs_content():
@@ -184,7 +224,7 @@ def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
     _render()
 
     # Clear the flag after dialog is created
-    st.session_state.formulas_ds_ver = None
+    update_state(formulas_ds_ver=None)
 
 
 def section_header(title: str) -> None:
@@ -539,7 +579,7 @@ def render_dataset_info_row(
 
 
 def handle_view_formulas(ds_ver: str) -> None:
-    st.session_state.formulas_ds_ver = ds_ver
+    update_state(formulas_ds_ver=ds_ver)
 
 
 def render_analysis_params(analysis_params: dict) -> None:

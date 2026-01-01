@@ -26,18 +26,14 @@ def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
         return "N/A"
 
 
-def locate_factor_list_file(fl_id: str) -> str:
+def locate_factor_list_file(fl_id: str) -> str | None:
     base_dir = os.getenv("FACTOR_LIST_DIR")
-    if not base_dir:
-        raise ValueError("FACTOR_LIST_DIR environment variable not set")
+    if not base_dir or not Path(base_dir).exists():
+        raise ValueError("Factor list directory not configured. Please contact support.")
 
-    base_path = Path(base_dir)
-    if not base_path.exists():
-        raise ValueError(f"FACTOR_LIST_DIR does not exist: {base_dir}")
-
-    path = base_path / fl_id
+    path = Path(base_dir) / fl_id
     if not path.exists():
-        raise FileNotFoundError(f"Dataset file not found: {path}")
+        return None
 
     return str(path)
 

@@ -40,7 +40,7 @@ def render_current_dataset_header() -> None:
         render_dataset_header(dataset_info, ds_ver, fl_id)
 
         # Render analysis params separately (only on results page)
-        if state.current_step == 3:
+        if state.page == "results":
             analysis_params = {
                 "min_alpha": state.min_alpha,
                 "top_x_pct": state.top_x_pct,

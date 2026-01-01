@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.core.context import get_state
+from src.core.context import get_state, update_state
 from src.services.processing import process_step1
 from src.core.validation import (
     restore_session_defaults,
@@ -12,16 +12,15 @@ from src.core.constants import DEFAULT_BENCHMARK
 def render() -> None:
     state = get_state()
 
-    if "user_payload" in st.session_state:
-        payload = st.session_state["user_payload"]
-        jwt_api_key = payload.get("apiKey")
-        jwt_api_id = payload.get("apiId")
+    if state.user_payload:
+        jwt_api_key = state.user_payload.get("apiKey")
+        jwt_api_id = state.user_payload.get("apiId")
 
         if jwt_api_key:
-            st.session_state["api_key"] = jwt_api_key
+            update_state(api_key=jwt_api_key)
 
         if jwt_api_id:
-            st.session_state["api_id"] = jwt_api_id
+            update_state(api_id=jwt_api_id)
 
     restore_session_defaults(state)
 
@@ -75,22 +74,20 @@ def render() -> None:
             key="bottom_x_pct",
         )
 
-    api_key_present = bool(st.session_state.get("api_key"))
-    api_id_present = bool(st.session_state.get("api_id"))
+    api_key_present = bool(state.api_key)
+    api_id_present = bool(state.api_id)
 
     if not api_key_present or not api_id_present:
-        st.warning(f"Missing authentication details.")
+        st.warning("Missing authentication details.")
 
     error_placeholder = st.empty()
 
-    if st.session_state.get("step1_error"):
-        error_placeholder.error(st.session_state["step1_error"])
+    if state.step1_error:
+        error_placeholder.error(state.step1_error)
 
     col1, col2, col3 = st.columns([2, 1, 1])
     with col3:
-        is_loading = st.session_state.get("step1_loading", False)
-
-        if is_loading:
+        if state.step1_loading:
             st.markdown(
                 """
             <div class="spinner-button">
@@ -101,11 +98,11 @@ def render() -> None:
             )
         else:
             if st.button("Continue", type="primary", width="stretch"):
-                st.session_state.step1_loading = True
+                update_state(step1_loading=True)
                 st.rerun()
 
     # process continue action after rerun if loading flag is set
-    if st.session_state.get("step1_loading", False):
-        st.session_state.step1_loading = False
+    if state.step1_loading:
+        update_state(step1_loading=False)
         process_step1()
         st.rerun()
