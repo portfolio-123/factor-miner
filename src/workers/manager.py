@@ -93,27 +93,6 @@ def update_dataset_info(
         return False
 
 
-def get_formulas_df_for_version(fl_id: str, ds_ver: str) -> Optional[pd.DataFrame]:
-    try:
-        state = get_state()
-
-        # check current dataset first and if we're trying to view the current version, use it
-        if state.dataset_path and os.path.exists(state.dataset_path):
-            current_ver = get_file_version(state.dataset_path)
-            if current_ver == ds_ver:
-                return ParquetDataReader(state.dataset_path).get_formulas_df()
-
-        # fallback to backup
-        backup_path = get_dataset_file_path(fl_id, ds_ver)
-        if backup_path.exists():
-            return ParquetDataReader(str(backup_path)).get_formulas_df()
-
-    except Exception:
-        pass
-
-    return None
-
-
 def create_job(job_id: str, params: Dict[str, Any]) -> Path:
     job_data = {
         "id": job_id,

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 import os
+from src.core.context import get_state
 
 import pandas as pd
 import pyarrow.parquet as pq
@@ -162,3 +163,22 @@ def get_current_dataset_info(
         return current_version, dataset_info
     except (ValueError, Exception):
         return None, None
+
+
+def get_dataset_formulas(fl_id: str, ds_ver: str) -> Optional[pd.DataFrame]:
+
+    state = get_state()
+    path: Optional[str] = None
+
+    # check if we are looking at the current dataset, and if so, use its path
+    if state.dataset_path and os.path.exists(state.dataset_path):
+        if get_file_version(state.dataset_path) == ds_ver:
+            path = state.dataset_path
+
+    # if not, fallback to the backup path
+    if not path:
+        backup_path = get_dataset_file_path(fl_id, ds_ver)
+        if backup_path.exists():
+            path = str(backup_path)
+
+    return ParquetDataReader(path).get_formulas_df() if path else None

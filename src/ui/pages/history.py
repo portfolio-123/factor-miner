@@ -2,7 +2,6 @@ import streamlit as st
 from src.core.utils import format_timestamp
 from src.core.context import get_state, reset_analysis_state, update_state
 from src.ui.components import (
-    show_formulas_modal,
     render_dataset_history_card,
     render_job_card,
     section_header,
@@ -13,7 +12,6 @@ from src.services.readers import (
     ParquetDataReader,
 )
 from src.workers.manager import (
-    get_formulas_df_for_version,
     get_grouped_jobs,
     sort_dataset_versions,
     update_dataset_info,
@@ -172,11 +170,3 @@ def render() -> None:
                 st.caption("No analyses yet for this dataset version")
     elif not jobs and not current_dataset_info:
         st.info("No past analysis found for this Factor List.")
-
-    # Show formulas modal if requested - recalculate to ensure we have latest state
-    if state.formulas_ds_ver:
-        formulas_df = get_formulas_df_for_version(fl_id, state.formulas_ds_ver)
-        if formulas_df is not None:
-            show_formulas_modal(formulas_df)
-        else:
-            update_state(formulas_ds_ver=None)

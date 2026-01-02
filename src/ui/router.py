@@ -16,8 +16,7 @@ def render_content():
     if qp_job_id and restore_job_state(qp_job_id):
         update_state(page="results")
     elif st.query_params.get("new_analysis"):
-        step = st.query_params.get("step", 1)
-        update_state(page="new_analysis", current_step=int(step))
+        update_state(page="new_analysis", current_step=int(st.query_params.get("step", 1)))
     else:
         update_state(page="history")
 

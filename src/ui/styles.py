@@ -423,27 +423,6 @@ def load_global_css() -> None:
     }
 
 
-    /* Style the Factors button to look like other info items */
-    /* Make the value clickable and underlined */
-    .factors-clickable-item {
-        cursor: pointer;
-    }
-    
-    .factors-clickable-item .factors-value {
-        text-decoration: underline !important;
-        transition: color 0.2s ease;
-    }
-    
-    .factors-clickable-item:hover .factors-value {
-        color: #2196F3 !important;
-    }
-    
-    /* Hide the Streamlit button completely */
-    .element-container:has(.factors-clickable-item) ~ .element-container,
-    div[data-testid="stElementContainer"]:has(.factors-clickable-item) ~ div[data-testid="stElementContainer"] {
-        display: none !important;
-    }
-
     .analysis-params-row {
         display: flex;
         align-items: flex-end;

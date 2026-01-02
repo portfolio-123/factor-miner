@@ -12,7 +12,7 @@ from src.core.context import (
     update_state,
     clear_debug_logs,
 )
-from src.services.readers import get_current_dataset_info
+from src.services.readers import get_current_dataset_info, get_dataset_formulas
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.core.types import DatasetConfig, ScopeType, Job
 from src.core.job_restore import restore_job_state
@@ -425,96 +425,47 @@ def render_dataset_info_row(
     with c3:
         st.markdown(
             render_big_info_item(
-                "Frequency", frequency_map.get(config.frequency, str(config.frequency))
+                "Frequency", frequency_map.get(config.frequency, "N/A")
             ),
             unsafe_allow_html=True,
         )
     with c4:
         count = config.factorCount or 0
-        if show_view_factors and ds_ver and fl_id and count > 0:
-            button_key = f"view_factors_btn_{ds_ver}"
-            st.markdown(
-                f"""<div class="factors-clickable-item" data-button-key="{button_key}">
-                    <div class="dataset-info-item big">
-                        <div class="label">FACTORS</div>
-                        <div class="value factors-value">View ({count})</div>
-                    </div>
-                </div>""",
-                unsafe_allow_html=True,
-            )
+        button_key = f"view_factors_btn_{ds_ver}"
+        st.markdown(
+            '<div class="dataset-info-item big"><div class="label">FACTORS</div></div>',
+            unsafe_allow_html=True,
+        )
+        with stylable_container(
+            key=f"factors_btn_{ds_ver}",
+            css_styles="""
+                button {
+                    background: none !important;
+                    border: none !important;
+                    color: #212529 !important;
+                    font-size: 20px !important;
+                    font-weight: 600 !important;
+                    padding: 0 !important;
+                    text-decoration: underline;
+                    cursor: pointer;
+                }
+                button:hover { color: #2196F3 !important; }
+            """,
+        ):
             st.button(
-                "",
+                f"View ({count})",
                 key=button_key,
                 on_click=handle_view_formulas,
                 args=(ds_ver,),
             )
-            # Inject JavaScript to make the markdown area clickable
-            components.html(
-                f"""
-                <script>
-                (function() {{
-                    function attachClickHandler() {{
-                        const item = window.parent.document.querySelector('[data-button-key="{button_key}"]');
-                        if (!item) return;
-                        
-                        // Remove existing handler to avoid duplicates
-                        if (item._handlerAttached) return;
-                        item._handlerAttached = true;
-                        
-                        item.addEventListener('click', function(e) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
-                            // Find the button in the next container
-                            const container = item.closest('[data-testid="stElementContainer"]');
-                            if (container) {{
-                                const nextContainer = container.nextElementSibling;
-                                if (nextContainer) {{
-                                    const button = nextContainer.querySelector('button');
-                                    if (button) {{
-                                        button.click();
-                                        return;
-                                    }}
-                                }}
-                            }}
-                            
-                            // Fallback: search all buttons for one that matches the key
-                            const buttons = window.parent.document.querySelectorAll('button');
-                            for (const btn of buttons) {{
-                                // Check if this button is in the same column
-                                const btnContainer = btn.closest('[data-testid="stElementContainer"]');
-                                if (btnContainer && container) {{
-                                    const btnColumn = btnContainer.closest('[data-testid="stColumn"]');
-                                    const itemColumn = container.closest('[data-testid="stColumn"]');
-                                    if (btnColumn === itemColumn && btnContainer !== container) {{
-                                        // This button is in the same column but different container
-                                        btn.click();
-                                        return;
-                                    }}
-                                }}
-                            }}
-                        }});
-                    }}
-                    
-                    // Try immediately
-                    attachClickHandler();
-                    
-                    // Also watch for DOM changes
-                    const observer = new MutationObserver(attachClickHandler);
-                    observer.observe(window.parent.document.body, {{ childList: true, subtree: true }});
-                    
-                    // Also try after a short delay
-                    setTimeout(attachClickHandler, 100);
-                    setTimeout(attachClickHandler, 500);
-                }})();
-                </script>
-                """,
-                height=0,
-            )
-        else:
-            st.markdown(
-                render_big_info_item("Factors", str(count)), unsafe_allow_html=True
-            )
+
+        state = get_state()
+        if state.formulas_ds_ver == ds_ver:
+            formulas_df = get_dataset_formulas(fl_id, state.formulas_ds_ver)
+            if formulas_df is not None:
+                show_formulas_modal(formulas_df)
+            else:
+                update_state(formulas_ds_ver=None)
 
     st.markdown('<div style="margin-bottom: 16px;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="height: 5px;"></div>', unsafe_allow_html=True)
