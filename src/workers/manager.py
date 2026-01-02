@@ -1,28 +1,28 @@
 import json
+import logging
 import subprocess
 import sys
 import os
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 from collections import defaultdict
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 from dotenv import load_dotenv
 
 from src.core.context import get_state
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus, JobProgress
 from src.services.readers import (
-    ParquetDataReader,
     get_file_version,
     get_dataset_file_path,
 )
-from src.services.writers import update_parquet_metadata
-from src.core.types import Job, DatasetConfig
+from src.services.writers import update_parquet_metadata, backup_parquet_metadata
+from src.core.types import Job
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 FACTOR_LIST_DIR = Path(os.getenv("FACTOR_LIST_DIR"))
 
@@ -36,40 +36,10 @@ def _get_job_path(job_id: str) -> Path:
     return INTEGRATIONS_DIR / job_id
 
 
-def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
-    metadata_path = job_dir / "dataset_metadata.parquet"
-
-    if metadata_path.exists():
-        return
-
-    try:
-        reader = ParquetDataReader(dataset_path)
-        formulas_df = reader.get_formulas_df()
-        dataset_info = reader.get_dataset_info()
-
-        if formulas_df is None:
-            formulas_df = pd.DataFrame(
-                columns=["formula", "name", "tag", "Normalization"]
-            )
-
-        table = pa.Table.from_pandas(formulas_df)
-
-        if dataset_info:
-            existing_meta = table.schema.metadata
-            new_meta = existing_meta.copy() if existing_meta else {}
-            new_meta[b"dataset"] = json.dumps(dataset_info.model_dump()).encode("utf-8")
-
-            if formulas_df is not None:
-                new_meta[b"features"] = json.dumps(
-                    formulas_df.to_dict(orient="records")
-                ).encode("utf-8")
-
-            table = table.replace_schema_metadata(new_meta)
-
-        pq.write_table(table, metadata_path)
-
-    except Exception as e:
-        print(f"Error backing up dataset artifacts: {e}")
+def _write_job(job_id: str, job_data: dict) -> None:
+    job_path = _get_job_path(job_id)
+    with open(job_path, "w") as f:
+        json.dump(job_data, f, indent=2)
 
 
 def update_dataset_info(
@@ -110,7 +80,7 @@ def create_job(job_id: str, params: Dict[str, Any]) -> Path:
     # ensure directory for the dataset version exists
     job_path.parent.mkdir(parents=True, exist_ok=True)
 
-    ensure_dataset_metadata(job_path.parent, params["dataset_path"])
+    backup_parquet_metadata(params["dataset_path"], job_path.parent / "dataset_metadata.parquet")
 
     with open(job_path, "w") as f:
         json.dump(job_data, f, indent=2)
@@ -159,10 +129,7 @@ def update_job(
     if status in (JobStatus.COMPLETED, JobStatus.ERROR):
         job_data.pop("progress", None)
 
-    job_path = _get_job_path(job_id)
-    with open(job_path, "w") as f:
-        json.dump(job_data, f, indent=2)
-
+    _write_job(job_id, job_data)
     return True
 
 
@@ -175,10 +142,7 @@ def append_job_log(job_id: str, message: str) -> None:
         job_data["logs"] = []
 
     job_data["logs"].append(message)
-
-    job_path = _get_job_path(job_id)
-    with open(job_path, "w") as f:
-        json.dump(job_data, f, indent=2)
+    _write_job(job_id, job_data)
 
 
 def delete_job(job_id: str) -> bool:
@@ -201,9 +165,7 @@ def clear_job_credentials(job_id: str) -> bool:
     params.pop("api_id", None)
     job_data["params"] = params
 
-    job_path = _get_job_path(job_id)
-    with open(job_path, "w") as f:
-        json.dump(job_data, f, indent=2)
+    _write_job(job_id, job_data)
     return True
 
 
@@ -274,9 +236,7 @@ def update_job_name(job_id: str, name: str) -> bool:
     job_data["name"] = name
     job_data["updated_at"] = datetime.now().isoformat()
 
-    job_path = _get_job_path(job_id)
-    with open(job_path, "w") as f:
-        json.dump(job_data, f, indent=2)
+    _write_job(job_id, job_data)
     return True
 
 
@@ -287,7 +247,7 @@ def get_job_name(job_id: str) -> Optional[str]:
     return job_data.get("name")
 
 
-def get_grouped_jobs(fl_id: str) -> Tuple[List[Job], Dict[str, List[Job]]]:
+def get_grouped_jobs(fl_id: str) -> tuple[list[Job], dict[str, list[Job]]]:
     jobs_data = list_jobs(fl_id)
     jobs = [Job(**j) for j in jobs_data]
 
