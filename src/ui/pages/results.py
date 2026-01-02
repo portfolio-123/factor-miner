@@ -4,9 +4,70 @@ import streamlit.components.v1 as components
 from datetime import datetime
 
 from src.core.context import get_state, update_state, add_debug_log
+from src.core.constants import JobStatus
 from src.ui.components import section_header, render_results_table, render_info_item
 from src.core.calculations import select_best_features
 from src.workers.manager import delete_job, read_job
+from src.services.processing import process_step2_completion, _merge_worker_logs
+
+
+def _on_job_completed(job_data: dict) -> None:
+    error = process_step2_completion(job_data)
+    if error:
+        update_state(step2_error=error)
+    st.rerun()
+
+
+def _on_job_error(job_id: str, job_data: dict) -> None:
+    _merge_worker_logs(job_data)
+    error_msg = job_data.get('error', '')
+    display_msg = error_msg.split('\n')[0] if error_msg else 'Unknown error'
+    update_state(
+        step2_error=f"Analysis failed: {display_msg}",
+        current_job_id=None,
+        page="new_analysis",
+        current_step=2
+    )
+    delete_job(job_id)
+    st.rerun()
+
+
+@st.fragment(run_every="0.5s")
+def _render_job_progress(job_id: str) -> None:
+    job_data = read_job(job_id)
+    if job_data is None:
+        return
+
+    status = job_data.get('status')
+
+    if status == JobStatus.COMPLETED:
+        _on_job_completed(job_data)
+        return
+
+    if status == JobStatus.ERROR:
+        _on_job_error(job_id, job_data)
+        return
+
+    progress = job_data.get('progress', {})
+    completed = progress.get('completed', 0)
+    total = progress.get('total', 0)
+    current_factor = progress.get('current_factor', '')
+
+    _, center_col, _ = st.columns([1, 2, 1])
+
+    with center_col:
+        st.space(100)
+        st.subheader("Running Factor Analysis")
+
+        if total > 0:
+            st.progress(completed / total, text=f"{completed} / {total} factors analyzed")
+        else:
+            st.progress(0, text="Initializing...")
+
+        if current_factor:
+            st.info(f"Analyzing: **{current_factor}**")
+        else:
+            st.info("Starting worker process...")
 
 
 @st.fragment
@@ -186,4 +247,14 @@ def _render_action_buttons(state, display_df) -> None:
 
 
 def render() -> None:
+    state = get_state()
+
+    # Check if job is still running
+    if state.current_job_id:
+        job_data = read_job(state.current_job_id)
+        if job_data and job_data.get('status') in (JobStatus.PENDING, JobStatus.RUNNING):
+            _render_job_progress(state.current_job_id)
+            return
+
+    # Show completed results
     _render_filter_and_results()

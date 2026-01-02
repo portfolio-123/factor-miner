@@ -26,24 +26,21 @@ def _load_formulas(job_id: str) -> pd.DataFrame:
 
 
 def restore_running_job(job_id: str, params: AnalysisParams) -> None:
-    """Restore UI state for PENDING/RUNNING jobs (step 2)."""
-    add_debug_log(f"Found running job for {job_id}, restoring step 2 state")
+    add_debug_log(f"Found running job for {job_id}, restoring to results page with progress")
 
     formulas_data = _load_formulas(job_id)
 
     state = get_state()
     state.config_completed = True
     update_state(
-        page="new_analysis",
+        page="results",
         current_job_id=job_id,
-        current_step=2,
         benchmark_ticker=params.benchmark_ticker,
         formulas_data=formulas_data,
     )
 
 
 def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -> None:
-    """Restore UI state for COMPLETED jobs (results page)."""
     add_debug_log(f"Found completed job for {job_id}, loading results")
 
     try:
