@@ -14,7 +14,12 @@ from dotenv import load_dotenv
 from src.core.context import get_state
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus, JobProgress
-from src.services.readers import ParquetDataReader
+from src.services.readers import (
+    ParquetDataReader,
+    get_file_version,
+    get_dataset_file_path,
+)
+from src.services.writers import update_parquet_metadata
 from src.core.types import Job, DatasetConfig
 
 load_dotenv()
@@ -67,88 +72,41 @@ def ensure_dataset_metadata(job_dir: Path, dataset_path: str) -> None:
         print(f"Error backing up dataset artifacts: {e}")
 
 
-def get_dataset_backup_path(fl_id: str, dataset_version: str) -> Optional[str]:
-    path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
-    if path.exists():
-        return str(path)
-    return None
-
-
-def get_dataset_info_from_backup(
-    fl_id: str, dataset_version: str
-) -> Optional[DatasetConfig]:
-    path = INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
-    if not path.exists():
-        return None
-    try:
-        return ParquetDataReader(str(path)).get_dataset_info()
-    except Exception:
-        return None
-
-
 def update_dataset_info(
     dataset_path: str, dataset_version: str, updates: Dict[str, Any]
 ) -> bool:
     try:
         state = get_state()
-        fl_id = state.factor_list_uid
+        current_version = get_file_version(dataset_path)
 
-        try:
-            ts = os.path.getmtime(dataset_path)
-            current_version = str(int(ts))
-            if dataset_version == current_version:
-                path = Path(dataset_path)
-            else:
-                path = (
-                    INTEGRATIONS_DIR
-                    / fl_id
-                    / dataset_version
-                    / "dataset_metadata.parquet"
-                )
-        except Exception:
-            path = (
-                INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
-            )
+        if dataset_version == current_version:
+            path = Path(dataset_path)
+        else:
+            path = get_dataset_file_path(state.factor_list_uid, dataset_version)
 
         if not path.exists():
             return False
 
-        table = pq.read_table(path)
-
-        existing_meta = table.schema.metadata or {}
-        dataset_meta_json = existing_meta.get(b"dataset")
-
-        dataset_info = json.loads(dataset_meta_json) if dataset_meta_json else {}
-        dataset_info.update(updates)
-
-        new_meta = existing_meta.copy()
-        new_meta[b"dataset"] = json.dumps(dataset_info).encode("utf-8")
-        new_table = table.replace_schema_metadata(new_meta)
-        pq.write_table(new_table, path)
+        update_parquet_metadata(path, b"dataset", updates)
         return True
-    except Exception as e:
+    except Exception:
         return False
 
 
 def get_formulas_df_for_version(fl_id: str, ds_ver: str) -> Optional[pd.DataFrame]:
     try:
         state = get_state()
-        dataset_path = None
 
         # check current dataset first and if we're trying to view the current version, use it
         if state.dataset_path and os.path.exists(state.dataset_path):
-            ts = os.path.getmtime(state.dataset_path)
-            current_ver = str(int(ts))
+            current_ver = get_file_version(state.dataset_path)
             if current_ver == ds_ver:
-                dataset_path = state.dataset_path
+                return ParquetDataReader(state.dataset_path).get_formulas_df()
 
-        # fallback to backup if not found as current
-        if not dataset_path:
-            dataset_path = get_dataset_backup_path(fl_id, ds_ver)
-
-        if dataset_path and os.path.exists(dataset_path):
-            reader = ParquetDataReader(dataset_path)
-            return reader.get_formulas_df()
+        # fallback to backup
+        backup_path = get_dataset_file_path(fl_id, ds_ver)
+        if backup_path.exists():
+            return ParquetDataReader(str(backup_path)).get_formulas_df()
 
     except Exception:
         pass

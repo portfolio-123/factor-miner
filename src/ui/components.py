@@ -604,43 +604,21 @@ def handle_view_formulas(ds_ver: str) -> None:
 
 
 def render_analysis_params(analysis_params: dict) -> None:
-    """Render analysis parameters (Min Alpha, Top X, Bottom X) outside the dataset info card."""
-    items = []
-    if "min_alpha" in analysis_params:
-        items.append(render_info_item("Min Alpha", f"{analysis_params['min_alpha']}"))
-    if "top_x_pct" in analysis_params:
-        items.append(render_info_item("Top X", f"{analysis_params['top_x_pct']}%"))
-    if "bottom_x_pct" in analysis_params:
-        items.append(
-            render_info_item("Bottom X", f"{analysis_params['bottom_x_pct']}%")
-        )
+    param_config = [
+        ("Min Alpha", "min_alpha"),
+        ("Top X", "top_x_pct"),
+        ("Bottom X", "bottom_x_pct"),
+    ]
+    items = [
+        render_info_item(label, f"{analysis_params[key]}%")
+        for label, key in param_config
+    ]
 
     if items:
         params_html = f'<div class="dataset-info-group">{"".join(items)}</div>'
-        st.markdown(
-            f"""
-        <div style="margin-top: 16px;">
-            <div style="font-size: 14px; font-weight: 600; color: #2196F3;
-                    margin: 15px 0 8px 0; padding-bottom: 5px;
-                    border-bottom: 2px solid #2196F3;">
-            Analysis Parameters
-        </div>
-            {params_html}
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        section_header("Analysis Parameters")
+        st.markdown(params_html, unsafe_allow_html=True)
 
-        st.markdown(
-            """
-        <div style="font-size: 14px; font-weight: 600; color: #2196F3;
-                    margin: 15px 0 8px 0; padding-bottom: 5px;
-                    border-bottom: 2px solid #2196F3;">
-            Filter Parameters
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
 
 
 def render_dataset_header(
@@ -648,11 +626,9 @@ def render_dataset_header(
     dataset_version: str,
     fl_id: Optional[str] = None,
 ) -> None:
-    """Render the dataset info card. Reusable across step 0, new analysis page, and results page."""
     config = DatasetConfig.model_validate(dataset_info)
 
     with st.container(border=True):
-        # Always show clickable "View (6)" when fl_id is available
         render_dataset_info_row(
             config,
             dataset_version if fl_id else None,
@@ -660,7 +636,6 @@ def render_dataset_header(
             fl_id=fl_id,
         )
 
-        # Add bottom padding to the card
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
 

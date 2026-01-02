@@ -5,15 +5,51 @@ from src.ui.components import (
     show_formulas_modal,
     render_dataset_history_card,
     render_job_card,
+    section_header,
 )
-from src.services.readers import get_current_dataset_info
+from src.services.readers import (
+    get_current_dataset_info,
+    get_dataset_file_path,
+    ParquetDataReader,
+)
 from src.workers.manager import (
-    get_dataset_info_from_backup,
     get_formulas_df_for_version,
     get_grouped_jobs,
     sort_dataset_versions,
     update_dataset_info,
 )
+
+
+def _show_edit_dialog(
+    selected_ver: str, ds_info_map: dict, dataset_path: str
+) -> None:
+    @st.dialog("Edit Dataset Details", width="large")
+    def _dialog():
+        update_state(edit_dataset_mode=False)
+
+        curr_info = ds_info_map.get(selected_ver)
+
+        with st.form(key="edit_dataset_form", border=False):
+            new_name = st.text_input(
+                "Name", value=curr_info.name, placeholder="Enter dataset name"
+            )
+            new_desc = st.text_area(
+                "Description",
+                value=curr_info.description,
+                height=120,
+                placeholder="Enter dataset description",
+            )
+
+            col1, col2 = st.columns(2)
+            if col1.form_submit_button("Cancel", width="stretch"):
+                st.rerun()
+            if col2.form_submit_button("Save Changes", type="primary", width="stretch"):
+                if update_dataset_info(dataset_path, selected_ver, {"name": new_name, "description": new_desc}):
+                    st.rerun()
+                else:
+                    st.error("Failed to update.")
+
+    _dialog()
 
 
 def render() -> None:
@@ -29,8 +65,6 @@ def render() -> None:
     current_version, current_dataset_info = get_current_dataset_info(state.dataset_path)
     jobs, grouped_jobs = get_grouped_jobs(fl_id)
 
-    current_version_has_jobs = current_version and current_version in grouped_jobs
-
     all_versions = set(grouped_jobs.keys())
     if current_version:
         all_versions.add(current_version)
@@ -43,7 +77,8 @@ def render() -> None:
 
     for ver in sorted_datasets:
         if ver not in ds_info_map:
-            info = get_dataset_info_from_backup(fl_id, ver)
+            path = get_dataset_file_path(fl_id, ver)
+            info = ParquetDataReader(str(path)).get_dataset_info() if path.exists() else None
             if info:
                 ds_info_map[ver] = info
 
@@ -95,52 +130,9 @@ def render() -> None:
             update_state(edit_dataset_mode=True, formulas_ds_ver=None)
             should_show_formulas = False
 
-    # Only show edit dialog if formulas modal is not being shown
+    # Show edit dialog if requested and formulas modal is not showing
     if state.edit_dataset_mode and selected_ver and not should_show_formulas:
-
-        @st.dialog("Edit Dataset Details", width="large")
-        def edit_dialog():
-            # Reset flag immediately - dialog is already open, so dismissing it won't retrigger
-            update_state(edit_dataset_mode=False)
-
-            curr_info = ds_info_map.get(selected_ver)
-            curr_name = curr_info.name if curr_info else ""
-            curr_desc = curr_info.description if curr_info else ""
-
-            with st.form(key="edit_dataset_form", border=False):
-                new_name = st.text_input(
-                    "Name", value=curr_name, placeholder="Enter dataset name"
-                )
-                new_desc = st.text_area(
-                    "Description",
-                    value=curr_desc,
-                    height=120,
-                    placeholder="Enter dataset description",
-                )
-
-                col_cancel, col_save = st.columns([1, 1])
-                with col_cancel:
-                    cancelled = st.form_submit_button(
-                        "Cancel", use_container_width=True
-                    )
-                with col_save:
-                    submitted = st.form_submit_button(
-                        "Save Changes", type="primary", use_container_width=True
-                    )
-
-                if cancelled:
-                    st.rerun()
-                elif submitted:
-                    success = update_dataset_info(
-                        state.dataset_path, selected_ver, {"name": new_name, "description": new_desc}
-                    )
-                    if success:
-                        st.success("Updated!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to update.")
-
-        edit_dialog()
+        _show_edit_dialog(selected_ver, ds_info_map, state.dataset_path)
 
     if selected_ver:
         ds_jobs = grouped_jobs.get(selected_ver, [])
@@ -162,11 +154,8 @@ def render() -> None:
         )
 
         if is_current_version:
-            # View Factors is now in the dataset card, so just show New Analysis button
-            col_spacer, col_new = st.columns([5, 1])
-            with col_spacer:
-                st.empty()
-            with col_new:
+            _, col_btn = st.columns([5, 1])
+            with col_btn:
                 st.button(
                     "New Analysis",
                     type="primary",
@@ -175,23 +164,12 @@ def render() -> None:
                     on_click=reset_analysis_state,
                 )
 
-            # Show title if there are jobs
             if ds_jobs:
-                st.markdown(
-                    "<div style='font-size: 15px; font-weight: 400; color: #60646A; padding-top: 16px;'>PAST ANALYSES</div>",
-                    unsafe_allow_html=True,
-                )
-
-            # Render job cards
-            for job in ds_jobs:
-                render_job_card(job)
-
-            # Show "No analyses yet" message at bottom if no jobs
-            if not ds_jobs:
-                st.markdown(
-                    "<div style='text-align: center; font-size: 14px; color: #9ca3af; font-style: italic; margin-top: 2rem; padding-top: 4px;'>No analyses yet for this dataset version</div>",
-                    unsafe_allow_html=True,
-                )
+                section_header("Past Analyses")
+                for job in ds_jobs:
+                    render_job_card(job)
+            else:
+                st.caption("No analyses yet for this dataset version")
     elif not jobs and not current_dataset_info:
         st.info("No past analysis found for this Factor List.")
 

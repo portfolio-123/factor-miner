@@ -1,13 +1,27 @@
 from functools import cached_property
 import json
+from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 import os
 
 import pandas as pd
 import pyarrow.parquet as pq
+from dotenv import load_dotenv
 
-from src.core.constants import REQUIRED_COLUMNS
 from src.core.types import DatasetConfig
+
+load_dotenv()
+
+FACTOR_LIST_DIR = Path(os.getenv("FACTOR_LIST_DIR"))
+INTEGRATIONS_DIR = FACTOR_LIST_DIR / "factor-eval"
+
+
+def get_file_version(path: str) -> str:
+    return str(int(os.path.getmtime(path)))
+
+
+def get_dataset_file_path(fl_id: str, dataset_version: str) -> Path:
+    return INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
 
 
 class ParquetDataReader:
@@ -141,10 +155,7 @@ def get_current_dataset_info(
     dataset_path: str,
 ) -> Tuple[Optional[str], Optional[DatasetConfig]]:
     try:
-        # get modification timestamp as id
-        ts = os.path.getmtime(dataset_path)
-        current_version = str(int(ts))
-
+        current_version = get_file_version(dataset_path)
         reader = ParquetDataReader(dataset_path)
         dataset_info = reader.get_dataset_info()
 

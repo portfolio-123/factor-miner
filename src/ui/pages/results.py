@@ -89,6 +89,8 @@ def _render_job_progress(job_id: str) -> None:
 def _render_filter_and_results() -> None:
     state = get_state()
 
+    section_header("Filter Parameters")
+
     col1, col2, _ = st.columns([1, 1, 2])
 
     with col1:
@@ -176,10 +178,13 @@ def render() -> None:
         st.error(state.analysis_error)
         return
 
+
+    # if there's a job being processed, render progress component
     if state.current_job_id:
         job_data = read_job(state.current_job_id)
         if job_data and job_data.get('status') in (JobStatus.PENDING, JobStatus.RUNNING):
             _render_job_progress(state.current_job_id)
             return
 
+    # otherwise, render results
     _render_filter_and_results()
