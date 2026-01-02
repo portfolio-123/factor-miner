@@ -19,8 +19,10 @@ class AnalysisParams(BaseModel):
     top_pct: float
     bottom_pct: float
     min_alpha: float
-    benchmark_data: str
+    benchmark_data: Optional[str] = None
     benchmark_ticker: str
+    api_key: Optional[str] = None
+    api_id: Optional[str] = None
 
 
 class NormalizationConfig(BaseModel):

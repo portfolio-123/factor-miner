@@ -254,6 +254,22 @@ def delete_job(job_id: str) -> bool:
     return False
 
 
+def clear_job_credentials(job_id: str) -> bool:
+    job_data = read_job(job_id)
+    if job_data is None:
+        return False
+
+    params = job_data.get("params", {})
+    params.pop("api_key", None)
+    params.pop("api_id", None)
+    job_data["params"] = params
+
+    job_path = _get_job_path(job_id)
+    with open(job_path, "w") as f:
+        json.dump(job_data, f, indent=2)
+    return True
+
+
 def list_jobs(fl_id: str) -> List[Dict[str, Any]]:
     fl_dir = INTEGRATIONS_DIR / fl_id
     if not fl_dir.exists():

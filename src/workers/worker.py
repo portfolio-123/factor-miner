@@ -1,7 +1,3 @@
-"""
-Worker script for running factor analysis in background.
-Run as: python -m src.workers.worker <job_id>
-"""
 import sys
 import traceback
 from datetime import datetime
@@ -13,10 +9,12 @@ from src.core.constants import REQUIRED_COLUMNS
 from src.core.constants import JobStatus
 from src.core.types import AnalysisParams
 
-from src.core.utils import deserialize_dataframe, serialize_dataframe
-from src.workers.manager import read_job, update_job, append_job_log
+from src.core.utils import serialize_dataframe
+from src.workers.manager import read_job, update_job, append_job_log, clear_job_credentials
 from src.services.readers import ParquetDataReader
+from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import (
+    get_dataset_date_range,
     calculate_benchmark_returns,
     calculate_future_performance,
     analyze_factors,
@@ -38,9 +36,28 @@ def log(message: str) -> None:
 def run_analysis(job_id: str, params: AnalysisParams) -> dict:
     log("Starting analysis...")
 
-    benchmark_data = deserialize_dataframe(params.benchmark_data)
-
     log(f"Processing dataset: {params.dataset_path}")
+
+    reader = ParquetDataReader(params.dataset_path)
+
+    date_df = reader.read_columns(["Date"])
+    start_date, end_date = get_dataset_date_range(date_df)
+
+    log(f"Fetching benchmark data for {params.benchmark_ticker}...")
+    benchmark_data, error = fetch_benchmark_data(
+        params.benchmark_ticker,
+        params.api_key,
+        start_date,
+        end_date,
+        params.api_id,
+    )
+
+    clear_job_credentials(job_id)
+
+    if error:
+        raise ValueError(f"Failed to fetch benchmark data: {error}")
+
+    log("Benchmark data fetched successfully")
 
     # Progress callback to update job file
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
@@ -50,8 +67,6 @@ def run_analysis(job_id: str, params: AnalysisParams) -> dict:
             "total": total,
             "current_factor": current_factor
         })
-
-    reader = ParquetDataReader(params.dataset_path)
 
     columns = reader._parquet_file.schema_arrow.names
     excluded_columns = REQUIRED_COLUMNS + ['benchmark', 'Future Perf']

@@ -15,7 +15,6 @@ from src.services.processing import start_step2_analysis, process_step2_completi
 
 
 def _on_run_analysis() -> None:
-    """Callback for Run Analysis button. Streamlit handles rerun automatically."""
     update_state(step2_error=None)
     _, error = start_step2_analysis()
     if error:
@@ -120,26 +119,16 @@ def _render_review_content() -> None:
     if state.step2_error:
         st.error(state.step2_error)
 
-    _, _, col3 = st.columns([2, 1, 1])
-    with col3:
+    with st.columns([4, 1])[1]:
         st.button("Run Analysis", type="primary", use_container_width=True, on_click=_on_run_analysis)
 
 def render() -> None:
     state = get_state()
-    job_id = state.current_job_id
+    running_job = state.current_job_id
 
-    # No active job - show review content directly (no placeholders)
-    if not job_id:
+    # no active job - show review content
+    if not running_job:
         _render_review_content()
         return
 
-    job_data = read_job(job_id)
-    if job_data is None:
-        update_state(current_job_id=None)
-        st.rerun()
-
-    if job_data.get('status') == JobStatus.COMPLETED:
-        _render_review_content()
-        return
-
-    _render_job_progress(job_id)
+    _render_job_progress(running_job)

@@ -6,8 +6,6 @@ import streamlit as st
 
 from src.core.context import get_state, update_state, add_debug_log
 from src.core.types import AnalysisParams
-from src.core.utils import serialize_dataframe
-from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import get_dataset_date_range
 from src.core.constants import DEFAULT_BENCHMARK
 from src.workers.manager import start_analysis_job, get_job_results, delete_job
@@ -38,6 +36,7 @@ def process_config() -> bool:
         formulas_data = dataset_reader.get_formulas_df()
         add_debug_log(f"Formulas loaded: {len(formulas_data)} formulas")
 
+        # Validate date range exists (benchmark will be fetched by worker)
         date_df = dataset_reader.read_columns(["Date"])
         try:
             start_date, end_date = get_dataset_date_range(date_df)
@@ -46,29 +45,13 @@ def process_config() -> bool:
             update_state(config_error=f"Error getting date range: {str(e)}")
             return False
 
-        benchmark_data, error = fetch_benchmark_data(
-            state.benchmark_ticker,
-            state.user_payload.get("apiKey") if state.user_payload else None,
-            start_date,
-            end_date,
-            state.user_payload.get("apiId") if state.user_payload else None,
-        )
-
-        if error:
-            add_debug_log(f"Benchmark fetch failed: {error}")
-            update_state(config_error=f"Error fetching benchmark data: {error}")
-            return False
-
-        add_debug_log("Benchmark data fetched successfully")
-
         update_state(
             formulas_data=formulas_data,
-            benchmark_data=benchmark_data,
+            config_completed=True,
+            current_step=2,
         )
 
-        update_state(config_completed=True, current_step=2)
-
-        add_debug_log("Config complete - Proceeding to analysis")
+        add_debug_log("Settings complete - Proceeding to analysis")
         return True
 
     except Exception as e:
@@ -100,9 +83,10 @@ def start_step2_analysis() -> str:
             top_pct=state.top_x_pct,
             bottom_pct=state.bottom_x_pct,
             min_alpha=state.min_alpha,
-            benchmark_data=serialize_dataframe(state.benchmark_data),
             benchmark_ticker=state.benchmark_ticker,
             dataset_path=state.dataset_path,
+            api_key=state.user_payload.get("apiKey") if state.user_payload else None,
+            api_id=state.user_payload.get("apiId") if state.user_payload else None,
         )
         start_analysis_job(job_id, params.model_dump())
         update_state(current_job_id=job_id)
