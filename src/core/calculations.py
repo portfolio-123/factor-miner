@@ -286,8 +286,6 @@ def select_best_features(
 
     # Sort features by absolute alpha in descending order
     sorted_alpha = filtered_alpha.sort_values(by='annualized alpha %', key=abs, ascending=False)
-
-    # Initialize selected features list
     selected_features = []
 
     for feature in sorted_alpha['column']:

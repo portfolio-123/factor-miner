@@ -62,7 +62,7 @@ def process_config() -> bool:
 
 def start_step2_analysis() -> None:
     state = get_state()
-    update_state(step2_error=None)
+    update_state(analysis_error=None)
 
     fl_id = state.factor_list_uid
 
@@ -92,7 +92,7 @@ def start_step2_analysis() -> None:
         start_analysis_job(job_id, params.model_dump())
         update_state(current_job_id=job_id)
     except Exception as e:
-        update_state(step2_error=f"Error starting analysis: {str(e)}")
+        update_state(analysis_error=f"Error starting analysis: {str(e)}")
 
 
 def _merge_worker_logs(job_data: dict) -> None:

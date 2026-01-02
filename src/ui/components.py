@@ -2,6 +2,7 @@ import os
 
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit_extras.stylable_container import stylable_container
 from datetime import datetime
 import pandas as pd
 from typing import Optional
@@ -10,13 +11,62 @@ from src.core.context import (
     get_state,
     update_state,
     clear_debug_logs,
-    reset_analysis_state,
 )
-from src.core.utils import format_timestamp
 from src.services.readers import get_current_dataset_info
 from src.ui.constants import SCALING_LABELS, frequency_map
-from src.core.types import DatasetConfig, NormalizationConfig, ScopeType, Job
+from src.core.types import DatasetConfig, ScopeType, Job
 from src.core.job_restore import restore_job_state
+
+
+def add_formula_column(
+    df: pd.DataFrame,
+    formulas_df: pd.DataFrame | None,
+    factor_col: str = "Factor",
+) -> pd.DataFrame:
+    if formulas_df is None or "name" not in formulas_df.columns:
+        return df
+
+    formula_map = (
+        formulas_df.drop_duplicates(subset=["name"]).set_index("name")["formula"]
+    )
+    result = df.copy()
+    factor_idx = result.columns.get_loc(factor_col)
+    result.insert(factor_idx + 1, "Formula", result[factor_col].map(formula_map))
+    return result
+
+
+def copy_to_clipboard_button(
+    text: str,
+    label: str = "Copy to Clipboard",
+    key: str = "copy_btn",
+    button_type: str = "secondary",
+) -> None:
+    escaped = text.replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${')
+    container_key = f"{key}_container"
+
+    with stylable_container(key=container_key, css_styles=""):
+        st.button(label, key=key, type=button_type, use_container_width=True)
+
+    components.html(
+        f"""
+        <script>
+            const csv = `{escaped}`;
+            const btn = window.parent.document.querySelector('[data-key="{container_key}"] button');
+            if (btn && !btn._copyAttached) {{
+                btn._copyAttached = true;
+                btn.addEventListener('click', (e) => {{
+                    e.preventDefault();
+                    navigator.clipboard.writeText(csv);
+                    const txt = btn.querySelector('p') || btn;
+                    const orig = txt.textContent;
+                    txt.textContent = 'Copied!';
+                    setTimeout(() => txt.textContent = orig, 1000);
+                }});
+            }}
+        </script>
+        """,
+        height=0,
+    )
 
 
 def render_session_expired(fl_id: str | None) -> None:
@@ -296,73 +346,50 @@ def render_dataset_preview(df: pd.DataFrame) -> None:
 def render_results_table(
     best_features: list,
     metrics_df: pd.DataFrame,
-    formulas_df: Optional[pd.DataFrame] = None,
-) -> Optional[pd.DataFrame]:
-    if best_features:
-        best_metrics_df = metrics_df[metrics_df["column"].isin(best_features)].copy()
-        best_metrics_df = best_metrics_df.sort_values(
-            by="annualized alpha %", key=abs, ascending=False
-        )
-
-        # Join with formulas if available
-        if (
-            formulas_df is not None
-            and "name" in formulas_df.columns
-            and "formula" in formulas_df.columns
-        ):
-            formulas_lookup = formulas_df[["name", "formula"]].drop_duplicates(
-                subset=["name"]
-            )
-            best_metrics_df = best_metrics_df.merge(
-                formulas_lookup, left_on="column", right_on="name", how="left"
-            )
-        else:
-            best_metrics_df["formula"] = ""
-
-        # Rename columns for display
-        display_df = best_metrics_df.rename(
-            columns={
-                "column": "Factor",
-                "annualized alpha %": "Ann. Alpha %",
-                "T Statistic": "T-Statistic",
-                "p-value": "P-Value",
-                "formula": "Formula",
-            }
-        )
-
-        display_df["Ann. Alpha %"] = display_df["Ann. Alpha %"].apply(
-            lambda x: f"{x:.2f}%"
-        )
-        display_df["T-Statistic"] = display_df["T-Statistic"].apply(
-            lambda x: f"{x:.4f}"
-        )
-        display_df["P-Value"] = display_df["P-Value"].apply(lambda x: f"{x:.6f}")
-
-        display_df = display_df[["Factor", "Ann. Alpha %", "T-Statistic", "P-Value"]]
-
-        st.dataframe(
-            display_df,
-            height=400,
-            width="stretch",
-            hide_index=True,
-            column_config={
-                "Factor": st.column_config.TextColumn("Factor", width="medium"),
-                "Ann. Alpha %": st.column_config.TextColumn(
-                    "Ann. Alpha %", width="small"
-                ),
-                "T-Statistic": st.column_config.TextColumn(
-                    "T-Statistic", width="small"
-                ),
-                "P-Value": st.column_config.TextColumn("P-Value", width="small"),
-            },
-        )
-        return display_df
-    else:
+) -> None:
+    if not best_features:
         st.warning(
-            "No features found matching the current criteria. "
+            "No features found matching the current criteria."
             "Try adjusting the correlation threshold or minimum alpha."
         )
-        return None
+        return
+
+    # filter to best features and sort by absolute alpha
+    best_metrics_df = metrics_df[metrics_df["column"].isin(best_features)].copy()
+    best_metrics_df = best_metrics_df.sort_values(
+        by="annualized alpha %", key=abs, ascending=False
+    )
+
+    display_df = best_metrics_df.rename(
+        columns={
+            "column": "Factor",
+            "annualized alpha %": "Ann. Alpha %",
+            "T Statistic": "T-Statistic",
+            "p-value": "P-Value",
+        }
+    )[["Factor", "Ann. Alpha %", "T-Statistic", "P-Value"]]
+
+    # format numeric columns as strings
+    formatters = {
+        "Ann. Alpha %": lambda x: f"{x:.2f}%",
+        "T-Statistic": lambda x: f"{x:.4f}",
+        "P-Value": lambda x: f"{x:.6f}",
+    }
+    for col, fmt in formatters.items():
+        display_df[col] = display_df[col].apply(fmt)
+
+    st.dataframe(
+        display_df,
+        height=400,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Factor": st.column_config.TextColumn("Factor", width="medium"),
+            "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
+            "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
+            "P-Value": st.column_config.TextColumn("P-Value", width="small"),
+        },
+    )
 
 
 def render_info_item(label: str, value: str, muted: bool = False) -> str:

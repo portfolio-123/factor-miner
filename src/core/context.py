@@ -46,7 +46,7 @@ class AppState:
 
     # error states
     config_error: Optional[str] = None
-    step2_error: Optional[str] = None
+    analysis_error: Optional[str] = None
 
     # UI modal states
     show_debug_modal: bool = False
@@ -125,7 +125,7 @@ def reset_analysis_state() -> None:
         all_corr_matrix=None,
         # Error states
         config_error=None,
-        step2_error=None,
+        analysis_error=None,
         # Filter states
         filter_correlation=None,
         filter_n_features=None,

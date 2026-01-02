@@ -32,8 +32,5 @@ def render() -> None:
     else:
         st.error("Unable to load dataset preview")
 
-    if state.step2_error:
-        st.error(state.step2_error)
-
     with st.columns([4, 1])[1]:
         st.button("Run Analysis", type="primary", use_container_width=True, on_click=start_step2_analysis)
