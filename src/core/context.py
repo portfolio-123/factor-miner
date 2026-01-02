@@ -58,8 +58,8 @@ class AppState:
     auth_check_complete: bool = False
 
     # filter states (results page)
-    filter_correlation: Optional[float] = None
-    filter_n_features: Optional[int] = None
+    filter_correlation: float = 0.5
+    filter_n_features: int = 10
 
 
 def get_state() -> AppState:
@@ -127,8 +127,8 @@ def reset_analysis_state() -> None:
         config_error=None,
         analysis_error=None,
         # Filter states
-        filter_correlation=None,
-        filter_n_features=None,
+        filter_correlation=0.5,
+        filter_n_features=10,
     )
 
 

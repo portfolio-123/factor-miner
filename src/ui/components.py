@@ -471,7 +471,7 @@ def render_dataset_info_row(
     st.markdown('<div style="height: 5px;"></div>', unsafe_allow_html=True)
 
     col_left, col_divider, col_right = st.columns(
-        [1, 0.05, 1], vertical_alignment="top"
+        [0.9, 1], vertical_alignment="top"
     )
 
     with col_left:
