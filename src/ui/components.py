@@ -26,9 +26,9 @@ def add_formula_column(
     if formulas_df is None or "name" not in formulas_df.columns:
         return df
 
-    formula_map = (
-        formulas_df.drop_duplicates(subset=["name"]).set_index("name")["formula"]
-    )
+    formula_map = formulas_df.drop_duplicates(subset=["name"]).set_index("name")[
+        "formula"
+    ]
     result = df.copy()
     factor_idx = result.columns.get_loc(factor_col)
     result.insert(factor_idx + 1, "Formula", result[factor_col].map(formula_map))
@@ -41,7 +41,7 @@ def copy_to_clipboard_button(
     key: str = "copy_btn",
     button_type: str = "secondary",
 ) -> None:
-    escaped = text.replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${')
+    escaped = text.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
     container_key = f"{key}_container"
 
     with stylable_container(key=container_key, css_styles=""):
@@ -142,9 +142,7 @@ def render_page_header() -> None:
     _, dataset_info = get_current_dataset_info(state.dataset_path)
 
     render_breadcrumb(steps)
-    st.title(
-        f"{dataset_info.flName if dataset_info else 'Unknown'} ({fl_id})"
-    )
+    st.title(f"{dataset_info.flName if dataset_info else 'Unknown'} ({fl_id})")
 
 
 def header_with_navigation() -> None:
@@ -404,8 +402,6 @@ def render_big_info_item(label: str, value: str) -> str:
 def render_dataset_info_row(
     config: DatasetConfig,
     ds_ver: str | None = None,
-    show_view_factors: bool = False,
-    fl_id: str | None = None,
 ) -> None:
 
     c1, c2, c3, c4 = st.columns([1.5, 2, 1, 1], vertical_alignment="top")
@@ -431,37 +427,19 @@ def render_dataset_info_row(
         )
     with c4:
         count = config.factorCount or 0
-        button_key = f"view_factors_btn_{ds_ver}"
         st.markdown(
-            '<div class="dataset-info-item big"><div class="label">FACTORS</div></div>',
+            '<div class="dataset-info-item big view-factors-trigger"><div class="label">FACTORS</div></div>',
             unsafe_allow_html=True,
         )
-        with stylable_container(
-            key=f"factors_btn_{ds_ver}",
-            css_styles="""
-                button {
-                    background: none !important;
-                    border: none !important;
-                    color: #212529 !important;
-                    font-size: 20px !important;
-                    font-weight: 600 !important;
-                    padding: 0 !important;
-                    text-decoration: underline;
-                    cursor: pointer;
-                }
-                button:hover { color: #2196F3 !important; }
-            """,
-        ):
-            st.button(
-                f"View ({count})",
-                key=button_key,
-                on_click=handle_view_formulas,
-                args=(ds_ver,),
-            )
+        st.button(
+            f"View ({count})",
+            key=f"view_factors_{ds_ver}",
+            on_click=lambda ds_ver=ds_ver: update_state(formulas_ds_ver=ds_ver),
+        )
 
         state = get_state()
         if state.formulas_ds_ver == ds_ver:
-            formulas_df = get_dataset_formulas(fl_id, state.formulas_ds_ver)
+            formulas_df = get_dataset_formulas(state.formulas_ds_ver)
             if formulas_df is not None:
                 show_formulas_modal(formulas_df)
             else:
@@ -470,9 +448,7 @@ def render_dataset_info_row(
     st.markdown('<div style="margin-bottom: 16px;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="height: 5px;"></div>', unsafe_allow_html=True)
 
-    col_left, col_divider, col_right = st.columns(
-        [0.9, 1], vertical_alignment="top"
-    )
+    col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
 
     with col_left:
         st.markdown(
@@ -487,12 +463,6 @@ def render_dataset_info_row(
         ]
         st.markdown(
             f'<div class="dataset-info-group">{"".join(middle_items)}</div>',
-            unsafe_allow_html=True,
-        )
-
-    with col_divider:
-        st.markdown(
-            '<div class="dataset-info-divider" style="height: 100%;"></div>',
             unsafe_allow_html=True,
         )
 
@@ -550,10 +520,6 @@ def render_dataset_info_row(
             )
 
 
-def handle_view_formulas(ds_ver: str) -> None:
-    update_state(formulas_ds_ver=ds_ver)
-
-
 def render_analysis_params(analysis_params: dict) -> None:
     param_config = [
         ("Min Alpha", "min_alpha"),
@@ -571,20 +537,16 @@ def render_analysis_params(analysis_params: dict) -> None:
         st.markdown(params_html, unsafe_allow_html=True)
 
 
-
 def render_dataset_header(
     dataset_info: DatasetConfig | dict,
     dataset_version: str,
-    fl_id: Optional[str] = None,
 ) -> None:
     config = DatasetConfig.model_validate(dataset_info)
 
     with st.container(border=True):
         render_dataset_info_row(
             config,
-            dataset_version if fl_id else None,
-            show_view_factors=bool(fl_id and config.factorCount),
-            fl_id=fl_id,
+            dataset_version,
         )
 
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
@@ -647,19 +609,14 @@ def render_job_card(job: Job) -> None:
 def render_dataset_history_card(
     dataset_info: DatasetConfig | None,
     ds_ver: str,
-    jobs: list[Job],
-    fl_id: str,
 ) -> None:
 
     config = dataset_info or DatasetConfig()
 
     with st.container(border=True):
-        # Use the same render_dataset_info_row with clickable "View (6)"
         render_dataset_info_row(
             config,
             ds_ver,
-            show_view_factors=bool(fl_id and config.factorCount),
-            fl_id=fl_id,
         )
 
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)

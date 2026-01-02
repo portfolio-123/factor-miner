@@ -18,9 +18,7 @@ from src.workers.manager import (
 )
 
 
-def _show_edit_dialog(
-    selected_ver: str, ds_info_map: dict, dataset_path: str
-) -> None:
+def _show_edit_dialog(selected_ver: str, ds_info_map: dict, dataset_path: str) -> None:
     @st.dialog("Edit Dataset Details", width="large")
     def _dialog():
         update_state(edit_dataset_mode=False)
@@ -42,7 +40,11 @@ def _show_edit_dialog(
             if col1.form_submit_button("Cancel", width="stretch"):
                 st.rerun()
             if col2.form_submit_button("Save Changes", type="primary", width="stretch"):
-                if update_dataset_info(dataset_path, selected_ver, {"name": new_name, "description": new_desc}):
+                if update_dataset_info(
+                    dataset_path,
+                    selected_ver,
+                    {"name": new_name, "description": new_desc},
+                ):
                     st.rerun()
                 else:
                     st.error("Failed to update.")
@@ -76,7 +78,11 @@ def render() -> None:
     for ver in sorted_datasets:
         if ver not in ds_info_map:
             path = get_dataset_file_path(fl_id, ver)
-            info = ParquetDataReader(str(path)).get_dataset_info() if path.exists() else None
+            info = (
+                ParquetDataReader(str(path)).get_dataset_info()
+                if path.exists()
+                else None
+            )
             if info:
                 ds_info_map[ver] = info
 
@@ -147,8 +153,6 @@ def render() -> None:
         render_dataset_history_card(
             dataset_info=info,
             ds_ver=selected_ver,
-            jobs=ds_jobs,
-            fl_id=fl_id,
         )
 
         if is_current_version:

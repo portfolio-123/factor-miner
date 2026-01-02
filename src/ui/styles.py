@@ -450,6 +450,33 @@ def load_global_css() -> None:
     .stApp [data-testid="stToolbar"] {
         display: none;
     }
+
+    /* ===== View Factors Button (link style) ===== */
+    .element-container:has(.view-factors-trigger) + .element-container button,
+    div[data-testid="stElementContainer"]:has(.view-factors-trigger) + div[data-testid="stElementContainer"] button {
+        background: none !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        min-height: auto !important;
+        height: auto !important;
+        width: auto !important;
+    }
+    .element-container:has(.view-factors-trigger) + .element-container button p,
+    div[data-testid="stElementContainer"]:has(.view-factors-trigger) + div[data-testid="stElementContainer"] button p {
+        color: #212529 !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        text-decoration: underline !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1.2 !important;
+        font-family: "Source Sans";
+    }
+    .element-container:has(.view-factors-trigger) + .element-container button:hover p,
+    div[data-testid="stElementContainer"]:has(.view-factors-trigger) + div[data-testid="stElementContainer"] button:hover p {
+        color: #2196F3 !important;
+    }
     </style>
     """,
         unsafe_allow_html=True,
