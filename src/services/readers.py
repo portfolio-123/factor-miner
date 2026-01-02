@@ -165,7 +165,7 @@ def get_current_dataset_info(
         return None, None
 
 
-def get_dataset_formulas(fl_id: str, ds_ver: str) -> Optional[pd.DataFrame]:
+def get_dataset_formulas(ds_ver: str) -> Optional[pd.DataFrame]:
 
     state = get_state()
     path: Optional[str] = None
@@ -177,7 +177,7 @@ def get_dataset_formulas(fl_id: str, ds_ver: str) -> Optional[pd.DataFrame]:
 
     # if not, fallback to the backup path
     if not path:
-        backup_path = get_dataset_file_path(fl_id, ds_ver)
+        backup_path = get_dataset_file_path(state.factor_list_uid, ds_ver)
         if backup_path.exists():
             path = str(backup_path)
 
