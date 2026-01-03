@@ -1,11 +1,8 @@
 from typing import Optional
 
 from src.core.context import get_state
-from src.services.readers import (
-    ParquetDataReader,
-    get_dataset_file_path,
-    get_file_version,
-)
+from src.services.readers import ParquetDataReader
+from src.services.parquet_utils import get_dataset_file_path, get_file_version
 from src.ui.components import render_dataset_header, render_analysis_params
 
 

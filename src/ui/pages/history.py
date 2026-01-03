@@ -9,7 +9,7 @@ from src.ui.components import (
     section_header,
 )
 from src.ui.dialogs import show_edit_dialog
-from src.services.readers import get_history_page_data
+from src.services.parquet_utils import get_history_page_data
 
 
 def render() -> None:

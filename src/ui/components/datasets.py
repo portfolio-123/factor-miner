@@ -2,7 +2,7 @@ import streamlit as st
 
 from src.core.context import get_state, update_state
 from src.core.types import DatasetConfig, ScopeType
-from src.services.readers import get_dataset_formulas
+from src.services.parquet_utils import get_dataset_formulas
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
     section_header,

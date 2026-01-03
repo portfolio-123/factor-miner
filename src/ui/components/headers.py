@@ -4,7 +4,7 @@ import re
 import streamlit as st
 
 from src.core.context import get_state, update_state, clear_debug_logs
-from src.services.readers import get_current_dataset_info
+from src.services.parquet_utils import get_current_dataset_info
 
 
 def header_back() -> None:

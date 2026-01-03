@@ -339,8 +339,7 @@ def load_global_css() -> None:
     }
 
     /* ===== View Factors Button (link style) ===== */
-    .element-container:has(.view-factors-trigger) + .element-container button,
-    div[data-testid="stElementContainer"]:has(.view-factors-trigger) + div[data-testid="stElementContainer"] button {
+    .element-container:has(.view-factors-trigger) + .element-container button {
         background: none !important;
         border: none !important;
         padding: 0 !important;
@@ -349,8 +348,7 @@ def load_global_css() -> None:
         height: auto !important;
         width: auto !important;
     }
-    .element-container:has(.view-factors-trigger) + .element-container button p,
-    div[data-testid="stElementContainer"]:has(.view-factors-trigger) + div[data-testid="stElementContainer"] button p {
+    .element-container:has(.view-factors-trigger) + .element-container button p {
         color: #212529 !important;
         font-size: 18px !important;
         font-weight: 600 !important;
@@ -360,8 +358,7 @@ def load_global_css() -> None:
         line-height: 1.2 !important;
         font-family: "Source Sans";
     }
-    .element-container:has(.view-factors-trigger) + .element-container button:hover p,
-    div[data-testid="stElementContainer"]:has(.view-factors-trigger) + div[data-testid="stElementContainer"] button:hover p {
+    .element-container:has(.view-factors-trigger) + .element-container button:hover p {
         color: #2196F3 !important;
     }
     </style>

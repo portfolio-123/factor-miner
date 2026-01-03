@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from src.core.context import get_state
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus, JobProgress
-from src.services.readers import (
+from src.services.parquet_utils import (
     get_file_version,
     get_dataset_file_path,
 )
