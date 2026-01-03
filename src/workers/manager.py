@@ -252,7 +252,7 @@ def get_grouped_jobs(fl_id: str) -> dict[str, list[Job]]:
 
     grouped_jobs = defaultdict(list)
     for job in jobs_data:
-        ds_ver = job.dataset_version
+        ds_ver = job.get("dataset_version")
         if ds_ver:
             grouped_jobs[ds_ver].append(job)
 

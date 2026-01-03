@@ -21,14 +21,13 @@ from src.ui.components.jobs import (
 )
 
 from src.ui.components.datasets import (
-    render_dataset_header,
+    render_current_dataset,
     render_dataset_info_row,
     render_dataset_statistics,
 )
 
 from src.ui.components.headers import (
     header_back,
-    header_history,
     header_analysis,
     render_page_header,
     render_breadcrumb,
@@ -48,11 +47,10 @@ __all__ = [
     "render_job_card",
     "render_job_param",
     "render_analysis_params",
-    "render_dataset_header",
+    "render_current_dataset",
     "render_dataset_info_row",
     "render_dataset_statistics",
     "header_back",
-    "header_history",
     "header_analysis",
     "render_page_header",
     "render_breadcrumb",

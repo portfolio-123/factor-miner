@@ -97,7 +97,7 @@ class ParquetDataReader:
         except Exception:
             return None
 
-    def get_formulas_df(self) -> Optional[pd.DataFrame]:
+    def get_formulas(self) -> Optional[pd.DataFrame]:
         features_json = self._get_custom_metadata_json("features")
         if not features_json:
             return None
@@ -129,7 +129,7 @@ class ParquetDataReader:
             dataset_info["normalization"] = loaded if isinstance(loaded, dict) else None
 
         features_json = self._get_custom_metadata_json("features")
-        if features_json and isinstance(features_json, list):
+        if features_json:
             dataset_info["factorCount"] = len(features_json)
 
         return DatasetConfig(**dataset_info)

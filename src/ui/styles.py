@@ -5,6 +5,20 @@ def load_global_css() -> None:
     st.markdown(
         """
     <style>
+    :root {
+        --primary: #2196F3;
+        --primary-hover: #1976D2;
+        --text-dark: #212529;
+        --text-muted: #6c757d;
+        --text-secondary: #424242;
+        --bg-secondary: #E8E8E8;
+        --bg-hover: #BDBDBD;
+        --bg-disabled: #F5F5F5;
+        --border-light: #e5e7eb;
+        --radius: 8px;
+        --radius-sm: 6px;
+    }
+
     /* Reduce main content padding */
     .stMainBlockContainer,
     .block-container,
@@ -21,49 +35,25 @@ def load_global_css() -> None:
     }
 
     .stButton > button[kind="primary"] {
-        background-color: #2196F3;
+        background-color: var(--primary);
     }
     .stButton > button[kind="primary"]:disabled {
         color: white;
     }
 
     .stButton > button[kind="primary"]:hover {
-        background-color: #1976D2;
+        background-color: var(--primary-hover);
     }
 
     /* Dataframe styling */
     .stDataFrame {
-        border-radius: 8px;
+        border-radius: var(--radius);
         overflow: hidden;
-    }
-
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px 8px 0 0;
-        padding: 8px 16px;
-    }
-
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        font-weight: 500;
-    }
-
-    /* Input field styling */
-    .stTextInput > div > div > input {
-        border-radius: 8px;
-    }
-
-    .stNumberInput > div > div > input {
-        border-radius: 8px;
     }
 
     /* Slider styling */
     .stSlider [data-baseweb="slider"] [role="slider"] {
-        background-color: #2196F3 !important;
+        background-color: var(--primary) !important;
     }
 
     /* ===== Arrow Breadcrumb Navigation ===== */
@@ -100,7 +90,7 @@ def load_global_css() -> None:
     /* Primary (current step) - blue */
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     button[kind="primary"] {
-        background-color: #2196F3 !important;
+        background-color: var(--primary) !important;
         color: white !important;
         font-weight: 600 !important;
     }
@@ -108,20 +98,20 @@ def load_global_css() -> None:
     /* Secondary (other steps) - style based on state */
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     button[kind="secondary"] {
-        background-color: #E8E8E8 !important;
-        color: #424242 !important;
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-secondary) !important;
     }
 
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     button[kind="secondary"]:hover:not(:disabled) {
-        background-color: #BDBDBD !important;
+        background-color: var(--bg-hover) !important;
     }
 
     /* Disabled buttons - locked state */
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
     button:disabled {
-        background-color: #F5F5F5 !important;
-        color: #BDBDBD !important;
+        background-color: var(--bg-disabled) !important;
+        color: var(--bg-hover) !important;
     }
 
     div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(3) button {
@@ -164,7 +154,7 @@ def load_global_css() -> None:
     }
     .dataset-info-item .label {
         font-size: 11px;
-        color: #6c757d;
+        color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 4px;
@@ -172,12 +162,12 @@ def load_global_css() -> None:
     .dataset-info-item .value {
         font-size: 14px;
         font-weight: 500;
-        color: #212529;
+        color: var(--text-dark);
     }
     .dataset-info-item.big .label {
         font-size: 12px;
         font-weight: 600;
-        color: #2196F3;
+        color: var(--primary);
         margin-bottom: 1px;
         text-transform: uppercase;
     }
@@ -189,7 +179,7 @@ def load_global_css() -> None:
     }
 
     .dataset-info-item .value.muted {
-        color: #6c757d;
+        color: var(--text-muted);
     }
 
     /* ===== Job Card Content Styles ===== */
@@ -202,13 +192,13 @@ def load_global_css() -> None:
         box-sizing: border-box;
         /* Matches link style minus border/hover */
         border: 1px solid transparent; /* Placeholder to match height */
-        border-radius: 8px;
+        border-radius: var(--radius);
         background-color: white;
     }
     .job-card-name {
         font-size: 14px;
         font-weight: 600;
-        color: #212529;
+        color: var(--text-dark);
         white-space: nowrap;
     }
     .job-card-params {
@@ -272,8 +262,8 @@ def load_global_css() -> None:
         
         /* Visuals */
         background-color: transparent !important; /* Start transparent */
-        border: 1px solid #e5e7eb !important;
-        border-radius: 8px !important;
+        border: 1px solid var(--border-light) !important;
+        border-radius: var(--radius) !important;
         transition: all 0.2s ease !important;
         z-index: 5;
         
@@ -285,20 +275,20 @@ def load_global_css() -> None:
     }
     
     .element-container:has(.job-card-trigger) + div button:hover {
-        border-color: #2196F3 !important;
+        border-color: var(--primary) !important;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
         background-color: rgba(255, 255, 255, 0) !important; /* Ensure transparent bg */
     }
     
     .element-container:has(.job-card-trigger) + div button:focus {
-        border-color: #2196F3 !important;
+        border-color: var(--primary) !important;
         box-shadow: none !important;
         color: transparent !important;
     }
     
     .element-container:has(.job-card-trigger) + div button:active {
         background-color: rgba(33, 150, 243, 0.05) !important;
-        border-color: #2196F3 !important;
+        border-color: var(--primary) !important;
         color: transparent !important;
     }
     
@@ -313,7 +303,7 @@ def load_global_css() -> None:
         justify-content: flex-end;
     }
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stColumn"]:last-child .stButton button {
-        font-weight: 400 !important;
+        font-weight: 400;
     }
 
 
@@ -327,7 +317,7 @@ def load_global_css() -> None:
     }
     .breadcrumb a:hover {
         text-decoration: underline;
-        color: #2196F3
+        color: var(--primary);
     }
     .breadcrumb span {
         font-weight: bold;
@@ -349,7 +339,7 @@ def load_global_css() -> None:
         width: auto !important;
     }
     .element-container:has(.view-factors-trigger) + .element-container button p {
-        color: #212529 !important;
+        color: var(--text-dark) !important;
         font-size: 18px !important;
         font-weight: 600 !important;
         text-decoration: underline !important;
@@ -359,7 +349,7 @@ def load_global_css() -> None:
         font-family: "Source Sans";
     }
     .element-container:has(.view-factors-trigger) + .element-container button:hover p {
-        color: #2196F3 !important;
+        color: var(--primary) !important;
     }
     </style>
     """,

@@ -3,10 +3,12 @@ from functools import partial
 
 from src.core.utils import format_dataset_option
 from src.core.context import get_state, reset_analysis_state, update_state
+from src.core.types import DatasetConfig
 from src.ui.components import (
-    render_dataset_header,
+    render_dataset_info_row,
     render_job_card,
     section_header,
+    spacer,
 )
 from src.ui.dialogs import show_edit_dialog
 from src.services.parquet_utils import get_history_page_data
@@ -64,7 +66,9 @@ def render() -> None:
     if selected_info:
         st.markdown(f"**Description:** {selected_info.description or 'No description provided'}")
 
-    render_dataset_header(selected_info, selected_ver)
+    with st.container(border=True):
+        render_dataset_info_row(selected_info or DatasetConfig(), selected_ver)
+        spacer(8)
 
     if selected_ver == active_version:
         cols = st.columns([5, 1])

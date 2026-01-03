@@ -10,6 +10,7 @@ from src.core.calculations import get_dataset_date_range
 from src.core.constants import DEFAULT_BENCHMARK
 from src.workers.manager import start_analysis_job, get_job_results, delete_job
 from src.services.readers import ParquetDataReader
+from src.services.parquet_utils import get_file_version
 
 
 def process_config() -> bool:
@@ -33,7 +34,7 @@ def process_config() -> bool:
     try:
         dataset_reader = ParquetDataReader(state.dataset_path)
 
-        formulas_data = dataset_reader.get_formulas_df()
+        formulas_data = dataset_reader.get_formulas()
         add_debug_log(f"Formulas loaded: {len(formulas_data)} formulas")
 
         # Validate date range exists (benchmark will be fetched by worker)
@@ -69,8 +70,7 @@ def start_step2_analysis() -> None:
     dataset_ts = None
     if state.dataset_path and os.path.exists(state.dataset_path):
         try:
-            ts = os.path.getmtime(state.dataset_path)
-            dataset_ts = str(int(ts))
+            dataset_ts = get_file_version(state.dataset_path)
         except Exception:
             pass
 

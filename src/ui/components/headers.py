@@ -15,32 +15,7 @@ def header_back() -> None:
             st.rerun()
 
 
-def header_history() -> None:
-    state = get_state()
-
-    col_brand, _, col_logs = st.columns([2.5, 4.5, 0.8])
-
-    with col_brand:
-        st.markdown(
-            """
-            <div style="padding: 5px 0; display: flex; flex-direction: column;">
-                <span style="font-size: 24px; font-weight: 700; color: #333;">Portfolio123</span>
-                <span style="font-size: 16px; font-weight: 400; color: #666;">Factor Evaluator</span>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col_logs:
-        if st.button("Logs", key="debug_btn", width="stretch"):
-            update_state(show_debug_modal=True)
-
-    if state.show_debug_modal:
-        _show_debug_modal()
-
-
 def header_analysis() -> None:
-    """Analysis page header. Shows step nav only for new analyses."""
     state = get_state()
 
     # Viewing existing job: just show back button

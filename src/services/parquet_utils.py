@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Tuple
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -95,4 +95,4 @@ def get_dataset_formulas(ds_ver: str) -> Optional[pd.DataFrame]:
         if backup_path.exists():
             path = str(backup_path)
 
-    return ParquetDataReader(path).get_formulas_df() if path else None
+    return ParquetDataReader(path).get_formulas() if path else None
