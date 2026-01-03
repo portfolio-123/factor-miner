@@ -38,9 +38,17 @@ def header_analysis() -> None:
 
         for i, (step_num, step_name) in enumerate(nav_steps):
             is_available = step_num == 1 or state.config_completed
+            is_current = step_num == state.current_step
+
+            position = "first" if i == 0 else "last"
+            btn_state = "current" if is_current else ("disabled" if not is_available else "other")
 
             with btn_cols[i]:
-                btn_type = "primary" if step_num == state.current_step else "secondary"
+                st.markdown(
+                    f'<div class="arrow-btn arrow-btn-{position} arrow-btn-{btn_state}"></div>',
+                    unsafe_allow_html=True,
+                )
+                btn_type = "primary" if is_current else "secondary"
                 st.button(
                     step_name,
                     key=f"step_btn_{step_num}",

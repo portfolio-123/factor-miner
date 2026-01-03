@@ -57,13 +57,12 @@ def load_global_css() -> None:
     }
 
     /* ===== Arrow Breadcrumb Navigation ===== */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    div[data-testid="stHorizontalBlock"] {
-        gap: 0 !important;
+    .element-container:has(.arrow-btn) {
+        margin-bottom: 0 !important;
     }
 
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] button {
+    /* Base arrow button styles */
+    .element-container:has(.arrow-btn) + div button {
         border-radius: 0 !important;
         border: none !important;
         margin: 0 !important;
@@ -71,54 +70,41 @@ def load_global_css() -> None:
         font-size: 14px !important;
         font-weight: 500 !important;
         height: 40px !important;
-        position: relative;
         clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
     }
 
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:first-child button {
+    /* First button - no left arrow */
+    .element-container:has(.arrow-btn-first) + div button {
         clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%);
         border-radius: 4px 0 0 4px !important;
     }
 
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child button {
+    /* Last button - no right arrow */
+    .element-container:has(.arrow-btn-last) + div button {
         clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%);
         border-radius: 0 4px 4px 0 !important;
     }
 
-    /* Primary (current step) - blue */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    button[kind="primary"] {
+    /* Current step - blue */
+    .element-container:has(.arrow-btn-current) + div button {
         background-color: var(--primary) !important;
         color: white !important;
         font-weight: 600 !important;
     }
 
-    /* Secondary (other steps) - style based on state */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    button[kind="secondary"] {
+    /* Other available step - gray */
+    .element-container:has(.arrow-btn-other) + div button {
         background-color: var(--bg-secondary) !important;
         color: var(--text-secondary) !important;
     }
-
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    button[kind="secondary"]:hover:not(:disabled) {
+    .element-container:has(.arrow-btn-other) + div button:hover {
         background-color: var(--bg-hover) !important;
     }
 
-    /* Disabled buttons - locked state */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2)
-    button:disabled {
+    /* Disabled step - light gray */
+    .element-container:has(.arrow-btn-disabled) + div button {
         background-color: var(--bg-disabled) !important;
         color: var(--bg-hover) !important;
-    }
-
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(3) button {
-        padding: 10px 20px !important;
-        font-size: 14px !important;
-        font-weight: 500 !important;
-        height: 40px !important;
     }
 
     /* ===== Debug Modal Styling ===== */
