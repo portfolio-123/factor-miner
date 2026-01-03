@@ -247,17 +247,16 @@ def get_job_name(job_id: str) -> Optional[str]:
     return job_data.get("name")
 
 
-def get_grouped_jobs(fl_id: str) -> tuple[list[Job], dict[str, list[Job]]]:
+def get_grouped_jobs(fl_id: str) -> dict[str, list[Job]]:
     jobs_data = list_jobs(fl_id)
-    jobs = [Job(**j) for j in jobs_data]
 
     grouped_jobs = defaultdict(list)
-    for job in jobs:
+    for job in jobs_data:
         ds_ver = job.dataset_version
         if ds_ver:
             grouped_jobs[ds_ver].append(job)
 
-    return jobs, grouped_jobs
+    return grouped_jobs
 
 
 def sort_dataset_versions(versions: List[str]) -> List[str]:

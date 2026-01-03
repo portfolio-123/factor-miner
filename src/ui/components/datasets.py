@@ -1,0 +1,119 @@
+import streamlit as st
+
+from src.core.context import get_state, update_state
+from src.core.types import DatasetConfig, ScopeType
+from src.services.readers import get_dataset_formulas
+from src.ui.constants import SCALING_LABELS, frequency_map
+from src.ui.components.common import (
+    section_header,
+    render_info_item,
+    render_big_info_item,
+    render_section_label,
+    spacer,
+)
+
+
+def _build_norm_items(normalization) -> list[str]:
+    items = [
+        ("Scaling", SCALING_LABELS.get(normalization.scaling, str(normalization.scaling)) if normalization.scaling else "None"),
+        ("Scope", normalization.scope.title() if normalization.scope else "None"),
+        ("Trim", f"{normalization.trimPct}%" if normalization.trimPct is not None else "N/A"),
+        ("Outlier", str(normalization.outlierLimit) if normalization.outlierLimit is not None else "None"),
+        ("N/A Handling", "Middle" if normalization.naFill else "None"),
+    ]
+
+    if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
+        items.append(("ML Training End", normalization.mlTrainingEnd))
+
+    return [render_info_item(label, value) for label, value in items]
+
+
+def render_dataset_statistics(stats: dict, benchmark: str) -> None:
+    section_header("Dataset Statistics")
+
+    cols = st.columns([1, 1, 1, 2, 1], gap="small")
+    stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
+
+    stat_items = [
+        ("Rows", stats["num_rows"]),
+        ("Dates", stats["num_dates"]),
+        ("Columns", stats["num_columns"]),
+        ("Period", f"{stats['min_date']} - {stats['max_date']}"),
+        ("Benchmark", benchmark or "N/A"),
+    ]
+
+    for col, (label, value) in zip(cols, stat_items):
+        with col:
+            st.badge(label)
+            st.markdown(f"<p style='{stat_style}'>{value}</p>", unsafe_allow_html=True)
+
+
+def render_dataset_info_row(
+    config: DatasetConfig,
+    ds_ver: str | None = None,
+) -> None:
+    from src.ui.dialogs import show_formulas_modal
+
+    c1, c2, c3, c4 = st.columns([1.5, 2, 1, 1], vertical_alignment="top")
+
+    big_items = [
+        (c1, "Universe", config.universeName),
+        (c2, "Period", f"{config.startDt or 'N/A'} - {config.endDt or 'N/A'}"),
+        (c3, "Frequency", frequency_map.get(config.frequency, "N/A")),
+    ]
+    for col, label, value in big_items:
+        with col:
+            st.markdown(render_big_info_item(label, value), unsafe_allow_html=True)
+
+    with c4:
+        count = config.factorCount or 0
+        st.markdown(
+            '<div class="dataset-info-item big view-factors-trigger"><div class="label">FACTORS</div></div>',
+            unsafe_allow_html=True,
+        )
+        st.button(
+            f"View ({count})",
+            key=f"view_factors_{ds_ver}",
+            on_click=lambda ds_ver=ds_ver: update_state(formulas_ds_ver=ds_ver),
+        )
+
+        state = get_state()
+        if state.formulas_ds_ver == ds_ver:
+            formulas_df = get_dataset_formulas(state.formulas_ds_ver)
+            show_formulas_modal(formulas_df)
+
+    spacer(21)
+
+    col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
+
+    with col_left:
+        render_section_label("Other Settings")
+        items = [
+            ("Currency", config.currency),
+            ("Benchmark", config.benchmark),
+            ("Precision", config.precision),
+            ("Pit Method", config.pitMethod),
+        ]
+        st.markdown(
+            f'<div class="dataset-info-group">{"".join(render_info_item(l, v) for l, v in items)}</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_right:
+        if config.normalization:
+            render_section_label("Normalization")
+            st.markdown(
+                f'<div class="dataset-info-group">{"".join(_build_norm_items(config.normalization))}</div>',
+                unsafe_allow_html=True,
+            )
+
+
+def render_dataset_header(
+    dataset_info: DatasetConfig | None,
+    dataset_version: str,
+) -> None:
+    config = dataset_info or DatasetConfig()
+
+    with st.container(border=True):
+        render_dataset_info_row(config, dataset_version)
+        spacer(8)

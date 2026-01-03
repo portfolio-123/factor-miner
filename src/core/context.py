@@ -105,30 +105,17 @@ def update_state(**kwargs) -> None:
 
 
 def reset_analysis_state() -> None:
-    """Resets the analysis state to default values for a new analysis."""
     update_state(
         page="new_analysis",
         current_step=1,
         current_job_id=None,
         config_completed=False,
-        # Calculation parameters defaults
-        min_alpha=0.5,
-        top_x_pct=20.0,
-        bottom_x_pct=20.0,
-        correlation_threshold=0.5,
-        n_features=10,
-        # Data state
-        benchmark_data=None,
-        benchmark_ticker=DEFAULT_BENCHMARK,
-        # Results
+        # clear previous results
         all_metrics=None,
         all_corr_matrix=None,
-        # Error states
+        # clear errors
         config_error=None,
         analysis_error=None,
-        # Filter states
-        filter_correlation=0.5,
-        filter_n_features=10,
     )
 
 

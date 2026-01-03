@@ -8,7 +8,7 @@ from src.core.context import get_state
 import pandas as pd
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
-
+from src.workers.manager import get_grouped_jobs, sort_dataset_versions
 from src.core.types import DatasetConfig
 
 load_dotenv()
@@ -163,6 +163,47 @@ def get_current_dataset_info(
         return current_version, dataset_info
     except (ValueError, Exception):
         return None, None
+
+
+def get_all_dataset_info(
+    fl_id: str,
+    versions: list[str],
+    current_version: Optional[str],
+    current_info: Optional[DatasetConfig],
+) -> Dict[str, DatasetConfig]:
+    ds_info_map: Dict[str, DatasetConfig] = {}
+
+    # if we already have the current dataset's info loaded, use it directly
+    if current_version and current_info:
+        ds_info_map[current_version] = current_info
+
+    # for all other versions, load their metadata from the backup parquet files
+    for ver in versions:
+        if ver not in ds_info_map:
+            path = get_dataset_file_path(fl_id, ver)
+            if path.exists():
+                info = ParquetDataReader(str(path)).get_dataset_info()
+                if info:
+                    ds_info_map[ver] = info
+
+    return ds_info_map
+
+
+def get_history_page_data(fl_id: str, dataset_path: str):
+    # get the active dataset info and the jobs grouped by version
+    active_version, active_info = get_current_dataset_info(dataset_path)
+    jobs_by_version = get_grouped_jobs(fl_id)
+
+    # get all versions from the jobs and add the active version if it exists
+    all_versions = set(jobs_by_version.keys())
+    if active_version:
+        all_versions.add(active_version)
+    versions = sort_dataset_versions(list(all_versions))
+
+    # get the metadata for all versions
+    version_metadata = get_all_dataset_info(fl_id, versions, active_version, active_info)
+
+    return active_version, versions, version_metadata, jobs_by_version
 
 
 def get_dataset_formulas(ds_ver: str) -> Optional[pd.DataFrame]:

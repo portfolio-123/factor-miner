@@ -50,3 +50,34 @@ def serialize_dataframe(df: pd.DataFrame) -> str:
 
 def deserialize_dataframe(json_str: str) -> pd.DataFrame:
     return pd.read_json(StringIO(json_str), orient="split")
+
+
+def format_dataset_option(
+    ver: str, ds_info_map: dict, current_version: str | None
+) -> str:
+    info = ds_info_map.get(ver)
+    has_name = info and info.name
+    prefix = "\U0001F7E2\u200B [READY] " if ver == current_version else ""
+
+    if has_name:
+        return f"{prefix}{info.name}"
+
+    timestamp_str = format_timestamp(ver)
+    return f"{prefix}Unnamed - {timestamp_str}"
+
+
+def add_formula_column(
+    df: pd.DataFrame,
+    formulas_df: pd.DataFrame | None,
+    factor_col: str = "Factor",
+) -> pd.DataFrame:
+    if formulas_df is None or "name" not in formulas_df.columns:
+        return df
+
+    formula_map = formulas_df.drop_duplicates(subset=["name"]).set_index("name")[
+        "formula"
+    ]
+    result = df.copy()
+    factor_idx = result.columns.get_loc(factor_col)
+    result.insert(factor_idx + 1, "Formula", result[factor_col].map(formula_map))
+    return result

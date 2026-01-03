@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 from src.core.context import get_state, update_state
 from src.core.constants import JobStatus
-from src.ui.components import section_header, render_results_table, copy_to_clipboard_button, add_formula_column
+from src.ui.components import section_header, render_results_table, copy_to_clipboard_button
+from src.core.utils import add_formula_column
 from src.core.calculations import select_best_features as _select_best_features
 from src.workers.manager import delete_job, read_job
 from src.services.processing import process_step2_completion, _merge_worker_logs
