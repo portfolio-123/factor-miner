@@ -131,38 +131,6 @@ def load_global_css() -> None:
         height: 40px !important;
     }
 
-    /* ===== Loading Spinner Button ===== */
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-
-    .spinner-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        background-color: #2196F3;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 6px;
-        font-weight: 500;
-        width: 100%;
-        opacity: 0.8;
-        cursor: not-allowed;
-        height: 40px;
-        box-sizing: border-box;
-    }
-
-    .spinner-button .spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid rgba(255,255,255,0.3);
-        border-top-color: white;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    }
-
     /* ===== Debug Modal Styling ===== */
     div[data-testid="stModal"] > div {
         max-height: 95vh !important;
@@ -189,45 +157,10 @@ def load_global_css() -> None:
         margin: 0.25rem 0 0.5rem 0 !important;
     }
 
-    /* Job card link styling */
-    a.job-card-link {
-        display: block !important;
-        text-decoration: none !important;
-        color: inherit !important;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        margin-bottom: 8px;
-        transition: all 0.2s ease;
-        background-color: white;
-    }
-    a.job-card-link:hover {
-        border-color: #2196F3 !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-        text-decoration: none !important;
-        color: inherit !important;
-    }
-    /* Ensure content inside link inherits color */
-    a.job-card-link * {
-        color: inherit;
-    }
-
     /* ===== Dataset Info Styles ===== */
-    .dataset-info-row {
-        display: flex;
-        align-items: flex-start;
-        gap: 24px;
-        margin-bottom: 12px;
-    }
     .dataset-info-group {
         display: flex;
         gap: 24px;
-    }
-    .dataset-info-divider {
-        width: 1px;
-        background: #dee2e6;
-        align-self: stretch;
-        margin: 0 8px;
     }
     .dataset-info-item .label {
         font-size: 11px;
@@ -254,46 +187,7 @@ def load_global_css() -> None:
         color: #1a1a1a;
         line-height: 1.2;
     }
-    
-    /* Hide the button that follows factors-view-link */
-    .element-container:has(.factors-view-link) ~ .element-container,
-    div[data-testid="stElementContainer"]:has(.factors-view-link) ~ div[data-testid="stElementContainer"] {
-        display: none !important;
-    }
-    
-    .element-container:has(.factors-with-button) ~ .element-container button,
-    div[data-testid="stElementContainer"]:has(.factors-with-button) ~ div[data-testid="stElementContainer"] button {
-        padding: 0 4px !important;
-        height: auto !important;
-        min-height: 0 !important;
-        font-size: 14px !important;
-        font-weight: 400 !important;
-        border: none !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        color: #2196F3 !important;
-        text-decoration: underline !important;
-        display: inline-block !important;
-        vertical-align: baseline !important;
-        box-shadow: none !important;
-        width: auto !important;
-        margin: 0 !important;
-    }
-    
-    .element-container:has(.factors-with-button) ~ .element-container button:hover,
-    div[data-testid="stElementContainer"]:has(.factors-with-button) ~ div[data-testid="stElementContainer"] button:hover {
-        background: transparent !important;
-        background-color: transparent !important;
-        color: #1976D2 !important;
-    }
-    
-    .element-container:has(.factors-with-button) ~ .element-container button p,
-    div[data-testid="stElementContainer"]:has(.factors-with-button) ~ div[data-testid="stElementContainer"] button p {
-        margin: 0 !important;
-        padding: 0 !important;
-        font-size: 14px !important;
-        font-weight: 400 !important;
-    }
+
     .dataset-info-item .value.muted {
         color: #6c757d;
     }
@@ -423,13 +317,6 @@ def load_global_css() -> None:
     }
 
 
-    .analysis-params-row {
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
-        width: 100%;
-        padding-bottom: 16px;
-    }
     .breadcrumb {
         font-size: 14px;
         margin-bottom: -15px;
