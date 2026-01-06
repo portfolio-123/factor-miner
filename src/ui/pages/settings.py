@@ -61,9 +61,9 @@ def render() -> None:
 
     with st.columns([4, 1])[1]:
         button_placeholder = st.empty()
-        if button_placeholder.button("Continue", type="primary", use_container_width=True):
+        if button_placeholder.button("Continue", type="primary", width="stretch"):
             button_placeholder.button(
-                "Processing...", type="primary", icon="spinner", disabled=True, use_container_width=True
+                "Processing...", type="primary", icon="spinner", disabled=True, width="stretch"
             )
             process_config()
             st.rerun()

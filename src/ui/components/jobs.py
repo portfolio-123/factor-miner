@@ -49,7 +49,7 @@ def render_job_card(job: Job) -> None:
     """
     st.markdown(card_html, unsafe_allow_html=True)
 
-    if st.button("Open Analysis", key=f"job_btn_{job.id}", use_container_width=True):
+    if st.button("Open Analysis", key=f"job_btn_{job.id}", width="stretch"):
         if restore_job_state(job.id):
             st.rerun()
         st.error(f"Failed to load job {job.id}")

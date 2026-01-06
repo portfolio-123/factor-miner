@@ -77,14 +77,19 @@ def render() -> None:
                 "New Analysis",
                 type="primary",
                 key="new_analysis_btn",
-                use_container_width=True,
+                width="stretch",
                 on_click=reset_analysis_state,
             )
+    else:
+        st.info("You can only create a new analysis with your latest dataset")
 
-        if not selected_jobs:
-            st.caption("No analyses yet for this dataset version")
-            return
+    if not selected_jobs:
+        st.markdown(
+            "<p style='text-align: center; color: gray;'>No analyses yet for this dataset version</p>",
+            unsafe_allow_html=True,
+        )
+        return
 
-        section_header("Past Analyses")
-        for job in selected_jobs:
-            render_job_card(job)
+    section_header("Past Analyses")
+    for job in selected_jobs:
+        render_job_card(job)

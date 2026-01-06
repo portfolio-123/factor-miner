@@ -21,13 +21,13 @@ def render_formulas_grid(formulas_df: pd.DataFrame) -> None:
 def render_results_table(
     best_features: list,
     metrics_df: pd.DataFrame,
-) -> None:
+) -> pd.DataFrame | None:
     if not best_features:
         st.warning(
             "No features found matching the current criteria."
             "Try adjusting the correlation threshold or minimum alpha."
         )
-        return
+        return None
 
     # filter to best features and sort by absolute alpha
     best_metrics_df = metrics_df[metrics_df["column"].isin(best_features)].copy()
@@ -65,6 +65,8 @@ def render_results_table(
             "P-Value": st.column_config.TextColumn("P-Value", width="small"),
         },
     )
+
+    return display_df
 
 
 def render_dataset_preview(df: pd.DataFrame) -> None:

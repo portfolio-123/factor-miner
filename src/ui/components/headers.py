@@ -54,7 +54,7 @@ def header_analysis() -> None:
                     key=f"step_btn_{step_num}",
                     type=btn_type,
                     disabled=not is_available,
-                    use_container_width=True,
+                    width="stretch",
                     on_click=update_state if is_available else None,
                     kwargs={"current_step": step_num} if is_available else None,
                 )
@@ -64,7 +64,7 @@ def header_analysis() -> None:
             if st.button(
                 "Logs",
                 key="debug_btn_analysis",
-                use_container_width=True,
+                width="stretch",
                 type="primary",
             ):
                 update_state(show_debug_modal=True)

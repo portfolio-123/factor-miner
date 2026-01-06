@@ -1,42 +1,6 @@
 import os
 
 import streamlit as st
-import streamlit.components.v1 as components
-from streamlit_extras.stylable_container import stylable_container
-
-
-def copy_to_clipboard_button(
-    text: str,
-    label: str = "Copy to Clipboard",
-    key: str = "copy_btn",
-    button_type: str = "secondary",
-) -> None:
-    escaped = text.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
-    container_key = f"{key}_container"
-
-    with stylable_container(key=container_key, css_styles=""):
-        st.button(label, key=key, type=button_type, use_container_width=True)
-
-    components.html(
-        f"""
-        <script>
-            const csv = `{escaped}`;
-            const btn = window.parent.document.querySelector('[data-key="{container_key}"] button');
-            if (btn && !btn._copyAttached) {{
-                btn._copyAttached = true;
-                btn.addEventListener('click', (e) => {{
-                    e.preventDefault();
-                    navigator.clipboard.writeText(csv);
-                    const txt = btn.querySelector('p') || btn;
-                    const orig = txt.textContent;
-                    txt.textContent = 'Copied!';
-                    setTimeout(() => txt.textContent = orig, 1000);
-                }});
-            }}
-        </script>
-        """,
-        height=0,
-    )
 
 
 def render_session_expired(fl_id: str | None) -> None:
