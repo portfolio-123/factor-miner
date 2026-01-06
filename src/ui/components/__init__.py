@@ -1,5 +1,4 @@
 from src.ui.components.common import (
-    copy_to_clipboard_button,
     render_session_expired,
     section_header,
     render_info_item,
@@ -34,7 +33,6 @@ from src.ui.components.headers import (
 )
 
 __all__ = [
-    "copy_to_clipboard_button",
     "render_session_expired",
     "section_header",
     "render_info_item",
