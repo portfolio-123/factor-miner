@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -15,6 +16,18 @@ def update_parquet_metadata(path: Path, key: bytes, updates: Dict[str, Any]) -> 
 
     new_meta = {**existing_meta, key: json.dumps(current).encode("utf-8")}
     pq.write_table(table.replace_schema_metadata(new_meta), path)
+
+
+def update_parquet_metadata_preserve_mtime(
+    path: Path, key: bytes, updates: Dict[str, Any]
+) -> None:
+    stat = os.stat(path)
+    original_atime = stat.st_atime
+    original_mtime = stat.st_mtime
+
+    update_parquet_metadata(path, key, updates)
+
+    os.utime(path, (original_atime, original_mtime))
 
 
 def backup_parquet_metadata(source_path: str, dest_path: Path) -> None:

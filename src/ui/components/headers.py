@@ -40,14 +40,7 @@ def header_analysis() -> None:
             is_available = step_num == 1 or state.config_completed
             is_current = step_num == state.current_step
 
-            position = "first" if i == 0 else "last"
-            btn_state = "current" if is_current else ("disabled" if not is_available else "other")
-
             with btn_cols[i]:
-                st.markdown(
-                    f'<div class="arrow-btn arrow-btn-{position} arrow-btn-{btn_state}"></div>',
-                    unsafe_allow_html=True,
-                )
                 btn_type = "primary" if is_current else "secondary"
                 st.button(
                     step_name,
@@ -60,7 +53,7 @@ def header_analysis() -> None:
                 )
 
     with col_logs:
-        with st.columns([1, 1])[0]:
+        with st.columns([1, 1])[1]:
             if st.button(
                 "Logs",
                 key="debug_btn_analysis",

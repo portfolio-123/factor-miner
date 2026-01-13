@@ -17,7 +17,11 @@ from src.services.parquet_utils import (
     get_file_version,
     get_dataset_file_path,
 )
-from src.services.writers import update_parquet_metadata, backup_parquet_metadata
+from src.services.writers import (
+    update_parquet_metadata,
+    update_parquet_metadata_preserve_mtime,
+    backup_parquet_metadata,
+)
 from src.core.types import Job
 
 load_dotenv()
@@ -45,19 +49,18 @@ def _write_job(job_id: str, job_data: dict) -> None:
 def update_dataset_info(
     dataset_path: str, dataset_version: str, updates: Dict[str, Any]
 ) -> bool:
+
     try:
         state = get_state()
         current_version = get_file_version(dataset_path)
+        backup_path = get_dataset_file_path(state.factor_list_uid, dataset_version)
+
+        if backup_path.exists():
+            update_parquet_metadata(backup_path, b"dataset", updates)
 
         if dataset_version == current_version:
-            path = Path(dataset_path)
-        else:
-            path = get_dataset_file_path(state.factor_list_uid, dataset_version)
+            update_parquet_metadata_preserve_mtime(Path(dataset_path), b"dataset", updates)
 
-        if not path.exists():
-            return False
-
-        update_parquet_metadata(path, b"dataset", updates)
         return True
     except Exception:
         return False

@@ -44,18 +44,18 @@ def get_all_dataset_info(
 ) -> Dict[str, DatasetConfig]:
     ds_info_map: Dict[str, DatasetConfig] = {}
 
-    # if we already have the current dataset's info loaded, use it directly
-    if current_version and current_info:
-        ds_info_map[current_version] = current_info
-
-    # for all other versions, load their metadata from the backup parquet files
     for ver in versions:
-        if ver not in ds_info_map:
-            path = get_dataset_file_path(fl_id, ver)
-            if path.exists():
-                info = ParquetDataReader(str(path)).get_dataset_info()
-                if info:
-                    ds_info_map[ver] = info
+        # Always try backup first - it may have edited name/description
+        backup_path = get_dataset_file_path(fl_id, ver)
+        if backup_path.exists():
+            info = ParquetDataReader(str(backup_path)).get_dataset_info()
+            if info:
+                ds_info_map[ver] = info
+                continue
+
+        # Fall back to live file info for current version (no backup = no jobs yet)
+        if ver == current_version and current_info:
+            ds_info_map[ver] = current_info
 
     return ds_info_map
 
