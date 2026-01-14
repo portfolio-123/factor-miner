@@ -44,17 +44,15 @@ def run_analysis(job_id: str, params: AnalysisParams) -> dict:
     start_date, end_date = get_dataset_date_range(date_df)
 
     log(f"Fetching benchmark data for {params.benchmark_ticker}...")
-    benchmark_data, error = fetch_benchmark_data(
-        benchmark_ticker=params.benchmark_ticker,
-        access_token=params.access_token,
-        start_date=start_date,
-        end_date=end_date,
-    )
-
-    clear_job_credentials(job_id)
-
-    if error:
-        raise ValueError(f"Failed to fetch benchmark data: {error}")
+    try:
+        benchmark_data = fetch_benchmark_data(
+            benchmark_ticker=params.benchmark_ticker,
+            access_token=params.access_token,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    finally:
+        clear_job_credentials(job_id)
 
     log("Benchmark data fetched successfully")
 

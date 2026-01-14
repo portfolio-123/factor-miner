@@ -1,5 +1,7 @@
 import streamlit as st
 
+from src.core.context import update_state
+
 
 def render_auth_form() -> None:
     st.markdown("<div style='height: 15vh'></div>", unsafe_allow_html=True)
@@ -22,8 +24,7 @@ def render_auth_form() -> None:
 
             if submitted:
                 if api_id and api_key:
-                    st.session_state["login_api_id"] = api_id
-                    st.session_state["login_api_key"] = api_key
+                    update_state(api_id=api_id, api_key=api_key)
                     st.rerun()
                 else:
                     st.error("Please enter both API ID and API Key")

@@ -3,8 +3,6 @@ from typing import Any
 from io import StringIO
 from datetime import datetime
 import os
-import streamlit as st
-from streamlit_local_storage import LocalStorage
 import pandas as pd
 
 
@@ -37,11 +35,6 @@ def locate_factor_list_file(fl_id: str) -> str | None:
 
     return str(path)
 
-
-def get_local_storage():
-    if "local_storage" not in st.session_state:
-        st.session_state.local_storage = LocalStorage()
-    return st.session_state.local_storage
 
 
 def serialize_dataframe(df: pd.DataFrame) -> str:

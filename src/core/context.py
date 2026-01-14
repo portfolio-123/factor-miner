@@ -55,7 +55,8 @@ class AppState:
 
     # auth states
     user_payload: Optional[dict] = None
-    auth_check_complete: bool = False
+    api_id: Optional[str] = None
+    api_key: Optional[str] = None
 
     # filter states (results page)
     filter_correlation: float = 0.5
@@ -70,38 +71,40 @@ def get_state() -> AppState:
 
 def update_state(**kwargs) -> None:
     state = get_state()
-
     for key, value in kwargs.items():
-        if hasattr(state, key):
-            setattr(state, key, value)
+        if not hasattr(state, key):
+            raise ValueError(f"Unknown state key: {key}")
+        setattr(state, key, value)
 
-    # preserve fl_id if it exists in state
+
+def sync_url_for_results(job_id: str) -> None:
+    """Sync URL when navigating to results page."""
+    state = get_state()
     if state.factor_list_uid:
         st.query_params["fl_id"] = state.factor_list_uid
+    st.query_params["job_id"] = job_id
+    st.query_params.pop("new_analysis", None)
+    st.query_params.pop("step", None)
 
-    # determine if this call explicitly navigated to history
-    explicit_history_nav = ("page" in kwargs) and (kwargs["page"] == "history")
 
-    if state.page == "new_analysis":
-        if state.current_job_id:
-            st.query_params["job_id"] = state.current_job_id
-            st.query_params.pop("new_analysis", None)
-            st.query_params.pop("step", None)
-        else:
-            st.query_params["new_analysis"] = "true"
-            st.query_params["step"] = str(state.current_step)
-            st.query_params.pop("job_id", None)
+def sync_url_for_new_analysis(step: int) -> None:
+    """Sync URL when on new analysis page."""
+    state = get_state()
+    if state.factor_list_uid:
+        st.query_params["fl_id"] = state.factor_list_uid
+    st.query_params["new_analysis"] = "true"
+    st.query_params["step"] = str(step)
+    st.query_params.pop("job_id", None)
 
-    if state.page == "results":
-        st.query_params["job_id"] = state.current_job_id
-        st.query_params.pop("new_analysis", None)
-        st.query_params.pop("step", None)
 
-    # clear analysis params when explicitly navigating to history.
-    if explicit_history_nav:
-        st.query_params.pop("job_id", None)
-        st.query_params.pop("step", None)
-        st.query_params.pop("new_analysis", None)
+def sync_url_for_history() -> None:
+    """Sync URL when navigating to history page."""
+    state = get_state()
+    if state.factor_list_uid:
+        st.query_params["fl_id"] = state.factor_list_uid
+    st.query_params.pop("job_id", None)
+    st.query_params.pop("new_analysis", None)
+    st.query_params.pop("step", None)
 
 
 def reset_analysis_state() -> None:
@@ -117,6 +120,7 @@ def reset_analysis_state() -> None:
         config_error=None,
         analysis_error=None,
     )
+    sync_url_for_new_analysis(1)
 
 
 def add_debug_log(message: str, without_timestamp: bool = False) -> None:
@@ -133,3 +137,8 @@ def clear_debug_logs() -> None:
     state = get_state()
     state.debug_logs = []
     add_debug_log("Logs cleared")
+
+
+def clear_credentials() -> None:
+    """Clear login credentials after use."""
+    update_state(api_id=None, api_key=None)
