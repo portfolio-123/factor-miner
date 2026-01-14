@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from src.core.context import get_state, update_state
 from src.core.constants import JobStatus
-from src.ui.components import section_header, render_results_table, copy_to_clipboard_button
+from src.ui.components import section_header, render_results_table
 from src.core.utils import add_formula_column
 from src.core.calculations import select_best_features as _select_best_features
 from src.workers.manager import delete_job, read_job
@@ -38,8 +38,8 @@ def _on_job_completed(job_data: dict) -> None:
 
 def _on_job_error(job_id: str, job_data: dict) -> None:
     _merge_worker_logs(job_data)
-    error_msg = job_data.get('error', '')
-    display_msg = error_msg.split('\n')[0] if error_msg else 'Unknown error'
+    error_msg = job_data.get("error", "")
+    display_msg = error_msg.split("\n")[0] if error_msg else "Unknown error"
     update_state(
         analysis_error=f"Analysis failed: {display_msg}",
         current_job_id=None,
@@ -54,7 +54,7 @@ def _render_job_progress(job_id: str) -> None:
     if job_data is None:
         return
 
-    status = job_data.get('status')
+    status = job_data.get("status")
 
     if status == JobStatus.COMPLETED:
         _on_job_completed(job_data)
@@ -64,10 +64,10 @@ def _render_job_progress(job_id: str) -> None:
         _on_job_error(job_id, job_data)
         return
 
-    progress = job_data.get('progress', {})
-    completed = progress.get('completed', 0)
-    total = progress.get('total', 0)
-    current_factor = progress.get('current_factor', '')
+    progress = job_data.get("progress", {})
+    completed = progress.get("completed", 0)
+    total = progress.get("total", 0)
+    current_factor = progress.get("current_factor", "")
 
     _, center_col, _ = st.columns([1, 2, 1])
 
@@ -76,7 +76,9 @@ def _render_job_progress(job_id: str) -> None:
         st.subheader("Running Factor Analysis")
 
         if total > 0:
-            st.progress(completed / total, text=f"{completed} / {total} factors analyzed")
+            st.progress(
+                completed / total, text=f"{completed} / {total} factors analyzed"
+            )
         else:
             st.progress(0, text="Initializing...")
 
@@ -131,9 +133,7 @@ def _render_filter_and_results() -> None:
 
     section_header("Best Performing Factors")
 
-    filtered_best_features = render_results_table(
-        best_features, state.all_metrics
-    )
+    filtered_best_features = render_results_table(best_features, state.all_metrics)
 
     _render_action_buttons(filtered_best_features)
 
@@ -158,9 +158,6 @@ def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
     # comma delimited for file download (with Formula in second position)
     csv_to_download = _prepare_download_csv(display_df)
 
-    with col1:
-        copy_to_clipboard_button(csv_to_copy, key="copy_clipboard_btn")
-
     with col2:
         st.download_button(
             type="primary",
@@ -168,7 +165,7 @@ def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
             data=csv_to_download,
             file_name=f"{state.factor_list_uid}_best_features.csv",
             mime="text/csv",
-            width="stretch"
+            width="stretch",
         )
 
 
@@ -179,11 +176,13 @@ def render() -> None:
         st.error(state.analysis_error)
         return
 
-
     # if there's a job being processed, render progress component
     if state.current_job_id:
         job_data = read_job(state.current_job_id)
-        if job_data and job_data.get('status') in (JobStatus.PENDING, JobStatus.RUNNING):
+        if job_data and job_data.get("status") in (
+            JobStatus.PENDING,
+            JobStatus.RUNNING,
+        ):
             _render_job_progress(state.current_job_id)
             return
 
