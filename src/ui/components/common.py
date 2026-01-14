@@ -2,7 +2,6 @@ import streamlit as st
 
 
 def render_auth_form() -> None:
-    st.markdown("<div style='height: 15vh'></div>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 2, 1])
     with col:
         st.markdown("### Login")
@@ -27,7 +26,6 @@ def render_auth_form() -> None:
                     st.rerun()
                 else:
                     st.error("Please enter both API ID and API Key")
-
 
 
 def section_header(title: str) -> None:
