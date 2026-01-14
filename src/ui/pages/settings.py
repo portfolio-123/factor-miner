@@ -14,46 +14,41 @@ def render() -> None:
         "Factor List UID",
         value=state.factor_list_uid,
         disabled=True,
-        key="factor_list_uid",
     )
 
     section_header("Configuration")
 
     col1, col2 = st.columns(2)
     with col1:
-        st.text_input(
+        benchmark_ticker = st.text_input(
             "Benchmark Ticker",
             value=state.benchmark_ticker,
-            key="benchmark_ticker",
         )
     with col2:
-        st.number_input(
+        min_alpha = st.number_input(
             "Min Absolute Alpha (%)",
             min_value=0.0,
             max_value=100.0,
             value=state.min_alpha,
             step=0.1,
-            key="min_alpha",
         )
 
     col1, col2 = st.columns(2)
     with col1:
-        st.number_input(
+        top_x_pct = st.number_input(
             "Top X (%)",
             min_value=1,
             max_value=100,
             value=int(state.top_x_pct),
             step=1,
-            key="top_x_pct",
         )
     with col2:
-        st.number_input(
+        bottom_x_pct = st.number_input(
             "Bottom X (%)",
             min_value=1,
             max_value=100,
             value=int(state.bottom_x_pct),
             step=1,
-            key="bottom_x_pct",
         )
 
     if state.config_error:
@@ -65,5 +60,10 @@ def render() -> None:
             button_placeholder.button(
                 "Processing...", type="primary", icon="spinner", disabled=True, width="stretch"
             )
-            process_config()
+            process_config(
+                benchmark_ticker=benchmark_ticker,
+                min_alpha=min_alpha,
+                top_x_pct=top_x_pct,
+                bottom_x_pct=bottom_x_pct,
+            )
             st.rerun()

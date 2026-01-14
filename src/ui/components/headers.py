@@ -3,8 +3,12 @@ import re
 
 import streamlit as st
 
-from src.core.context import get_state, update_state, clear_debug_logs
-from src.services.parquet_utils import get_current_dataset_info
+from src.core.context import get_state, update_state, clear_debug_logs, sync_url_for_history, sync_url_for_new_analysis
+
+
+def _navigate_to_step(step: int) -> None:
+    update_state(current_step=step)
+    sync_url_for_new_analysis(step)
 
 
 def header_back() -> None:
@@ -12,6 +16,7 @@ def header_back() -> None:
     with col_back:
         if st.button("Back", type="secondary", key="back_btn"):
             update_state(page="history", current_job_id=None)
+            sync_url_for_history()
             st.rerun()
 
 
@@ -30,6 +35,7 @@ def header_analysis() -> None:
         with st.columns([1, 1])[0]:
             if st.button("Back", type="secondary", key="back_btn_analysis"):
                 update_state(page="history", current_job_id=None)
+                sync_url_for_history()
                 st.rerun()
 
     with col_nav:
@@ -48,8 +54,8 @@ def header_analysis() -> None:
                     type=btn_type,
                     disabled=not is_available,
                     width="stretch",
-                    on_click=update_state if is_available else None,
-                    kwargs={"current_step": step_num} if is_available else None,
+                    on_click=_navigate_to_step if is_available else None,
+                    kwargs={"step": step_num} if is_available else None,
                 )
 
     with col_logs:
@@ -94,10 +100,13 @@ def render_page_header() -> None:
         ("FactorMiner", None),
     ]
 
-    _, dataset_info = get_current_dataset_info(state.dataset_path)
+    # Get name from API response
+    fl_name = "Unknown"
+    if state.user_payload and state.user_payload.get("factorListName"):
+        fl_name = state.user_payload["factorListName"]
 
     render_breadcrumb(steps)
-    st.title(f"{dataset_info.flName if dataset_info else 'Unknown'} ({fl_id})")
+    st.title(f"{fl_name} ({fl_id})")
 
 
 @st.dialog("Debug Logs", width="large")

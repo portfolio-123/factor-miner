@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional
 import os
 
 import pandas as pd
@@ -31,30 +31,30 @@ def authenticate(api_id: str, api_key: str) -> Optional[str]:
         return None
 
 
-def fetch_factor_list(
-    factor_list_uid: str,
-    access_token: str,
-) -> Tuple[Optional[dict], Optional[str]]:
+def verify_factor_list_access(factor_list_uid: str, access_token: str) -> dict:
     try:
         url = f"{API_BASE_URL}/factorList/{factor_list_uid}"
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
+            "Source": "0",
         }
         response = requests.get(url, headers=headers, timeout=30)
 
         if response.status_code == 401:
-            return None, "Session expired, please re-authenticate"
+            raise ValueError("Session expired, please re-authenticate")
         if response.status_code == 404:
-            return None, "Factor List not accessible or not found"
+            raise ValueError("Factor List not accessible or not found")
         if response.status_code != 200:
-            return None, f"Error: {response.status_code} - {response.text}"
+            raise ValueError(f"Error: {response.status_code} - {response.text}")
 
-        return response.json(), None
+        return response.json()
     except requests.exceptions.ConnectionError:
-        return None, "Connection refused"
+        raise ValueError("Connection refused")
+    except ValueError:
+        raise
     except Exception as e:
-        return None, f"Error: {str(e)}"
+        raise ValueError(f"Error: {str(e)}")
 
 
 def fetch_benchmark_data(
@@ -62,10 +62,10 @@ def fetch_benchmark_data(
     access_token: str,
     start_date: str,
     end_date: str,
-) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+) -> pd.DataFrame:
     try:
         if not access_token:
-            return None, "Missing access token"
+            raise ValueError("Missing access token")
 
         url = f"{API_BASE_URL}/data/prices/{benchmark_ticker}"
 
@@ -80,18 +80,16 @@ def fetch_benchmark_data(
         response = requests.get(url, headers=headers, params=params, timeout=30)
 
         if response.status_code == 401:
-            return None, "401 Unauthorized: Invalid Token or Credentials."
+            raise ValueError("401 Unauthorized: Invalid Token or Credentials.")
 
         if response.status_code == 403:
-            return (
-                None,
-                f"403 Forbidden: Access denied for ticker '{benchmark_ticker}'.",
+            raise ValueError(
+                f"403 Forbidden: Access denied for ticker '{benchmark_ticker}'."
             )
 
         if response.status_code != 200:
-            return (
-                None,
-                f"Error fetching data: {response.status_code} - {response.text}",
+            raise ValueError(
+                f"Error fetching data: {response.status_code} - {response.text}"
             )
 
         data = response.json()
@@ -101,11 +99,15 @@ def fetch_benchmark_data(
             benchmark_df = benchmark_df.rename(columns={"date": "dt"})
 
         if not _validate_benchmark_data(benchmark_df):
-            return None, f"Benchmark ticker '{benchmark_ticker}' returned invalid data"
+            raise ValueError(
+                f"Benchmark ticker '{benchmark_ticker}' returned invalid data"
+            )
 
-        return benchmark_df, None
+        return benchmark_df
 
     except requests.exceptions.ConnectionError:
-        return None, "Connection refused"
+        raise ValueError("Connection refused")
+    except ValueError:
+        raise
     except Exception as e:
-        return None, f"Error: {str(e)}"
+        raise ValueError(f"Error: {str(e)}")

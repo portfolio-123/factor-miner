@@ -2,28 +2,28 @@ import os
 from datetime import datetime
 from typing import Optional
 
-import streamlit as st
-
-from src.core.context import get_state, update_state, add_debug_log
+from src.core.context import get_state, update_state, add_debug_log, sync_url_for_results
 from src.core.types import AnalysisParams
 from src.core.calculations import get_dataset_date_range
-from src.core.constants import DEFAULT_BENCHMARK
 from src.workers.manager import start_analysis_job, get_job_results, delete_job
 from src.services.readers import ParquetDataReader
 from src.services.parquet_utils import get_file_version
 
 
-def process_config() -> bool:
+def process_config(
+    benchmark_ticker: str,
+    min_alpha: float,
+    top_x_pct: int,
+    bottom_x_pct: int,
+) -> bool:
     state = get_state()
 
-    # sync form values to global state
+    # Update state with form values
     update_state(
-        benchmark_ticker=st.session_state.get(
-            "benchmark_ticker", DEFAULT_BENCHMARK
-        ).strip(),
-        min_alpha=st.session_state.get("min_alpha", 0.5),
-        top_x_pct=st.session_state.get("top_x_pct", 20),
-        bottom_x_pct=st.session_state.get("bottom_x_pct", 20),
+        benchmark_ticker=benchmark_ticker.strip(),
+        min_alpha=min_alpha,
+        top_x_pct=top_x_pct,
+        bottom_x_pct=bottom_x_pct,
         config_error=None,
     )
 
@@ -114,6 +114,7 @@ def process_step2_completion(job_data: dict) -> Optional[str]:
             all_corr_matrix=corr_matrix,
             page="results",
         )
+        sync_url_for_results(state.current_job_id)
         return None
     except Exception as e:
         delete_job(state.current_job_id)

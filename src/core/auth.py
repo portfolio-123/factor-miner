@@ -2,10 +2,12 @@ import os
 import json
 import streamlit as st
 from jose import jwe
+from streamlit_cookies_controller import CookieController
 
-from src.core.context import get_state, update_state
+from src.core.constants import AUTH_COOKIE_KEY
+from src.core.context import get_state, update_state, clear_credentials
 from src.ui.components import render_auth_form
-from src.services.p123_client import authenticate, fetch_factor_list
+from src.services.p123_client import authenticate, verify_factor_list_access
 
 
 @st.cache_resource
@@ -25,25 +27,24 @@ def _decrypt_token(token: str, secret_key: bytes):
         return None
 
 
-def _verify_api_credentials(api_id: str, api_key: str, factor_list_uid: str):
+def _verify_api_credentials(api_id: str, api_key: str, factor_list_uid: str) -> dict:
     access_token = authenticate(api_id, api_key)
     if not access_token:
-        return None, "Authentication failed. Invalid API credentials."
+        raise ValueError("Authentication failed. Invalid API credentials.")
 
-    factor_list_data, error = fetch_factor_list(factor_list_uid, access_token)
-    if error:
-        return None, error
+    factor_list_data = verify_factor_list_access(factor_list_uid, access_token)
 
     return {
         "accessToken": access_token,
         "factorListUid": factor_list_uid,
-        "factorListData": factor_list_data,
-    }, None
+        "factorListName": factor_list_data.get("name", "Unknown"),
+    }
 
 
 def authenticate_user():
     state = get_state()
     fl_id = state.factor_list_uid
+    cookies = CookieController()
 
     if state.user_payload and state.user_payload.get("accessToken"):
         return
@@ -58,28 +59,41 @@ def authenticate_user():
                 api_key = payload.get("apiKey")
                 api_id = payload.get("apiId")
                 if api_key and api_id:
-                    result, error = _verify_api_credentials(api_id, api_key, fl_id)
-                    if result:
+                    try:
+                        result = _verify_api_credentials(api_id, api_key, fl_id)
                         update_state(user_payload=result)
+                        cookies.set(AUTH_COOKIE_KEY, result["accessToken"])
                         return
-                    st.error(error)
-                    st.stop()
+                    except ValueError as e:
+                        st.error(str(e))
+                        st.stop()
         st.error("Invalid or expired token")
         st.stop()
 
-    if "login_api_key" in st.session_state and "login_api_id" in st.session_state:
-        api_key = st.session_state.pop("login_api_key", None)
-        api_id = st.session_state.pop("login_api_id", None)
-        if api_key and api_id:
-            result, error = _verify_api_credentials(api_id, api_key, fl_id)
-            if result:
-                update_state(user_payload=result)
-                return
-            st.error(error)
+    if state.api_id and state.api_key:
+        clear_credentials()
+        try:
+            result = _verify_api_credentials(state.api_id, state.api_key, fl_id)
+            update_state(user_payload=result)
+            cookies.set(AUTH_COOKIE_KEY, result["accessToken"])
+            return
+        except ValueError as e:
+            st.error(str(e))
 
-    if not state.auth_check_complete:
-        update_state(auth_check_complete=True)
-        st.stop()
+    cookie_token = cookies.get(AUTH_COOKIE_KEY)
+    if cookie_token:
+        try:
+            factor_list_data = verify_factor_list_access(fl_id, cookie_token)
+            update_state(
+                user_payload={
+                    "accessToken": cookie_token,
+                    "factorListUid": fl_id,
+                    "factorListName": factor_list_data.get("name", "Unknown"),
+                }
+            )
+            return
+        except ValueError:
+            cookies.remove(AUTH_COOKIE_KEY)
 
     render_auth_form()
     st.stop()

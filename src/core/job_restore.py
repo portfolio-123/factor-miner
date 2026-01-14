@@ -1,5 +1,5 @@
 import pandas as pd
-from src.core.context import get_state, update_state, add_debug_log
+from src.core.context import get_state, update_state, add_debug_log, sync_url_for_results
 from src.core.utils import deserialize_dataframe
 from src.core.constants import JobStatus
 from src.core.types import AnalysisParams
@@ -38,6 +38,7 @@ def restore_running_job(job_id: str, params: AnalysisParams) -> None:
         benchmark_ticker=params.benchmark_ticker,
         formulas_data=formulas_data,
     )
+    sync_url_for_results(job_id)
 
 
 def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -> None:
@@ -63,6 +64,7 @@ def restore_completed_job(job_id: str, job_data: dict, params: AnalysisParams) -
             top_x_pct=params.top_pct,
             bottom_x_pct=params.bottom_pct,
         )
+        sync_url_for_results(job_id)
     except Exception as e:
         add_debug_log(f"Error loading completed job results: {e}")
 
