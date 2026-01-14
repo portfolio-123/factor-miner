@@ -21,8 +21,7 @@ class AnalysisParams(BaseModel):
     min_alpha: float
     benchmark_data: Optional[str] = None
     benchmark_ticker: str
-    api_key: Optional[str] = None
-    api_id: Optional[int] = None
+    access_token: Optional[str] = None
 
 
 class NormalizationConfig(BaseModel):

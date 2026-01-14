@@ -1,24 +1,33 @@
-import os
-
 import streamlit as st
 
 
-def render_session_expired(fl_id: str | None) -> None:
-    st.markdown("<div style='height: 25vh'></div>", unsafe_allow_html=True)
+def render_auth_form() -> None:
+    st.markdown("<div style='height: 15vh'></div>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 2, 1])
     with col:
-        st.warning(
-            "**Session expired or invalid**\n\n"
-            "Access this tool via the main website."
-        )
-        if fl_id:
-            base_url = os.getenv("P123_BASE_URL")
-            st.markdown(
-                f"<div style='text-align: center; margin-top: 10px;'>"
-                f"<a href='{base_url}/sv/factorList/{fl_id}/download'>Return to Factor List</a>"
-                f"</div>",
-                unsafe_allow_html=True,
+        st.markdown("### Login")
+        st.caption("Enter your API credentials to access this Factor List.")
+
+        with st.form(key="login_form", border=False):
+            api_id = st.text_input("API ID", placeholder="Enter your API ID")
+            api_key = st.text_input(
+                "API Key",
+                type="password",
+                placeholder="Enter your API Key",
             )
+
+            submitted = st.form_submit_button(
+                "Login", type="primary", use_container_width=True
+            )
+
+            if submitted:
+                if api_id and api_key:
+                    st.session_state["login_api_id"] = api_id
+                    st.session_state["login_api_key"] = api_key
+                    st.rerun()
+                else:
+                    st.error("Please enter both API ID and API Key")
+
 
 
 def section_header(title: str) -> None:

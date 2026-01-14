@@ -16,7 +16,7 @@ def _validate_benchmark_data(df: Optional[pd.DataFrame]) -> bool:
     return True
 
 
-def _authenticate(api_id: str, api_key: str) -> Optional[str]:
+def authenticate(api_id: str, api_key: str) -> Optional[str]:
     try:
         url = f"{API_BASE_URL}/auth"
 
@@ -31,27 +31,46 @@ def _authenticate(api_id: str, api_key: str) -> Optional[str]:
         return None
 
 
+def fetch_factor_list(
+    factor_list_uid: str,
+    access_token: str,
+) -> Tuple[Optional[dict], Optional[str]]:
+    try:
+        url = f"{API_BASE_URL}/factorList/{factor_list_uid}"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        response = requests.get(url, headers=headers, timeout=30)
+
+        if response.status_code == 401:
+            return None, "Session expired, please re-authenticate"
+        if response.status_code == 404:
+            return None, "Factor List not accessible or not found"
+        if response.status_code != 200:
+            return None, f"Error: {response.status_code} - {response.text}"
+
+        return response.json(), None
+    except requests.exceptions.ConnectionError:
+        return None, "Connection refused"
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
+
 def fetch_benchmark_data(
     benchmark_ticker: str,
-    api_key: str,
+    access_token: str,
     start_date: str,
     end_date: str,
-    api_id: str | None = None,
 ) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     try:
-        if not api_key:
-            return None, "Missing API Token/Key"
-
-        auth_token = _authenticate(api_id, api_key)
-        if not auth_token:
-            return None, "Authentication failed."
-
-        bearer_token = auth_token
+        if not access_token:
+            return None, "Missing access token"
 
         url = f"{API_BASE_URL}/data/prices/{benchmark_ticker}"
 
         headers = {
-            "Authorization": f"Bearer {bearer_token}",
+            "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
             "Source": "0",
         }

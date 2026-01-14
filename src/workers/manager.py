@@ -164,8 +164,7 @@ def clear_job_credentials(job_id: str) -> bool:
         return False
 
     params = job_data.get("params", {})
-    params.pop("api_key", None)
-    params.pop("api_id", None)
+    params.pop("access_token", None)
     job_data["params"] = params
 
     _write_job(job_id, job_data)

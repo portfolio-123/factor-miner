@@ -1,5 +1,5 @@
 from src.ui.components.common import (
-    render_session_expired,
+    render_auth_form,
     section_header,
     render_info_item,
     render_big_info_item,
@@ -33,7 +33,7 @@ from src.ui.components.headers import (
 )
 
 __all__ = [
-    "render_session_expired",
+    "render_auth_form",
     "section_header",
     "render_info_item",
     "render_big_info_item",

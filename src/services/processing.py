@@ -86,8 +86,7 @@ def start_step2_analysis() -> None:
             min_alpha=state.min_alpha,
             benchmark_ticker=state.benchmark_ticker,
             dataset_path=state.dataset_path,
-            api_key=state.user_payload.get("apiKey") if state.user_payload else None,
-            api_id=state.user_payload.get("apiId") if state.user_payload else None,
+            access_token=state.user_payload.get("accessToken") if state.user_payload else None,
         )
         start_analysis_job(job_id, params.model_dump())
         update_state(current_job_id=job_id)

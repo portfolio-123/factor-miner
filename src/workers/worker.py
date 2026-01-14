@@ -45,11 +45,10 @@ def run_analysis(job_id: str, params: AnalysisParams) -> dict:
 
     log(f"Fetching benchmark data for {params.benchmark_ticker}...")
     benchmark_data, error = fetch_benchmark_data(
-        params.benchmark_ticker,
-        params.api_key,
-        start_date,
-        end_date,
-        params.api_id,
+        benchmark_ticker=params.benchmark_ticker,
+        access_token=params.access_token,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     clear_job_credentials(job_id)
