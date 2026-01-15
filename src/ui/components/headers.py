@@ -100,10 +100,7 @@ def render_page_header() -> None:
         ("FactorMiner", None),
     ]
 
-    # Get name from API response
-    fl_name = "Unknown"
-    if state.user_payload and state.user_payload.get("factorListName"):
-        fl_name = state.user_payload["factorListName"]
+    fl_name = state.fl_name or "Unknown"
 
     render_breadcrumb(steps)
     st.title(f"{fl_name} ({fl_id})")
