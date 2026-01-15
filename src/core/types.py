@@ -3,6 +3,11 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class TokenPayload(BaseModel):
+    apiId: int
+    apiKey: str
+
+
 class ScalingMethod(StrEnum):
     NORMAL = "normal"
     MINMAX = "minmax"

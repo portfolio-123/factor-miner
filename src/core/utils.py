@@ -1,8 +1,6 @@
-from pathlib import Path
 from typing import Any
 from io import StringIO
 from datetime import datetime
-import os
 import pandas as pd
 
 
@@ -22,18 +20,6 @@ def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
         return date_obj.strftime(format_str)
     except Exception:
         return "N/A"
-
-
-def locate_factor_list_file(fl_id: str) -> str | None:
-    base_dir = os.getenv("FACTOR_LIST_DIR")
-    if not base_dir or not Path(base_dir).exists():
-        raise ValueError("Factor list directory not configured. Please contact support.")
-
-    path = Path(base_dir) / fl_id
-    if not path.exists():
-        return None
-
-    return str(path)
 
 
 

@@ -9,8 +9,6 @@ from src.core.constants import DEFAULT_BENCHMARK
 
 @dataclass
 class AppState:
-    """Central state management for the application."""
-
     page: str = "history"
     current_step: int = 1
     config_completed: bool = False
@@ -54,9 +52,8 @@ class AppState:
     edit_dataset_mode: bool = False
 
     # auth states
-    user_payload: Optional[dict] = None
-    api_id: Optional[str] = None
-    api_key: Optional[str] = None
+    access_token: Optional[str] = None
+    fl_name: Optional[str] = None
 
     # filter states (results page)
     filter_correlation: float = 0.5
@@ -139,6 +136,3 @@ def clear_debug_logs() -> None:
     add_debug_log("Logs cleared")
 
 
-def clear_credentials() -> None:
-    """Clear login credentials after use."""
-    update_state(api_id=None, api_key=None)
