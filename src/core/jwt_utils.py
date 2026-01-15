@@ -2,7 +2,7 @@ import os
 import json
 
 import streamlit as st
-from jose import jwe, JWEError
+from jose import jwe, JWTError
 from pydantic import ValidationError
 
 from src.core.types import TokenPayload
@@ -21,5 +21,5 @@ def decrypt_token(token: str) -> TokenPayload:
     try:
         decrypted = jwe.decrypt(token, _load_secret())
         return TokenPayload(**json.loads(decrypted))
-    except (JWEError, json.JSONDecodeError, ValidationError) as e:
+    except (JWTError, json.JSONDecodeError, ValidationError) as e:
         raise ValueError("Invalid token") from e

@@ -50,23 +50,25 @@ def _render_auth_form() -> None:
         st.caption("Enter your API credentials to access this Factor List.")
 
         with st.form(key="login_form", border=False):
-            api_id = st.number_input("API ID", min_value=0, step=1, format="%d")
+            api_id = st.text_input("API ID", placeholder="Enter your API ID")
             api_key = st.text_input(
                 "API Key",
                 type="password",
                 placeholder="Enter your API Key",
             )
 
+            api_id_valid = api_id.isdigit() if api_id else False
+
             submitted = st.form_submit_button(
                 "Login",
                 type="primary",
                 width="stretch",
-                disabled=not (api_id and api_key),
+                disabled=not (api_id_valid and api_key),
             )
 
             if submitted:
                 try:
-                    token = get_access_token(TokenPayload(apiId=api_id, apiKey=api_key))
+                    token = get_access_token(TokenPayload(apiId=int(api_id), apiKey=api_key))
                     _authenticate(token)
                 except PermissionError as e:
                     st.error(str(e))
