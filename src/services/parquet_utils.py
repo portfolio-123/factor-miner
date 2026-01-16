@@ -64,22 +64,3 @@ def find_version_for_timestamp(fl_id: str, timestamp: str) -> str | None:
                 if metadata.sourceTimestamp == timestamp:
                     return d.name
     return None
-
-
-def get_dataset_formulas(ds_ver: str) -> Optional[pd.DataFrame]:
-
-    state = get_state()
-    path: Optional[str] = None
-
-    # check if we are looking at the current dataset, and if so, use its path
-    if state.dataset_path and os.path.exists(state.dataset_path):
-        if get_file_version(state.dataset_path) == ds_ver:
-            path = state.dataset_path
-
-    # if not, fallback to the backup path
-    if not path:
-        backup_path = get_dataset_file_path(state.factor_list_uid, ds_ver)
-        if backup_path.exists():
-            path = str(backup_path)
-
-    return ParquetDataReader(path).get_formulas() if path else None

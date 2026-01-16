@@ -2,6 +2,8 @@ import os
 from datetime import datetime
 from typing import Optional
 
+import pandas as pd
+
 from src.core.context import get_state, update_state, add_debug_log, sync_url_for_results
 from src.core.types import AnalysisParams
 from src.core.calculations import get_dataset_date_range
@@ -37,11 +39,10 @@ def process_config(
 
     try:
         dataset_reader = ParquetDataReader(state.dataset_path)
-
-        formulas_data = dataset_reader.get_formulas()
+        config = dataset_reader.get_dataset_info()
+        formulas_data = pd.DataFrame(config.formulas)
         add_debug_log(f"Formulas loaded: {len(formulas_data)} formulas")
 
-        # Validate date range exists (benchmark will be fetched by worker)
         date_df = dataset_reader.read_columns(["Date"])
         try:
             start_date, end_date = get_dataset_date_range(date_df)
@@ -78,7 +79,6 @@ def start_step2_analysis() -> None:
         except Exception:
             pass
 
-    # Find or assign sequential version number for this dataset
     existing_version = find_version_for_timestamp(fl_id, dataset_ts) if dataset_ts else None
     dataset_version = existing_version or get_next_version_number(fl_id)
 

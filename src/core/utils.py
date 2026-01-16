@@ -33,7 +33,7 @@ def deserialize_dataframe(json_str: str) -> pd.DataFrame:
 
 def format_dataset_option(ver: str, active_version: str | None) -> str:
     if ver == active_version:
-        return "ACTIVE DATASET"
+        return "🟢 [READY] ACTIVE DATASET"
     return f"Version {ver}"
 
 

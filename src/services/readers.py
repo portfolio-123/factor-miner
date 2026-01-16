@@ -97,36 +97,14 @@ class ParquetDataReader:
         except Exception:
             return None
 
-    def get_formulas(self) -> Optional[pd.DataFrame]:
-        features_json = self._get_custom_metadata_json("features")
-        if not features_json:
-            return None
-
-        try:
-            df = pd.DataFrame(features_json)
-
-            expected_cols = ["formula", "name", "tag", "Normalization"]
-            for col in expected_cols:
-                if col not in df.columns:
-                    df[col] = "" if col != "Normalization" else "Raw"
-
-            # normalize missing/empty values
-            df["Normalization"] = df["Normalization"].replace("", "Raw").fillna("Raw")
-
-            return df[expected_cols]
-        except Exception:
-            return None
-
     def get_dataset_info(self) -> DatasetConfig:
         dataset_info = self._get_custom_metadata_json("datasetMetadata")
-        if not dataset_info:
-            return DatasetConfig()
 
-        # Calculate factorCount from formulas array
+        dataset_info["version"] = str(dataset_info["version"])
+
         if "formulas" in dataset_info:
             dataset_info["factorCount"] = len(dataset_info["formulas"])
 
-        # If normalization is true, use preprocessor as the normalization config
         if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
             dataset_info["normalization"] = dataset_info["preprocessor"]
 

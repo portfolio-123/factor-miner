@@ -60,6 +60,7 @@ class DatasetConfig(BaseModel):
     normalization: bool
     preprocessor: NormalizationConfig
     factorCount: int | None = None
+    formulas: list | None = None
     pitMethod: int
 
 

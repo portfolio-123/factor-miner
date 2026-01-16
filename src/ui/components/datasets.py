@@ -1,11 +1,12 @@
 from typing import Optional
 
+import pandas as pd
 import streamlit as st
 
 from src.core.context import get_state, update_state
 from src.core.types import DatasetConfig, ScopeType
 from src.services.readers import ParquetDataReader
-from src.services.parquet_utils import get_dataset_formulas, get_dataset_file_path, get_file_version
+from src.services.parquet_utils import get_dataset_file_path, get_file_version
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
     section_header,
@@ -82,8 +83,8 @@ def render_dataset_info_row(
 
         state = get_state()
         if state.formulas_ds_ver == ds_ver:
-            formulas_df = get_dataset_formulas(state.formulas_ds_ver)
-            show_formulas_modal(formulas_df)
+            show_formulas_modal(pd.DataFrame(config.formulas))
+            update_state(formulas_ds_ver=None)
 
     spacer(21)
 
