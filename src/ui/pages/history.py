@@ -48,9 +48,7 @@ def render() -> None:
             index=versions.index(active_version) if active_version in versions else 0,
             placeholder="Select a dataset",
             key="selected_dataset_ver",
-            format_func=partial(
-                format_dataset_option, versions=versions, active_version=active_version
-            ),
+            format_func=partial(format_dataset_option, active_version=active_version),
         )
 
     with col2:

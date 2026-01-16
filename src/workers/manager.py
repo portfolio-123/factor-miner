@@ -81,7 +81,13 @@ def create_analysis(analysis_id: str, params: Dict[str, Any]) -> Path:
     # ensure directory for the dataset version exists
     analysis_path.parent.mkdir(parents=True, exist_ok=True)
 
-    backup_parquet_metadata(params["dataset_path"], analysis_path.parent / "dataset_metadata.parquet")
+    backup_path = analysis_path.parent / "dataset_metadata.parquet"
+    is_new_backup = not backup_path.exists()
+    backup_parquet_metadata(params["dataset_path"], backup_path)
+
+    if is_new_backup:
+        source_timestamp = get_file_version(params["dataset_path"])
+        update_parquet_metadata(backup_path, b"datasetMetadata", {"sourceTimestamp": source_timestamp})
 
     with open(analysis_path, "w") as f:
         json.dump(analysis_data, f, indent=2)

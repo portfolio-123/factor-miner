@@ -7,7 +7,11 @@ from src.core.types import AnalysisParams
 from src.core.calculations import get_dataset_date_range
 from src.workers.manager import start_analysis, get_analysis_results, delete_analysis
 from src.services.readers import ParquetDataReader
-from src.services.parquet_utils import get_file_version
+from src.services.parquet_utils import (
+    get_file_version,
+    get_next_version_number,
+    find_version_for_timestamp,
+)
 
 
 def process_config(
@@ -74,10 +78,12 @@ def start_step2_analysis() -> None:
         except Exception:
             pass
 
-    analysis_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Find or assign sequential version number for this dataset
+    existing_version = find_version_for_timestamp(fl_id, dataset_ts) if dataset_ts else None
+    dataset_version = existing_version or get_next_version_number(fl_id)
 
-    # fl_id/dataset_ts/analysis_ts
-    analysis_id = f"{fl_id}/{dataset_ts}/{analysis_ts}"
+    analysis_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    analysis_id = f"{fl_id}/{dataset_version}/{analysis_ts}"
 
     try:
         params = AnalysisParams(

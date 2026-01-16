@@ -10,11 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def sort_dataset_versions(versions: List[str]) -> List[str]:
-    return sorted(
-        versions,
-        key=lambda x: float(x) if x.replace(".", "", 1).isdigit() else 0,
-        reverse=True,
-    )
+    return sorted(versions, key=lambda v: int(v) if v.isdigit() else float('inf'))
 
 
 def group_analyses_by_version(analyses: List[Dict]) -> Dict[str, List[Analysis]]:

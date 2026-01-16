@@ -44,6 +44,28 @@ def get_dataset_metadata(
     return None
 
 
+def get_next_version_number(fl_id: str) -> str:
+    fl_dir = INTEGRATIONS_DIR / fl_id
+    if not fl_dir.exists():
+        return "1"
+    existing = [int(d.name) for d in fl_dir.iterdir() if d.is_dir() and d.name.isdigit()]
+    return str(max(existing, default=0) + 1)
+
+
+def find_version_for_timestamp(fl_id: str, timestamp: str) -> str | None:
+    fl_dir = INTEGRATIONS_DIR / fl_id
+    if not fl_dir.exists():
+        return None
+    for d in fl_dir.iterdir():
+        if d.is_dir() and d.name.isdigit():
+            backup_path = get_dataset_file_path(fl_id, d.name)
+            if backup_path.exists():
+                metadata = ParquetDataReader(str(backup_path)).get_dataset_info()
+                if metadata.sourceTimestamp == timestamp:
+                    return d.name
+    return None
+
+
 def get_dataset_formulas(ds_ver: str) -> Optional[pd.DataFrame]:
 
     state = get_state()

@@ -31,12 +31,10 @@ def deserialize_dataframe(json_str: str) -> pd.DataFrame:
     return pd.read_json(StringIO(json_str), orient="split")
 
 
-def format_dataset_option(
-    ver: str, versions: list[str], active_version: str | None
-) -> str:
-    prefix = "\U0001F7E2\u200B [READY] " if ver == active_version else ""
-    version_num = versions.index(ver) + 1  # oldest = 1, newest = N
-    return f"{prefix}Version {version_num}"
+def format_dataset_option(ver: str, active_version: str | None) -> str:
+    if ver == active_version:
+        return "ACTIVE DATASET"
+    return f"Version {ver}"
 
 
 def add_formula_column(

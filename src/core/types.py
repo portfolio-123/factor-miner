@@ -48,6 +48,7 @@ class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     version: str | None = None
+    sourceTimestamp: str | None = None
     description: str | None = None
     universeName: str
     frequency: int
