@@ -32,17 +32,11 @@ def deserialize_dataframe(json_str: str) -> pd.DataFrame:
 
 
 def format_dataset_option(
-    ver: str, ds_info_map: dict, current_version: str | None
+    ver: str, versions: list[str], active_version: str | None
 ) -> str:
-    info = ds_info_map.get(ver)
-    has_name = info and info.name
-    prefix = "\U0001F7E2\u200B [READY] " if ver == current_version else ""
-
-    if has_name:
-        return f"{prefix}{info.name}"
-
-    timestamp_str = format_timestamp(ver)
-    return f"{prefix}Unnamed - {timestamp_str}"
+    prefix = "\U0001F7E2\u200B [READY] " if ver == active_version else ""
+    version_num = versions.index(ver) + 1  # oldest = 1, newest = N
+    return f"{prefix}Version {version_num}"
 
 
 def add_formula_column(

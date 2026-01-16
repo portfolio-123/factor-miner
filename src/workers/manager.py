@@ -46,13 +46,11 @@ def _write_analysis(analysis_id: str, analysis_data: dict) -> None:
         json.dump(analysis_data, f, indent=2)
 
 
-def update_dataset_info(
-    dataset_path: str, dataset_version: str, updates: Dict[str, Any]
-) -> bool:
-
+def update_dataset_info(dataset_version: str, updates: Dict[str, Any]) -> bool:
     try:
         state = get_state()
-        current_version = get_file_version(dataset_path)
+        dataset_path = state.dataset_path
+        current_version = get_file_version(dataset_path) if dataset_path else None
         backup_path = get_dataset_file_path(state.factor_list_uid, dataset_version)
 
         if backup_path.exists():

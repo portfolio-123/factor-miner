@@ -11,7 +11,7 @@ from src.ui.components import (
     spacer,
 )
 from src.ui.dialogs import show_edit_dialog
-from src.services.parquet_utils import get_current_dataset_info, get_past_analyses_metadata
+from src.services.parquet_utils import get_file_version, get_dataset_metadata
 from src.services.analysis_utils import group_analyses_by_version, sort_dataset_versions
 from src.workers.manager import list_analyses
 
@@ -26,21 +26,18 @@ def render() -> None:
         )
         return
 
-    try:
-        active_version, active_info = get_current_dataset_info(state.dataset_path)
-    except Exception:
-        active_version, active_info = None, None
-
     analyses_by_version = group_analyses_by_version(list_analyses(fl_id))
 
     all_versions = set(analyses_by_version.keys())
+    active_version = get_file_version(state.dataset_path) if state.dataset_path else None
     if active_version:
         all_versions.add(active_version)
+
     versions = sort_dataset_versions(list(all_versions))
 
-    version_metadata = get_past_analyses_metadata(fl_id, versions)
-    if active_version and active_info and active_version not in version_metadata:
-        version_metadata[active_version] = active_info
+    if not versions:
+        st.info("No past analysis found for this Factor List.")
+        return
 
     col1, col2 = st.columns([6, 1], vertical_alignment="bottom")
 
@@ -50,10 +47,9 @@ def render() -> None:
             versions,
             index=versions.index(active_version) if active_version in versions else 0,
             placeholder="Select a dataset",
+            key="selected_dataset_ver",
             format_func=partial(
-                format_dataset_option,
-                ds_info_map=version_metadata,
-                current_version=active_version,
+                format_dataset_option, versions=versions, active_version=active_version
             ),
         )
 
@@ -62,20 +58,15 @@ def render() -> None:
             "Edit Details",
             type="primary",
             width="stretch",
-            disabled=not selected_ver,
             key="toggle_edit_ds",
         ):
             update_state(edit_dataset_mode=True, formulas_ds_ver=None)
 
-    if state.edit_dataset_mode and selected_ver:
-        show_edit_dialog(selected_ver, version_metadata, state.dataset_path)
-
-    if not selected_ver:
-        st.info("No past analysis found for this Factor List.")
-        return
-
     selected_analyses = analyses_by_version.get(selected_ver, [])
-    selected_info = version_metadata.get(selected_ver)
+    selected_info = get_dataset_metadata(fl_id, selected_ver, state.dataset_path)
+
+    if state.edit_dataset_mode:
+        show_edit_dialog(selected_info)
 
     if selected_info:
         st.markdown(f"**Description:** {selected_info.description or 'No description provided'}")

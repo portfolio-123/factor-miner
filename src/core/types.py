@@ -47,7 +47,7 @@ class NormalizationConfig(BaseModel):
 class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    name: str | None = None
+    version: str | None = None
     description: str | None = None
     universeName: str
     frequency: int
