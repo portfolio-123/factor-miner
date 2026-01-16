@@ -23,7 +23,7 @@ def render_analysis_params(analysis_params: dict) -> None:
     ]
 
     section_header("Analysis Parameters")
-    st.markdown(f'<div class="dataset-info-group">{"".join(items)}</div>', unsafe_allow_html=True)
+    st.html(f'<div class="dataset-info-group">{"".join(items)}</div>')
 
 
 def render_analysis_card(analysis: Analysis) -> None:
@@ -47,7 +47,7 @@ def render_analysis_card(analysis: Analysis) -> None:
     </div>
     <span class="analysis-card-trigger"></span>
     """
-    st.markdown(card_html, unsafe_allow_html=True)
+    st.html(card_html)
 
     if st.button("Open Analysis", key=f"analysis_btn_{analysis.id}", width="stretch"):
         if restore_analysis_state(analysis.id):

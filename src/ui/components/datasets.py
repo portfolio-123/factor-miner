@@ -2,8 +2,10 @@ from typing import Optional
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.core.context import get_state, update_state
+from src.workers.manager import update_dataset_info
 from src.core.types import DatasetConfig, ScopeType
 from src.services.readers import ParquetDataReader
 from src.services.parquet_utils import get_dataset_file_path, get_file_version
@@ -49,7 +51,7 @@ def render_dataset_statistics(stats: dict, benchmark: str) -> None:
     for col, (label, value) in zip(cols, stat_items):
         with col:
             st.badge(label)
-            st.markdown(f"<p style='{stat_style}'>{value}</p>", unsafe_allow_html=True)
+            st.html(f"<p style='{stat_style}'>{value}</p>")
 
 
 def render_dataset_info_row(
@@ -67,13 +69,12 @@ def render_dataset_info_row(
     ]
     for col, label, value in big_items:
         with col:
-            st.markdown(render_big_info_item(label, value), unsafe_allow_html=True)
+            st.html(render_big_info_item(label, value))
 
     with c4:
         count = config.factorCount
-        st.markdown(
-            '<div class="dataset-info-item big view-factors-trigger"><div class="label">FACTORS</div></div>',
-            unsafe_allow_html=True,
+        st.html(
+            '<div class="dataset-info-item big view-factors-trigger"><div class="label">FACTORS</div></div>'
         )
         st.button(
             f"View ({count})",
@@ -98,17 +99,15 @@ def render_dataset_info_row(
             ("Precision", config.precision),
             ("Pit Method", config.pitMethod),
         ]
-        st.markdown(
-            f'<div class="dataset-info-group">{"".join(render_info_item(l, v) for l, v in items)}</div>',
-            unsafe_allow_html=True,
+        st.html(
+            f'<div class="dataset-info-group">{"".join(render_info_item(l, v) for l, v in items)}</div>'
         )
 
     with col_right:
         if config.normalization:
             render_section_label("Normalization")
-            st.markdown(
-                f'<div class="dataset-info-group">{"".join(_build_norm_items(config.normalization))}</div>',
-                unsafe_allow_html=True,
+            st.html(
+                f'<div class="dataset-info-group">{"".join(_build_norm_items(config.normalization))}</div>'
             )
 
 
@@ -154,3 +153,71 @@ def render_current_dataset() -> None:
             "bottom_x_pct": state.bottom_x_pct,
         }
         render_analysis_params(analysis_params)
+
+
+@st.fragment
+def render_description_editor(description: str, ds_ver: str, edit_mode: bool) -> None:
+    with st.container(border=True):
+        if edit_mode:
+            with st.form("edit_description_form", border=False):
+                st.html(
+                    "<style>.st-key-hidden_save_btn { display: none; }</style>"
+                )
+                save_enter = st.form_submit_button(
+                    "Save", type="primary", key="hidden_save_btn"
+                )
+                col1, col2, col3 = st.columns(
+                    [16, 2, 2], vertical_alignment="center", gap="small"
+                )
+                with col1:
+                    new_desc = st.text_input(
+                        "Description",
+                        value=description,
+                        placeholder="Enter dataset description",
+                        key="edit_description_input",
+                        label_visibility="collapsed",
+                    )
+                # unreliable, could research a better way
+                components.html(
+                    """
+                    <script>
+                        var input = window.parent.document.querySelector(
+                            'input[placeholder="Enter dataset description"]'
+                        );
+                        if (input) input.focus();
+                    </script>
+                    """,
+                    height=0,
+                )
+                with col2:
+                    cancel = st.form_submit_button(
+                        "Cancel",
+                    )
+                with col3:
+                    save = st.form_submit_button(
+                        "Save",
+                        type="primary",
+                    )
+                if save or save_enter:
+                    if update_dataset_info(ds_ver, {"description": new_desc}):
+                        update_state(edit_dataset_mode=False)
+                        st.rerun()
+                    else:
+                        st.error("Failed to update description.")
+                if cancel:
+                    update_state(edit_dataset_mode=False)
+                    st.rerun()
+        else:
+            col1, col2 = st.columns(
+                [16, 2], vertical_alignment="center", gap="small"
+            )
+            with col1:
+                st.markdown(description or "*No description provided*")
+            with col2:
+                st.button(
+                    "Edit",
+                    key="edit_desc_btn",
+                    use_container_width=True,
+                    on_click=update_state,
+                    kwargs={"edit_dataset_mode": True},
+                )

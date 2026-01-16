@@ -2,7 +2,7 @@ import streamlit as st
 
 
 def load_global_css() -> None:
-    st.markdown(
+    st.html(
         """
     <style>
     :root {
@@ -338,6 +338,5 @@ def load_global_css() -> None:
         color: var(--primary) !important;
     }
     </style>
-    """,
-        unsafe_allow_html=True,
+    """
     )

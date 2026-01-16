@@ -88,7 +88,7 @@ def render_breadcrumb(steps: list[tuple[str, str | None]]) -> None:
 
     html_code += "</div>"
 
-    st.markdown(html_code, unsafe_allow_html=True)
+    st.html(html_code)
 
 
 def render_page_header() -> None:
@@ -122,13 +122,12 @@ def _show_debug_modal():
                 )
                 log_lines.append(formatted)
             log_html = "<br>".join(log_lines)
-            st.markdown(
+            st.html(
                 f'<div style="font-family: monospace; font-size: 13px; '
                 f"background: #f5f5f5; color: #333; padding: 12px; "
                 f"border-radius: 4px; max-height: 400px; overflow-y: auto; "
                 f'margin-bottom: 16px;">'
-                f"{log_html}</div>",
-                unsafe_allow_html=True,
+                f"{log_html}</div>"
             )
 
         _, col1 = st.columns([6, 1])

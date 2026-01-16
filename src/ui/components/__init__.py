@@ -22,6 +22,7 @@ from src.ui.components.datasets import (
     render_current_dataset,
     render_dataset_info_row,
     render_dataset_statistics,
+    render_description_editor,
 )
 
 from src.ui.components.headers import (
@@ -46,6 +47,7 @@ __all__ = [
     "render_current_dataset",
     "render_dataset_info_row",
     "render_dataset_statistics",
+    "render_description_editor",
     "header_back",
     "header_analysis",
     "render_page_header",

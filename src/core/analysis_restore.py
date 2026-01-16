@@ -71,18 +71,18 @@ def restore_completed_analysis(analysis_id: str, analysis_data: dict, params: An
 
 def restore_analysis_state(analysis_id: str) -> bool:
     analysis_data = read_analysis(analysis_id)
-    # if there's no analysis, nothing to restore
     if not analysis_data:
         return False
 
-    params = AnalysisParams(**analysis_data['params'])
     status = analysis_data['status']
+    if status == AnalysisStatus.FAILED:
+        return False
+
+    params = AnalysisParams(**analysis_data['params'])
 
     if status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
         restore_running_analysis(analysis_id, params)
-        return True
     elif status == AnalysisStatus.COMPLETED:
         restore_completed_analysis(analysis_id, analysis_data, params)
-        return True
 
-    return False
+    return True
