@@ -1,24 +1,24 @@
 import streamlit as st
 import pandas as pd
 from src.core.context import get_state, update_state
-from src.core.constants import JobStatus
+from src.core.constants import AnalysisStatus
 from src.ui.components import section_header, render_results_table
 from src.core.utils import add_formula_column
 from src.core.calculations import select_best_features as _select_best_features
-from src.workers.manager import delete_job, read_job
+from src.workers.manager import delete_analysis, read_analysis
 from src.services.processing import process_step2_completion, _merge_worker_logs
 
 
 @st.cache_data
 def select_best_features_cached(
-    job_id: str,
+    analysis_id: str,
     _all_metrics,
     _all_corr_matrix,
     n_features: int,
     correlation_threshold: float,
     min_alpha: float,
 ):
-    # using job_id to invalidate cache on a new analysis.
+    # using analysis_id to invalidate cache on a new analysis.
 
     return _select_best_features(
         _all_metrics,
@@ -29,42 +29,42 @@ def select_best_features_cached(
     )
 
 
-def _on_job_completed(job_data: dict) -> None:
-    error = process_step2_completion(job_data)
+def _on_analysis_completed(analysis_data: dict) -> None:
+    error = process_step2_completion(analysis_data)
     if error:
         update_state(analysis_error=error)
     st.rerun()
 
 
-def _on_job_error(job_id: str, job_data: dict) -> None:
-    _merge_worker_logs(job_data)
-    error_msg = job_data.get("error", "")
+def _on_analysis_error(analysis_id: str, analysis_data: dict) -> None:
+    _merge_worker_logs(analysis_data)
+    error_msg = analysis_data.get("error", "")
     display_msg = error_msg.split("\n")[0] if error_msg else "Unknown error"
     update_state(
         analysis_error=f"Analysis failed: {display_msg}",
-        current_job_id=None,
+        current_analysis_id=None,
     )
-    delete_job(job_id)
+    delete_analysis(analysis_id)
     st.rerun()
 
 
 @st.fragment(run_every="0.5s")
-def _render_job_progress(job_id: str) -> None:
-    job_data = read_job(job_id)
-    if job_data is None:
+def _render_analysis_progress(analysis_id: str) -> None:
+    analysis_data = read_analysis(analysis_id)
+    if analysis_data is None:
         return
 
-    status = job_data.get("status")
+    status = analysis_data.get("status")
 
-    if status == JobStatus.COMPLETED:
-        _on_job_completed(job_data)
+    if status == AnalysisStatus.COMPLETED:
+        _on_analysis_completed(analysis_data)
         return
 
-    if status == JobStatus.ERROR:
-        _on_job_error(job_id, job_data)
+    if status == AnalysisStatus.ERROR:
+        _on_analysis_error(analysis_id, analysis_data)
         return
 
-    progress = job_data.get("progress", {})
+    progress = analysis_data.get("progress", {})
     completed = progress.get("completed", 0)
     total = progress.get("total", 0)
     current_factor = progress.get("current_factor", "")
@@ -123,7 +123,7 @@ def _render_filter_and_results() -> None:
         update_state(correlation_threshold=correlation_threshold, n_features=n_features)
 
     best_features = select_best_features_cached(
-        state.current_job_id,
+        state.current_analysis_id,
         state.all_metrics,
         state.all_corr_matrix,
         n_features,
@@ -176,14 +176,14 @@ def render() -> None:
         st.error(state.analysis_error)
         return
 
-    # if there's a job being processed, render progress component
-    if state.current_job_id:
-        job_data = read_job(state.current_job_id)
-        if job_data and job_data.get("status") in (
-            JobStatus.PENDING,
-            JobStatus.RUNNING,
+    # if there's an analysis being processed, render progress component
+    if state.current_analysis_id:
+        analysis_data = read_analysis(state.current_analysis_id)
+        if analysis_data and analysis_data.get("status") in (
+            AnalysisStatus.PENDING,
+            AnalysisStatus.RUNNING,
         ):
-            _render_job_progress(state.current_job_id)
+            _render_analysis_progress(state.current_analysis_id)
             return
 
     # otherwise, render results

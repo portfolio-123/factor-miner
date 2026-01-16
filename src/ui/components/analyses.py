@@ -1,14 +1,14 @@
 import streamlit as st
 
 from src.core.utils import format_date
-from src.core.types import Job
-from src.core.job_restore import restore_job_state
-from src.ui.constants import JOB_STATUS_COLORS, JOB_STATUS_COLORS_DEFAULT
+from src.core.types import Analysis
+from src.core.analysis_restore import restore_analysis_state
+from src.ui.constants import ANALYSIS_STATUS_COLORS, ANALYSIS_STATUS_COLORS_DEFAULT
 from src.ui.components.common import section_header, render_info_item
 
 
-def render_job_param(label: str, value: str) -> str:
-    return f'<div class="job-card-param"><span class="label">{label}</span><span class="value">{value}</span></div>'
+def render_analysis_param(label: str, value: str) -> str:
+    return f'<div class="analysis-card-param"><span class="label">{label}</span><span class="value">{value}</span></div>'
 
 
 def render_analysis_params(analysis_params: dict) -> None:
@@ -26,30 +26,30 @@ def render_analysis_params(analysis_params: dict) -> None:
     st.markdown(f'<div class="dataset-info-group">{"".join(items)}</div>', unsafe_allow_html=True)
 
 
-def render_job_card(job: Job) -> None:
-    formatted_date = format_date(job.created_at, "%b %d, %Y %H:%M:%S")
-    status_bg, status_color = JOB_STATUS_COLORS.get(job.status, JOB_STATUS_COLORS_DEFAULT)
+def render_analysis_card(analysis: Analysis) -> None:
+    formatted_date = format_date(analysis.created_at, "%b %d, %Y %H:%M:%S")
+    status_bg, status_color = ANALYSIS_STATUS_COLORS.get(analysis.status, ANALYSIS_STATUS_COLORS_DEFAULT)
 
     params_html = "".join((
-        render_job_param("Min Alpha", str(job.params.min_alpha)),
-        render_job_param("Top X", f"{job.params.top_pct}%"),
-        render_job_param("Bottom X", f"{job.params.bottom_pct}%"),
+        render_analysis_param("Min Alpha", str(analysis.params.min_alpha)),
+        render_analysis_param("Top X", f"{analysis.params.top_pct}%"),
+        render_analysis_param("Bottom X", f"{analysis.params.bottom_pct}%"),
     ))
 
     card_html = f"""
-    <div class="job-card-content">
-        <div class="job-card-name">{job.name or "Untitled Analysis"}</div>
-        <div class="job-card-params">{params_html}</div>
-        <div class="job-card-right">
-            <span class="job-card-date">{formatted_date}</span>
-            <span class="job-card-status" style="background-color:{status_bg};color:{status_color};">{job.status}</span>
+    <div class="analysis-card-content">
+        <div class="analysis-card-name">{analysis.name or "Untitled Analysis"}</div>
+        <div class="analysis-card-params">{params_html}</div>
+        <div class="analysis-card-right">
+            <span class="analysis-card-date">{formatted_date}</span>
+            <span class="analysis-card-status" style="background-color:{status_bg};color:{status_color};">{analysis.status}</span>
         </div>
     </div>
-    <span class="job-card-trigger"></span>
+    <span class="analysis-card-trigger"></span>
     """
     st.markdown(card_html, unsafe_allow_html=True)
 
-    if st.button("Open Analysis", key=f"job_btn_{job.id}", width="stretch"):
-        if restore_job_state(job.id):
+    if st.button("Open Analysis", key=f"analysis_btn_{analysis.id}", width="stretch"):
+        if restore_analysis_state(analysis.id):
             st.rerun()
-        st.error(f"Failed to load job {job.id}")
+        st.error(f"Failed to load analysis {analysis.id}")

@@ -6,12 +6,14 @@ from src.core.context import get_state, reset_analysis_state, update_state
 from src.core.types import DatasetConfig
 from src.ui.components import (
     render_dataset_info_row,
-    render_job_card,
+    render_analysis_card,
     section_header,
     spacer,
 )
 from src.ui.dialogs import show_edit_dialog
-from src.services.parquet_utils import get_history_page_data
+from src.services.parquet_utils import get_current_dataset_info, get_past_analyses_metadata
+from src.services.analysis_utils import group_analyses_by_version, sort_dataset_versions
+from src.workers.manager import list_analyses
 
 
 def render() -> None:
@@ -24,9 +26,21 @@ def render() -> None:
         )
         return
 
-    active_version, versions, version_metadata, jobs_by_version = get_history_page_data(
-        fl_id, state.dataset_path
-    )
+    try:
+        active_version, active_info = get_current_dataset_info(state.dataset_path)
+    except Exception:
+        active_version, active_info = None, None
+
+    analyses_by_version = group_analyses_by_version(list_analyses(fl_id))
+
+    all_versions = set(analyses_by_version.keys())
+    if active_version:
+        all_versions.add(active_version)
+    versions = sort_dataset_versions(list(all_versions))
+
+    version_metadata = get_past_analyses_metadata(fl_id, versions)
+    if active_version and active_info and active_version not in version_metadata:
+        version_metadata[active_version] = active_info
 
     col1, col2 = st.columns([6, 1], vertical_alignment="bottom")
 
@@ -60,7 +74,7 @@ def render() -> None:
         st.info("No past analysis found for this Factor List.")
         return
 
-    selected_jobs = jobs_by_version.get(selected_ver, [])
+    selected_analyses = analyses_by_version.get(selected_ver, [])
     selected_info = version_metadata.get(selected_ver)
 
     if selected_info:
@@ -83,7 +97,7 @@ def render() -> None:
     else:
         st.info("You can only create a new analysis with your latest dataset")
 
-    if not selected_jobs:
+    if not selected_analyses:
         st.markdown(
             "<p style='text-align: center; color: gray;'>No analyses yet for this dataset version</p>",
             unsafe_allow_html=True,
@@ -91,5 +105,5 @@ def render() -> None:
         return
 
     section_header("Past Analyses")
-    for job in selected_jobs:
-        render_job_card(job)
+    for analysis in selected_analyses:
+        render_analysis_card(analysis)

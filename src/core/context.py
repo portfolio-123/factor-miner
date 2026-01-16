@@ -39,8 +39,8 @@ class AppState:
     # debug logs
     debug_logs: List[str] = field(default_factory=list)
 
-    # background job tracking
-    current_job_id: Optional[str] = None
+    # background analysis tracking
+    current_analysis_id: Optional[str] = None
 
     # error states
     config_error: Optional[str] = None
@@ -74,12 +74,12 @@ def update_state(**kwargs) -> None:
         setattr(state, key, value)
 
 
-def sync_url_for_results(job_id: str) -> None:
+def sync_url_for_results(analysis_id: str) -> None:
     """Sync URL when navigating to results page."""
     state = get_state()
     if state.factor_list_uid:
         st.query_params["fl_id"] = state.factor_list_uid
-    st.query_params["job_id"] = job_id
+    st.query_params["analysis_id"] = analysis_id
     st.query_params.pop("new_analysis", None)
     st.query_params.pop("step", None)
 
@@ -91,7 +91,7 @@ def sync_url_for_new_analysis(step: int) -> None:
         st.query_params["fl_id"] = state.factor_list_uid
     st.query_params["new_analysis"] = "true"
     st.query_params["step"] = str(step)
-    st.query_params.pop("job_id", None)
+    st.query_params.pop("analysis_id", None)
 
 
 def sync_url_for_history() -> None:
@@ -99,7 +99,7 @@ def sync_url_for_history() -> None:
     state = get_state()
     if state.factor_list_uid:
         st.query_params["fl_id"] = state.factor_list_uid
-    st.query_params.pop("job_id", None)
+    st.query_params.pop("analysis_id", None)
     st.query_params.pop("new_analysis", None)
     st.query_params.pop("step", None)
 
@@ -108,7 +108,7 @@ def reset_analysis_state() -> None:
     update_state(
         page="new_analysis",
         current_step=1,
-        current_job_id=None,
+        current_analysis_id=None,
         config_completed=False,
         # clear previous results
         all_metrics=None,

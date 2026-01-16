@@ -7,7 +7,7 @@ from src.core.context import (
     sync_url_for_new_analysis,
     sync_url_for_history,
 )
-from src.core.job_restore import restore_job_state
+from src.core.analysis_restore import restore_analysis_state
 from src.ui.pages import render_new_analysis, render_results, render_history
 
 ROUTES = {
@@ -18,11 +18,11 @@ ROUTES = {
 
 
 def render_content():
-    qp_job_id = st.query_params.get("job_id")
+    qp_analysis_id = st.query_params.get("analysis_id")
 
-    if qp_job_id and restore_job_state(qp_job_id):
+    if qp_analysis_id and restore_analysis_state(qp_analysis_id):
         update_state(page="results")
-        sync_url_for_results(qp_job_id)
+        sync_url_for_results(qp_analysis_id)
     elif st.query_params.get("new_analysis"):
         step = int(st.query_params.get("step", 1))
         update_state(page="new_analysis", current_step=step)

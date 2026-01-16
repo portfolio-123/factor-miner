@@ -8,13 +8,13 @@ DEFAULT_BENCHMARK: Final[str] = "SPY:USA"
 AUTH_COOKIE_KEY: Final[str] = "p123_access_token"
 
 
-class JobStatus(StrEnum):
+class AnalysisStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     ERROR = "error"
 
-class JobProgress(TypedDict):
+class AnalysisProgress(TypedDict):
     completed: int
     total: int
     current_factor: str

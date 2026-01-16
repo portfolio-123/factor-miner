@@ -15,7 +15,7 @@ def header_back() -> None:
     col_back, _ = st.columns([1, 11])
     with col_back:
         if st.button("Back", type="secondary", key="back_btn"):
-            update_state(page="history", current_job_id=None)
+            update_state(page="history", current_analysis_id=None)
             sync_url_for_history()
             st.rerun()
 
@@ -23,8 +23,8 @@ def header_back() -> None:
 def header_analysis() -> None:
     state = get_state()
 
-    # Viewing existing job: just show back button
-    if state.current_job_id:
+    # Viewing existing analysis: just show back button
+    if state.current_analysis_id:
         header_back()
         return
 
@@ -34,7 +34,7 @@ def header_analysis() -> None:
     with col_back:
         with st.columns([1, 1])[0]:
             if st.button("Back", type="secondary", key="back_btn_analysis"):
-                update_state(page="history", current_job_id=None)
+                update_state(page="history", current_analysis_id=None)
                 sync_url_for_history()
                 st.rerun()
 

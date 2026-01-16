@@ -2,6 +2,8 @@ from enum import StrEnum
 from typing import Any, Dict, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.core.constants import AnalysisStatus
+
 
 class TokenPayload(BaseModel):
     apiId: int
@@ -33,41 +35,43 @@ class NormalizationConfig(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    scaling: ScalingMethod | None = None
-    scope: ScopeType | None = None
-    trimPct: float | None = None
-    outliers: bool | None = None
-    outlierLimit: float | None = None
-    mlTrainingEnd: str | None = None
-    naFill: bool | None = None
+    scaling: str
+    scope: str
+    trimPct: float
+    outliers: str
+    outlierLimit: float
+    mlTrainingEnd: str
+    naFill: str
 
 
 class DatasetConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    name: str | None = Field(default=None)
-    description: str | None = Field(default=None)
+    name: str | None = None
+    description: str | None = None
+    universeName: str
+    frequency: int
+    currency: str
+    startDt: str
+    endDt: str
+    benchmark: str = Field(alias="benchName")
+    precision: int
+    normalization: bool
+    preprocessor: NormalizationConfig
+    factorCount: int | None = None
+    pitMethod: int
 
-    flName: Optional[str] = Field(default="Unknown Name")
-    universeName: str = Field(default="Unknown Universe")
-    frequency: int = Field(default=1)
-    currency: str = Field(default="USD")
-    startDt: str | None = Field(default=None)
-    endDt: str | None = Field(default=None)
-    benchmark: str | None = Field(default=None)
-    precision: str | None = Field(default=None)
-    normalization: NormalizationConfig | None = Field(default=None)
-    factorCount: int | None = Field(default=None)
-    pitMethod: str | None = Field(default=None)
 
-
-class Job(BaseModel):
+class AnalysisSummary(BaseModel):
     id: str
     name: str | None = None
-    status: str
+    status: AnalysisStatus
     created_at: str
-    updated_at: str | None = None
     dataset_version: str | None = None
     params: AnalysisParams
+
+
+class Analysis(AnalysisSummary):
+    updated_at: str | None = None
     results: Dict[str, Any] | None = None
     error: str | None = None

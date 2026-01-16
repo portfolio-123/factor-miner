@@ -69,7 +69,7 @@ def render_dataset_info_row(
             st.markdown(render_big_info_item(label, value), unsafe_allow_html=True)
 
     with c4:
-        count = config.factorCount or 0
+        count = config.factorCount
         st.markdown(
             '<div class="dataset-info-item big view-factors-trigger"><div class="label">FACTORS</div></div>',
             unsafe_allow_html=True,
@@ -112,17 +112,17 @@ def render_dataset_info_row(
 
 
 def render_current_dataset() -> None:
-    from src.ui.components.jobs import render_analysis_params
+    from src.ui.components.analyses import render_analysis_params
 
     state = get_state()
 
     path: Optional[str] = None
     ds_ver: Optional[str] = None
 
-    # if this is a results or new analysis page, try to load from job backup
-    if state.current_job_id:
+    # if this is a results or new analysis page, try to load from analysis backup
+    if state.current_analysis_id:
         try:
-            parts = state.current_job_id.split("/")
+            parts = state.current_analysis_id.split("/")
             if len(parts) >= 2:
                 ds_ver = parts[1]
                 backup_path = get_dataset_file_path(state.factor_list_uid, ds_ver)

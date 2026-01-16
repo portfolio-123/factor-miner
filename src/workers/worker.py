@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 load_dotenv()
 from src.core.constants import PRICE_COLUMN
 from src.core.constants import REQUIRED_COLUMNS
-from src.core.constants import JobStatus
+from src.core.constants import AnalysisStatus
 from src.core.types import AnalysisParams
 
 from src.core.utils import serialize_dataframe
-from src.workers.manager import read_job, update_job, append_job_log, clear_job_credentials
+from src.workers.manager import read_analysis, update_analysis, append_analysis_log, clear_analysis_credentials
 from src.services.readers import ParquetDataReader
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import (
@@ -22,18 +22,18 @@ from src.core.calculations import (
     calculate_correlation_matrix,
 )
 
-_job_id: str | None = None
+_analysis_id: str | None = None
 
 
 def log(message: str) -> None:
     timestamp = datetime.now().strftime('%H:%M:%S')
     formatted = f"[{timestamp}] [WORKER] {message}"
 
-    if _job_id:
-        append_job_log(_job_id, formatted)
+    if _analysis_id:
+        append_analysis_log(_analysis_id, formatted)
 
 
-def run_analysis(job_id: str, params: AnalysisParams) -> dict:
+def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
     log("Starting analysis...")
 
     log(f"Processing dataset: {params.dataset_path}")
@@ -52,14 +52,14 @@ def run_analysis(job_id: str, params: AnalysisParams) -> dict:
             end_date=end_date,
         )
     finally:
-        clear_job_credentials(job_id)
+        clear_analysis_credentials(analysis_id)
 
     log("Benchmark data fetched successfully")
 
-    # Progress callback to update job file
+    # Progress callback to update analysis file
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
         log(f"Progress: {completed}/{total} factors - {current_factor}")
-        update_job(job_id, status=JobStatus.RUNNING, progress={
+        update_analysis(analysis_id, status=AnalysisStatus.RUNNING, progress={
             "completed": completed,
             "total": total,
             "current_factor": current_factor
@@ -69,7 +69,7 @@ def run_analysis(job_id: str, params: AnalysisParams) -> dict:
     excluded_columns = REQUIRED_COLUMNS + ['benchmark', 'Future Perf']
     factor_columns = [col for col in columns if col not in excluded_columns]
 
-    update_job(job_id, status=JobStatus.RUNNING, progress={
+    update_analysis(analysis_id, status=AnalysisStatus.RUNNING, progress={
         "completed": 0,
         "total": len(factor_columns),
         "current_factor": ""
@@ -112,30 +112,30 @@ def run_analysis(job_id: str, params: AnalysisParams) -> dict:
 
 
 def main():
-    global _job_id
-    _job_id = sys.argv[1]
+    global _analysis_id
+    _analysis_id = sys.argv[1]
 
-    log(f"Worker started for job: {_job_id}")
+    log(f"Worker started for analysis: {_analysis_id}")
 
     try:
-        job_data = read_job(_job_id)
-        if job_data is None:
-            log(f"Job {_job_id} not found")
+        analysis_data = read_analysis(_analysis_id)
+        if analysis_data is None:
+            log(f"Analysis {_analysis_id} not found")
             sys.exit(1)
 
-        update_job(_job_id, status=JobStatus.RUNNING)
+        update_analysis(_analysis_id, status=AnalysisStatus.RUNNING)
         log("Status updated to running")
 
-        params = AnalysisParams(**job_data['params'])
-        results = run_analysis(_job_id, params)
+        params = AnalysisParams(**analysis_data['params'])
+        results = run_analysis(_analysis_id, params)
 
-        update_job(_job_id, status=JobStatus.COMPLETED, results=results)
-        log("Job completed successfully")
+        update_analysis(_analysis_id, status=AnalysisStatus.COMPLETED, results=results)
+        log("Analysis completed successfully")
 
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
         log(f"Error: {error_msg}")
-        update_job(_job_id, status=JobStatus.ERROR, error=error_msg)
+        update_analysis(_analysis_id, status=AnalysisStatus.ERROR, error=error_msg)
         sys.exit(1)
 
 

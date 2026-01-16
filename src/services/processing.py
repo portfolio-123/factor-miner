@@ -5,7 +5,7 @@ from typing import Optional
 from src.core.context import get_state, update_state, add_debug_log, sync_url_for_results
 from src.core.types import AnalysisParams
 from src.core.calculations import get_dataset_date_range
-from src.workers.manager import start_analysis_job, get_job_results, delete_job
+from src.workers.manager import start_analysis, get_analysis_results, delete_analysis
 from src.services.readers import ParquetDataReader
 from src.services.parquet_utils import get_file_version
 
@@ -74,10 +74,10 @@ def start_step2_analysis() -> None:
         except Exception:
             pass
 
-    job_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    analysis_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # fl_id/dataset_ts/job_ts
-    job_id = f"{fl_id}/{dataset_ts}/{job_ts}"
+    # fl_id/dataset_ts/analysis_ts
+    analysis_id = f"{fl_id}/{dataset_ts}/{analysis_ts}"
 
     try:
         params = AnalysisParams(
@@ -88,35 +88,35 @@ def start_step2_analysis() -> None:
             dataset_path=state.dataset_path,
             access_token=state.access_token,
         )
-        start_analysis_job(job_id, params.model_dump())
-        update_state(current_job_id=job_id)
+        start_analysis(analysis_id, params.model_dump())
+        update_state(current_analysis_id=analysis_id)
     except Exception as e:
         update_state(analysis_error=f"Error starting analysis: {str(e)}")
 
 
-def _merge_worker_logs(job_data: dict) -> None:
-    """Merge worker logs from job into main debug logs."""
-    worker_logs = job_data.get("logs", [])
+def _merge_worker_logs(analysis_data: dict) -> None:
+    """Merge worker logs from analysis into main debug logs."""
+    worker_logs = analysis_data.get("logs", [])
     for log_entry in worker_logs:
         add_debug_log(log_entry, without_timestamp=True)
 
 
-def process_step2_completion(job_data: dict) -> Optional[str]:
+def process_step2_completion(analysis_data: dict) -> Optional[str]:
     state = get_state()
 
-    _merge_worker_logs(job_data)
+    _merge_worker_logs(analysis_data)
 
     try:
-        metrics_df, corr_matrix = get_job_results(job_data)
+        metrics_df, corr_matrix = get_analysis_results(analysis_data)
 
         update_state(
             all_metrics=metrics_df,
             all_corr_matrix=corr_matrix,
             page="results",
         )
-        sync_url_for_results(state.current_job_id)
+        sync_url_for_results(state.current_analysis_id)
         return None
     except Exception as e:
-        delete_job(state.current_job_id)
-        update_state(current_job_id=None)
+        delete_analysis(state.current_analysis_id)
+        update_state(current_analysis_id=None)
         return f"Error loading results: {str(e)}"

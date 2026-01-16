@@ -12,9 +12,9 @@ from src.ui.components.tables import (
     render_dataset_preview,
 )
 
-from src.ui.components.jobs import (
-    render_job_card,
-    render_job_param,
+from src.ui.components.analyses import (
+    render_analysis_card,
+    render_analysis_param,
     render_analysis_params,
 )
 
@@ -40,8 +40,8 @@ __all__ = [
     "render_formulas_grid",
     "render_results_table",
     "render_dataset_preview",
-    "render_job_card",
-    "render_job_param",
+    "render_analysis_card",
+    "render_analysis_param",
     "render_analysis_params",
     "render_current_dataset",
     "render_dataset_info_row",

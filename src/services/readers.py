@@ -118,18 +118,16 @@ class ParquetDataReader:
             return None
 
     def get_dataset_info(self) -> DatasetConfig:
-        dataset_info = self._get_custom_metadata_json("dataset")
+        dataset_info = self._get_custom_metadata_json("datasetMetadata")
+        if not dataset_info:
+            return DatasetConfig()
 
-        norm = dataset_info.get("normalization")
-        if isinstance(norm, str):
-            try:
-                loaded = json.loads(norm)
-            except Exception:
-                loaded = None
-            dataset_info["normalization"] = loaded if isinstance(loaded, dict) else None
+        # Calculate factorCount from formulas array
+        if "formulas" in dataset_info:
+            dataset_info["factorCount"] = len(dataset_info["formulas"])
 
-        features_json = self._get_custom_metadata_json("features")
-        if features_json:
-            dataset_info["factorCount"] = len(features_json)
+        # If normalization is true, use preprocessor as the normalization config
+        if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
+            dataset_info["normalization"] = dataset_info["preprocessor"]
 
         return DatasetConfig(**dataset_info)
