@@ -1,8 +1,6 @@
-import os
-from pathlib import Path
-
 import streamlit as st
 
+from src.core.environment import FACTOR_LIST_DIR
 from src.core.context import update_state
 from src.ui.styles import load_global_css
 
@@ -14,12 +12,8 @@ def init() -> None:
 
     update_state(factor_list_uid=fl_id)
 
-    try:
-        path = Path(os.environ["FACTOR_LIST_DIR"]) / fl_id
-        if path.exists():
-            update_state(dataset_path=str(path))
-    except KeyError:
-        st.error("Error locating factor list dataset")
-        st.stop()
+    path = FACTOR_LIST_DIR / fl_id
+    if path.exists():
+        update_state(dataset_path=str(path))
 
     load_global_css()

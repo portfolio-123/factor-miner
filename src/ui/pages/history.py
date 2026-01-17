@@ -11,47 +11,40 @@ from src.ui.components import (
     section_header,
     spacer,
 )
-from src.services.parquet_utils import get_file_version, get_dataset_metadata
-from src.services.analysis_utils import group_analyses_by_version, sort_dataset_versions
-from src.workers.manager import list_analyses
+from src.services.history_service import get_history_data
+from src.services.parquet_utils import get_dataset_metadata
 
 
 def render() -> None:
     state = get_state()
-    fl_id = state.factor_list_uid
 
-    if not fl_id:
+    if not state.factor_list_uid:
         st.warning(
             "No Factor List selected. Please select a Factor List to view analysis history."
         )
         return
 
-    analyses_by_version = group_analyses_by_version(list_analyses(fl_id))
+    data = get_history_data(state.factor_list_uid, state.dataset_path)
 
-    all_versions = set(analyses_by_version.keys())
-    active_version = get_file_version(state.dataset_path) if state.dataset_path else None
-    if active_version:
-        all_versions.add(active_version)
-
-    versions = sort_dataset_versions(list(all_versions))
-
-    if not versions:
+    if not data:
         st.info("No past analysis found for this Factor List.")
         return
 
     selected_ver = st.selectbox(
         "Datasets",
-        versions,
-        index=versions.index(active_version) if active_version in versions else 0,
+        data.versions,
+        index=data.versions.index(data.active_version) if data.active_version in data.versions else 0,
         placeholder="Select a dataset",
         key="selected_dataset_ver",
-        format_func=partial(format_dataset_option, active_version=active_version),
+        format_func=partial(format_dataset_option, active_version=data.active_version),
     )
 
-    selected_analyses = analyses_by_version.get(selected_ver, [])
-    selected_info = get_dataset_metadata(fl_id, selected_ver, state.dataset_path)
+    selected_analyses = data.analyses_by_version.get(selected_ver, [])
+    selected_info = get_dataset_metadata(
+        state.factor_list_uid, selected_ver, state.dataset_path
+    )
 
-    if selected_ver != active_version:
+    if selected_ver != data.active_version:
         st.info("You can only create a new analysis with your latest dataset")
 
     description = selected_info.description if selected_info else ""
@@ -61,7 +54,7 @@ def render() -> None:
         render_dataset_info_row(selected_info or DatasetConfig(), selected_ver)
         spacer(8)
 
-    if selected_ver == active_version:
+    if selected_ver == data.active_version:
         cols = st.columns([5, 1])
         with cols[1]:
             st.button(

@@ -2,14 +2,13 @@ import json
 import logging
 import subprocess
 import sys
-import os
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 import pandas as pd
-from dotenv import load_dotenv
 from pydantic import ValidationError
 
+from src.core.environment import FACTORMINER_DIR
 from src.core.context import get_state
 from src.core.types import AnalysisSummary
 from src.core.utils import deserialize_dataframe
@@ -24,20 +23,15 @@ from src.services.writers import (
     backup_parquet_metadata,
 )
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
 
-FACTOR_LIST_DIR = Path(os.getenv("FACTOR_LIST_DIR"))
-
-INTEGRATIONS_DIR = FACTOR_LIST_DIR / "factor-eval"
-INTEGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
+FACTORMINER_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_analysis_path(analysis_id: str) -> Path:
     if not analysis_id.endswith(".json"):
-        return INTEGRATIONS_DIR / f"{analysis_id}.json"
-    return INTEGRATIONS_DIR / analysis_id
+        return FACTORMINER_DIR / f"{analysis_id}.json"
+    return FACTORMINER_DIR / analysis_id
 
 
 def _write_analysis(analysis_id: str, analysis_data: dict) -> None:
@@ -176,7 +170,7 @@ def clear_analysis_credentials(analysis_id: str) -> bool:
 
 
 def list_analyses(fl_id: str) -> List[AnalysisSummary]:
-    fl_dir = INTEGRATIONS_DIR / fl_id
+    fl_dir = FACTORMINER_DIR / fl_id
     if not fl_dir.exists():
         return []
 

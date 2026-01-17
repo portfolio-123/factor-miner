@@ -1,8 +1,8 @@
-import os
 import re
 
 import streamlit as st
 
+from src.core.environment import P123_BASE_URL
 from src.core.context import get_state, update_state, clear_debug_logs, sync_url_for_history, sync_url_for_new_analysis
 
 
@@ -94,9 +94,8 @@ def render_breadcrumb(steps: list[tuple[str, str | None]]) -> None:
 def render_page_header() -> None:
     state = get_state()
     fl_id = state.factor_list_uid
-    base_url = os.getenv("P123_BASE_URL")
     steps = [
-        ("Factor List", f"{base_url}/sv/factorList/{fl_id}/download"),
+        ("Factor List", f"{P123_BASE_URL}/sv/factorList/{fl_id}/download"),
         ("FactorMiner", None),
     ]
 

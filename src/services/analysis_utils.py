@@ -1,5 +1,3 @@
-"""Analysis-related utility functions for grouping and sorting."""
-
 import logging
 from collections import defaultdict
 from typing import List, Dict

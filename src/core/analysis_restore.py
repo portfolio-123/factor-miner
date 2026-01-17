@@ -3,13 +3,14 @@ from src.core.context import get_state, update_state, add_debug_log, sync_url_fo
 from src.core.utils import deserialize_dataframe
 from src.core.constants import AnalysisStatus
 from src.core.types import AnalysisParams
-from src.workers.manager import read_analysis, INTEGRATIONS_DIR
+from src.core.environment import FACTORMINER_DIR
+from src.workers.manager import read_analysis
 
 
 def _load_formulas(analysis_id: str) -> pd.DataFrame:
     try:
         analysis_path_rel = analysis_id if analysis_id.endswith('.json') else f"{analysis_id}.json"
-        analysis_full_path = INTEGRATIONS_DIR / analysis_path_rel
+        analysis_full_path = FACTORMINER_DIR / analysis_path_rel
 
         metadata_path = analysis_full_path.parent / "dataset_metadata.parquet"
 

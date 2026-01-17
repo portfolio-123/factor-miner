@@ -1,18 +1,9 @@
 import os
 from pathlib import Path
-from typing import Optional
 
-import pandas as pd
-from dotenv import load_dotenv
-
-from src.core.context import get_state
+from src.core.environment import FACTORMINER_DIR
 from src.core.types import DatasetConfig
 from src.services.readers import ParquetDataReader
-
-load_dotenv()
-
-FACTOR_LIST_DIR = Path(os.getenv("FACTOR_LIST_DIR"))
-INTEGRATIONS_DIR = FACTOR_LIST_DIR / "factor-miner"
 
 
 def get_file_version(path: str) -> str:
@@ -20,7 +11,7 @@ def get_file_version(path: str) -> str:
 
 
 def get_dataset_file_path(fl_id: str, dataset_version: str) -> Path:
-    return INTEGRATIONS_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
+    return FACTORMINER_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
 
 
 def get_active_dataset_metadata(dataset_path: str) -> DatasetConfig:
@@ -45,7 +36,7 @@ def get_dataset_metadata(
 
 
 def get_next_version_number(fl_id: str) -> str:
-    fl_dir = INTEGRATIONS_DIR / fl_id
+    fl_dir = FACTORMINER_DIR / fl_id
     if not fl_dir.exists():
         return "1"
     existing = [int(d.name) for d in fl_dir.iterdir() if d.is_dir() and d.name.isdigit()]
@@ -53,7 +44,7 @@ def get_next_version_number(fl_id: str) -> str:
 
 
 def find_version_for_timestamp(fl_id: str, timestamp: str) -> str | None:
-    fl_dir = INTEGRATIONS_DIR / fl_id
+    fl_dir = FACTORMINER_DIR / fl_id
     if not fl_dir.exists():
         return None
     for d in fl_dir.iterdir():

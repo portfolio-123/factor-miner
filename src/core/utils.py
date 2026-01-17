@@ -38,17 +38,14 @@ def format_dataset_option(ver: str, active_version: str | None) -> str:
 
 
 def add_formula_column(
-    df: pd.DataFrame,
-    formulas_df: pd.DataFrame | None,
+    download_df: pd.DataFrame,
+    formulas_df: pd.DataFrame,
     factor_col: str = "Factor",
 ) -> pd.DataFrame:
-    if formulas_df is None or "name" not in formulas_df.columns:
-        return df
-
     formula_map = formulas_df.drop_duplicates(subset=["name"]).set_index("name")[
         "formula"
     ]
-    result = df.copy()
+    result = download_df.copy()
     factor_idx = result.columns.get_loc(factor_col)
     result.insert(factor_idx + 1, "Formula", result[factor_col].map(formula_map))
     return result

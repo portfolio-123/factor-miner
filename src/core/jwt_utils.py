@@ -1,19 +1,18 @@
-import os
 import json
 
 import streamlit as st
 from jose import jwe, JWTError
 from pydantic import ValidationError
 
+from src.core.environment import JWT_SECRET_PATH
 from src.core.types import TokenPayload
 
 
 @st.cache_resource
 def _load_secret() -> bytes:
-    secret_path = os.getenv("JWT_SECRET_PATH")
-    if not secret_path or not os.path.exists(secret_path):
+    if not JWT_SECRET_PATH.exists():
         raise FileNotFoundError("Missing secret key")
-    with open(secret_path, "r", encoding="utf-8") as f:
+    with open(JWT_SECRET_PATH, "r", encoding="utf-8") as f:
         return f.read().strip().encode("utf-8")
 
 

@@ -77,3 +77,9 @@ class Analysis(AnalysisSummary):
     updated_at: str | None = None
     results: Dict[str, Any] | None = None
     error: str | None = None
+
+
+class HistoryPageData(BaseModel):
+    versions: list[str]
+    analyses_by_version: Dict[str, list[AnalysisSummary]]
+    active_version: str | None
