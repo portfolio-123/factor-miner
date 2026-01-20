@@ -1,8 +1,40 @@
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Dict, Optional
+from typing import TypedDict
+
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.core.constants import AnalysisStatus
+
+class AnalysisStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+class AnalysisProgress(TypedDict):
+    completed: int
+    total: int
+    current_factor: str
+
+
+class AnalysisResults(TypedDict):
+    all_metrics: str
+    all_corr_matrix: str
+
+
+class AnalysisUpdates(TypedDict, total=False):
+    status: AnalysisStatus
+    results: AnalysisResults
+    error: str
+    progress: AnalysisProgress
+
+
+@dataclass
+class FilterParams:
+    n_features: int
+    correlation_threshold: float
+    min_alpha: float
 
 
 class TokenPayload(BaseModel):
@@ -21,14 +53,16 @@ class ScopeType(StrEnum):
     DATE = "date"
 
 
-class AnalysisParams(BaseModel):
-    dataset_path: str
+class SettingsForm(BaseModel):
+    benchmark_ticker: str
+    min_alpha: float
     top_pct: float
     bottom_pct: float
-    min_alpha: float
-    benchmark_data: Optional[str] = None
-    benchmark_ticker: str
-    access_token: Optional[str] = None
+
+
+class AnalysisParams(SettingsForm):
+    active_dataset_file: str
+    access_token: str | None = None
 
 
 class NormalizationConfig(BaseModel):
@@ -48,7 +82,6 @@ class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     version: str | None = None
-    sourceTimestamp: str | None = None
     description: str | None = None
     universeName: str
     frequency: int
@@ -75,11 +108,7 @@ class AnalysisSummary(BaseModel):
 
 class Analysis(AnalysisSummary):
     updated_at: str | None = None
-    results: Dict[str, Any] | None = None
+    results: AnalysisResults | None = None
     error: str | None = None
-
-
-class HistoryPageData(BaseModel):
-    versions: list[str]
-    analyses_by_version: Dict[str, list[AnalysisSummary]]
-    active_version: str | None
+    progress: AnalysisProgress | None = None
+    logs: list[str] | None = None

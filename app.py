@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 from src.core.auth import login
 from src.core.init import init
-from src.ui.components import render_page_header
+from src.ui.components.headers import render_page_header
 from src.ui.router import render_content
 
 load_dotenv()

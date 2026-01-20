@@ -1,7 +1,31 @@
+import json
 from typing import Any
 from io import StringIO
+from pathlib import Path
 from datetime import datetime
 import pandas as pd
+from pydantic import ValidationError
+
+from src.core.types import Analysis
+
+
+def read_json_file(path: Path) -> dict | None:
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, IOError):
+        return None
+
+
+def read_analysis_json(path: Path) -> Analysis | None:
+    """Read JSON file and validate as Analysis, returning None on any error."""
+    data = read_json_file(path)
+    if data is None:
+        return None
+    try:
+        return Analysis.model_validate(data)
+    except ValidationError:
+        return None
 
 
 def format_timestamp(ts_str: str) -> str:
@@ -27,13 +51,14 @@ def serialize_dataframe(df: pd.DataFrame) -> str:
     return df.to_json(orient="split", date_format="iso")
 
 
-def deserialize_dataframe(json_str: str) -> pd.DataFrame:
-    return pd.read_json(StringIO(json_str), orient="split")
+def deserialize_dataframe(*data: str) -> pd.DataFrame | tuple[pd.DataFrame, ...]:
+    results = [pd.read_json(StringIO(d), orient="split") for d in data]
+    return results[0] if len(results) == 1 else tuple(results)
 
 
-def format_dataset_option(ver: str, active_version: str | None) -> str:
-    if ver == active_version:
-        return "🟢 [READY] ACTIVE DATASET"
+def format_dataset_option(ver: str) -> str:
+    if ver == "active":
+        return "Active Version"
     return f"Version {ver}"
 
 
