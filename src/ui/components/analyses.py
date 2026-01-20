@@ -1,8 +1,7 @@
 import streamlit as st
 
 from src.core.utils import format_date
-from src.core.types import Analysis
-from src.core.analysis_restore import restore_analysis_state
+from src.core.types import Analysis, AnalysisParams
 from src.ui.constants import ANALYSIS_STATUS_COLORS, ANALYSIS_STATUS_COLORS_DEFAULT
 from src.ui.components.common import section_header, render_info_item
 
@@ -11,17 +10,16 @@ def render_analysis_param(label: str, value: str) -> str:
     return f'<div class="analysis-card-param"><span class="label">{label}</span><span class="value">{value}</span></div>'
 
 
-def render_analysis_params(analysis_params: dict) -> None:
+def render_analysis_params(params: AnalysisParams) -> None:
     param_config = [
-        ("Min Alpha", "min_alpha"),
-        ("Top X", "top_x_pct"),
-        ("Bottom X", "bottom_x_pct"),
+        ("Min Alpha", params.min_alpha),
+        ("Top X", params.top_pct),
+        ("Bottom X", params.bottom_pct),
     ]
     items = [
-        render_info_item(label, f"{analysis_params[key]}%")
-        for label, key in param_config
+        render_info_item(label, f"{value}%")
+        for label, value in param_config
     ]
-
     section_header("Analysis Parameters")
     st.html(f'<div class="dataset-info-group">{"".join(items)}</div>')
 
@@ -50,6 +48,5 @@ def render_analysis_card(analysis: Analysis) -> None:
     st.html(card_html)
 
     if st.button("Open Analysis", key=f"analysis_btn_{analysis.id}", width="stretch"):
-        if restore_analysis_state(analysis.id):
-            st.rerun()
-        st.error(f"Failed to load analysis {analysis.id}")
+        st.query_params["analysis_id"] = analysis.id
+        st.rerun()
