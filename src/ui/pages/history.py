@@ -1,21 +1,24 @@
 import streamlit as st
-from functools import partial
-
 from src.core.utils import format_dataset_option
-from src.core.context import get_state, reset_analysis_state
-from src.core.types import DatasetConfig
-from src.ui.components import (
-    render_dataset_info_row,
-    render_analysis_card,
-    render_description_editor,
-    section_header,
-    spacer,
-)
+from src.core.context import get_state, update_state
+from src.ui.components.common import section_header
+from src.ui.components.datasets import render_dataset_card, render_description_editor
+from src.ui.components.analyses import render_analysis_card
 from src.services.history_service import get_history_data
-from src.services.parquet_utils import get_dataset_metadata
+from src.services.dataset_service import (
+    get_active_dataset_metadata,
+    get_backup_dataset_metadata,
+)
+from src.workers.manager import list_analyses_for_version
 
 
-def render() -> None:
+def start_new_analysis() -> None:
+    update_state(analysis_settings=None)
+    st.query_params["create"] = "true"
+    st.query_params["step"] = "1"
+
+
+def history() -> None:
     state = get_state()
 
     if not state.factor_list_uid:
@@ -24,7 +27,7 @@ def render() -> None:
         )
         return
 
-    data = get_history_data(state.factor_list_uid, state.dataset_path)
+    data = get_history_data()
 
     if not data:
         st.info("No past analysis found for this Factor List.")
@@ -32,29 +35,37 @@ def render() -> None:
 
     selected_ver = st.selectbox(
         "Datasets",
-        data.versions,
-        index=data.versions.index(data.active_version) if data.active_version in data.versions else 0,
+        data,
+        index=0,  # "active" is first when dataset loaded
         placeholder="Select a dataset",
         key="selected_dataset_ver",
-        format_func=partial(format_dataset_option, active_version=data.active_version),
+        format_func=format_dataset_option,
     )
 
-    selected_analyses = data.analyses_by_version.get(selected_ver, [])
-    selected_info = get_dataset_metadata(
-        state.factor_list_uid, selected_ver, state.dataset_path
-    )
+    is_viewing_live = selected_ver == "active"
+    update_state(is_viewing_live_dataset=is_viewing_live)
 
-    if selected_ver != data.active_version:
+    try:
+        selected_dataset_metadata = (
+            get_active_dataset_metadata() if is_viewing_live
+            else get_backup_dataset_metadata(state.factor_list_uid, selected_ver)
+        )
+    except Exception as e:
+        st.error(f"Failed to load dataset metadata: {e}")
+        return
+
+    if is_viewing_live:
         st.info("You can only create a new analysis with your latest dataset")
 
-    description = selected_info.description if selected_info else ""
-    render_description_editor(description, selected_ver, state.edit_dataset_mode)
+    selected_analyses = list_analyses_for_version(state.factor_list_uid, state.active_backup_version if is_viewing_live else selected_ver)
+       
 
-    with st.container(border=True):
-        render_dataset_info_row(selected_info or DatasetConfig(), selected_ver)
-        spacer(8)
+    render_description_editor(selected_dataset_metadata.description, selected_ver)
 
-    if selected_ver == data.active_version:
+    render_dataset_card(selected_dataset_metadata)
+
+    # let users create new analysis if they have selected the active dataset
+    if is_viewing_live:
         cols = st.columns([5, 1])
         with cols[1]:
             st.button(
@@ -62,7 +73,7 @@ def render() -> None:
                 type="primary",
                 key="new_analysis_btn",
                 width="stretch",
-                on_click=reset_analysis_state,
+                on_click=start_new_analysis,
             )
 
     if not selected_analyses:

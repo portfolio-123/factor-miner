@@ -1,96 +1,71 @@
 import streamlit as st
 import pandas as pd
-from src.core.context import get_state, update_state
-from src.core.constants import AnalysisStatus
-from src.ui.components import section_header, render_results_table
-from src.core.utils import add_formula_column
+from src.core.context import get_state, update_state, merge_analysis_logs
+from src.core.types import AnalysisStatus, FilterParams
+from src.ui.components.common import copy_button, section_header
+from src.ui.components.headers import navbar
+from src.ui.components.tables import render_results_table
+from src.ui.components.datasets import render_dataset_card
+from src.ui.components.analyses import render_analysis_params
+from src.core.utils import add_formula_column, deserialize_dataframe
 from src.core.calculations import select_best_features as _select_best_features
-from src.workers.manager import delete_analysis, read_analysis
-from src.services.processing import process_step2_completion, _merge_worker_logs
+from src.workers.manager import read_analysis
+from src.services.dataset_service import get_backup_dataset_metadata
+
+
+@st.cache_data
+def _deserialize_results(metrics_json: str, corr_json: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    return deserialize_dataframe(metrics_json, corr_json)
 
 
 @st.cache_data
 def select_best_features_cached(
     analysis_id: str,
-    _all_metrics,
-    _all_corr_matrix,
-    n_features: int,
-    correlation_threshold: float,
-    min_alpha: float,
+    _metrics: pd.DataFrame,
+    _corr_matrix: pd.DataFrame,
+    params: FilterParams,
 ):
-    # using analysis_id to invalidate cache on a new analysis.
-
     return _select_best_features(
-        _all_metrics,
-        _all_corr_matrix,
-        N=n_features,
-        correlation_threshold=correlation_threshold,
-        a_min=min_alpha,
+        _metrics,
+        _corr_matrix,
+        N=params.n_features,
+        correlation_threshold=params.correlation_threshold,
+        a_min=params.min_alpha,
     )
-
-
-def _on_analysis_completed(analysis_data: dict) -> None:
-    error = process_step2_completion(analysis_data)
-    if error:
-        update_state(analysis_error=error)
-    st.rerun()
-
-
-def _on_analysis_error(analysis_id: str, analysis_data: dict) -> None:
-    _merge_worker_logs(analysis_data)
-    error_msg = analysis_data.get("error", "")
-    display_msg = error_msg.split("\n")[0] if error_msg else "Unknown error"
-    update_state(
-        analysis_error=f"Analysis failed: {display_msg}",
-        current_analysis_id=None,
-    )
-    delete_analysis(analysis_id)
-    st.rerun()
 
 
 @st.fragment(run_every="0.5s")
 def _render_analysis_progress(analysis_id: str) -> None:
-    analysis_data = read_analysis(analysis_id)
-    if analysis_data is None:
+    analysis = read_analysis(analysis_id)
+
+    # if not in progress anymore, rerun to show results
+    if analysis.status == AnalysisStatus.COMPLETED or analysis.status == AnalysisStatus.ERROR:
+        merge_analysis_logs(analysis)
+        st.rerun()
+
+    progress = analysis.progress
+    if not progress:
+        st.error("An error occurred while running the analysis")
         return
 
-    status = analysis_data.get("status")
-
-    if status == AnalysisStatus.COMPLETED:
-        _on_analysis_completed(analysis_data)
-        return
-
-    if status == AnalysisStatus.ERROR:
-        _on_analysis_error(analysis_id, analysis_data)
-        return
-
-    progress = analysis_data.get("progress", {})
-    completed = progress.get("completed", 0)
-    total = progress.get("total", 0)
-    current_factor = progress.get("current_factor", "")
-
-    _, center_col, _ = st.columns([1, 2, 1])
-
-    with center_col:
+    with st.columns([1, 2, 1])[1]:
         st.space(100)
         st.subheader("Running Factor Analysis")
 
-        if total > 0:
-            st.progress(
-                completed / total, text=f"{completed} / {total} factors analyzed"
-            )
-        else:
-            st.progress(0, text="Initializing...")
+        st.progress(
+            progress.completed / progress.total, text=f"{progress.completed} / {progress.total} factors analyzed"
+        )
 
-        if current_factor:
-            st.info(f"Analyzing: **{current_factor}**")
+        if progress.current_factor:
+            st.info(f"Analyzing: **{progress.current_factor}**")
         else:
-            st.info("Starting worker process...")
+            st.info("Starting...")
 
 
 @st.fragment
-def _render_filter_and_results() -> None:
+def _render_filter_and_results(metrics: pd.DataFrame, corr_matrix: pd.DataFrame) -> None:
     state = get_state()
+    analysis = read_analysis(state.analysis_id)
 
     section_header("Filter Parameters")
 
@@ -101,7 +76,7 @@ def _render_filter_and_results() -> None:
             "Correlation Threshold",
             min_value=0.0,
             max_value=1.0,
-            value=state.filter_correlation,
+            value=st.session_state.get("filter_correlation", 0.5),
             key="filter_correlation",
             step=0.05,
         )
@@ -111,29 +86,21 @@ def _render_filter_and_results() -> None:
             "Number of Features",
             min_value=1,
             max_value=100,
-            value=state.filter_n_features,
+            value=st.session_state.get("filter_n_features", 10),
             key="filter_n_features",
             step=1,
         )
 
-    if (
-        correlation_threshold != state.correlation_threshold
-        or n_features != state.n_features
-    ):
-        update_state(correlation_threshold=correlation_threshold, n_features=n_features)
-
     best_features = select_best_features_cached(
-        state.current_analysis_id,
-        state.all_metrics,
-        state.all_corr_matrix,
-        n_features,
-        correlation_threshold,
-        state.min_alpha,
+        state.analysis_id,
+        metrics,
+        corr_matrix,
+        FilterParams(n_features, correlation_threshold, analysis.params.min_alpha),
     )
 
     section_header("Best Performing Factors")
 
-    filtered_best_features = render_results_table(best_features, state.all_metrics)
+    filtered_best_features = render_results_table(best_features, metrics)
 
     _render_action_buttons(filtered_best_features)
 
@@ -158,6 +125,9 @@ def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
     # comma delimited for file download (with Formula in second position)
     csv_to_download = _prepare_download_csv(display_df)
 
+    with col1:
+        copy_button(csv_to_copy, label="Copy to Clipboard", width="stretch")
+
     with col2:
         st.download_button(
             type="primary",
@@ -169,22 +139,37 @@ def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
         )
 
 
-def render() -> None:
-    state = get_state()
+def results(analysis_id: str) -> None:
+    navbar()
 
-    if state.analysis_error:
-        st.error(state.analysis_error)
+    analysis = read_analysis(analysis_id)
+    if not analysis:
+        st.error("Analysis not found")
         return
 
-    # if there's an analysis being processed, render progress component
-    if state.current_analysis_id:
-        analysis_data = read_analysis(state.current_analysis_id)
-        if analysis_data and analysis_data.get("status") in (
-            AnalysisStatus.PENDING,
-            AnalysisStatus.RUNNING,
-        ):
-            _render_analysis_progress(state.current_analysis_id)
-            return
+    try:
+        dataset_metadata = get_backup_dataset_metadata(get_state().factor_list_uid, analysis_id.split("/")[1])
+        update_state(formulas_data=pd.DataFrame(dataset_metadata.formulas), analysis_id=analysis_id)
+    except Exception as e:
+        st.error(f"Failed to load dataset metadata: {e}")
+        return
 
-    # otherwise, render results
-    _render_filter_and_results()
+    render_dataset_card(dataset_metadata)
+
+    render_analysis_params(analysis.params)
+
+    if analysis.status == AnalysisStatus.ERROR:
+        st.error((analysis.error or "Analysis failed").split("\n")[0])
+        return
+
+    if analysis.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
+        _render_analysis_progress(analysis_id)
+        return
+
+    # completed: load results and render
+    merge_analysis_logs(analysis)
+    metrics, corr = _deserialize_results(
+        analysis.results["all_metrics"],
+        analysis.results["all_corr_matrix"],
+    )
+    _render_filter_and_results(metrics, corr)
