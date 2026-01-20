@@ -8,7 +8,12 @@ from src.core.constants import PRICE_COLUMN, REQUIRED_COLUMNS
 from src.core.types import AnalysisParams, AnalysisStatus
 
 from src.core.utils import serialize_dataframe
-from src.workers.manager import read_analysis, update_analysis, append_analysis_log, clear_analysis_credentials
+from src.workers.manager import (
+    read_analysis,
+    update_analysis,
+    append_analysis_log,
+    clear_analysis_credentials,
+)
 from src.services.readers import ParquetDataReader
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import (
@@ -24,7 +29,7 @@ _analysis_id: str | None = None
 
 
 def log(message: str) -> None:
-    timestamp = datetime.now().strftime('%H:%M:%S')
+    timestamp = datetime.now().strftime("%H:%M:%S")
     formatted = f"[{timestamp}] [WORKER] {message}"
 
     if _analysis_id:
@@ -57,25 +62,29 @@ def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
     # Progress callback to update analysis file
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
         log(f"Progress: {completed}/{total} factors - {current_factor}")
-        update_analysis(analysis_id, status=AnalysisStatus.RUNNING, progress={
-            "completed": completed,
-            "total": total,
-            "current_factor": current_factor
-        })
+        update_analysis(
+            analysis_id,
+            status=AnalysisStatus.RUNNING,
+            progress={
+                "completed": completed,
+                "total": total,
+                "current_factor": current_factor,
+            },
+        )
 
     columns = reader._parquet_file.schema_arrow.names
-    excluded_columns = REQUIRED_COLUMNS + ['benchmark', 'Future Perf']
+    excluded_columns = REQUIRED_COLUMNS + ["benchmark", "Future Perf"]
     factor_columns = [col for col in columns if col not in excluded_columns]
 
-    update_analysis(analysis_id, status=AnalysisStatus.RUNNING, progress={
-        "completed": 0,
-        "total": len(factor_columns),
-        "current_factor": ""
-    })
+    update_analysis(
+        analysis_id,
+        status=AnalysisStatus.RUNNING,
+        progress={"completed": 0, "total": len(factor_columns), "current_factor": ""},
+    )
 
     log("Calculating future performance...")
 
-    perf_core = reader.read_columns(['Date', 'Ticker', PRICE_COLUMN])
+    perf_core = reader.read_columns(["Date", "Ticker", PRICE_COLUMN])
     future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
 
     log("Analyzing factors...")
@@ -85,9 +94,9 @@ def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
         factor_columns=factor_columns,
         top_pct=params.top_pct,
         bottom_pct=params.bottom_pct,
-        progress_fn=on_progress
+        progress_fn=on_progress,
     )
-    raw_data = reader.read_columns(['Date'])
+    raw_data = reader.read_columns(["Date"])
 
     log("Calculating benchmark returns...")
     raw_data = calculate_benchmark_returns(raw_data, benchmark_data)
@@ -104,8 +113,8 @@ def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
     log("Analysis complete!")
 
     return {
-        'all_metrics': serialize_dataframe(metrics_df),
-        'all_corr_matrix': serialize_dataframe(corr_matrix),
+        "all_metrics": serialize_dataframe(metrics_df),
+        "all_corr_matrix": serialize_dataframe(corr_matrix),
     }
 
 
@@ -116,15 +125,15 @@ def main():
     log(f"Worker started for analysis: {_analysis_id}")
 
     try:
-        analysis_data = read_analysis(_analysis_id)
-        if analysis_data is None:
+        analysis = read_analysis(_analysis_id)
+        if analysis is None:
             log(f"Analysis {_analysis_id} not found")
             sys.exit(1)
 
         update_analysis(_analysis_id, status=AnalysisStatus.RUNNING)
         log("Status updated to running")
 
-        params = AnalysisParams(**analysis_data['params'])
+        params = analysis.params
         results = run_analysis(_analysis_id, params)
 
         update_analysis(_analysis_id, status=AnalysisStatus.COMPLETED, results=results)
@@ -139,5 +148,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

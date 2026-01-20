@@ -13,6 +13,7 @@ from src.ui.components.common import (
     render_section_label,
     spacer,
 )
+from src.core.utils import format_date
 
 
 def _build_norm_items(normalization) -> list[str]:
@@ -77,7 +78,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             (
                 c2,
                 "Period",
-                f"{dataset_metadata.startDt or 'N/A'} - {dataset_metadata.endDt or 'N/A'}",
+                f"{format_date(dataset_metadata.startDt) if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt) if dataset_metadata.endDt else 'N/A'}",
             ),
             (c3, "Frequency", frequency_map.get(dataset_metadata.frequency, "N/A")),
         ]

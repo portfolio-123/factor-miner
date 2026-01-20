@@ -26,7 +26,7 @@ def submit_analysis_creation() -> None:
         dataset_version = create_version_dir_name(fl_id, timestamp)
 
     analysis_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    analysis_id = f"{fl_id}/{dataset_version}/{analysis_ts}"
+    analysis_id = f"{fl_id}/{dataset_version}/{analysis_ts}.json"
 
     try:
         settings = state.analysis_settings
@@ -35,7 +35,10 @@ def submit_analysis_creation() -> None:
             active_dataset_file=state.active_dataset_file,
             access_token=state.access_token,
         )
-        start_analysis(analysis_id, params.model_dump())
+        start_analysis(analysis_id, params)
         update_state(analysis_id=analysis_id, active_backup_version=dataset_version)
+
+        st.query_params.from_dict({"fl_id": fl_id, "analysis_id": analysis_id})
+        st.rerun()
     except Exception as e:
         st.toast(f"Error starting analysis: {e}")

@@ -36,7 +36,7 @@ def format_timestamp(ts_str: str) -> str:
         return f"Version: {ts_str}"
 
 
-def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
+def format_date(date_value: Any, format_str: str = "%Y-%m-%d") -> str:
     try:
         import pandas as pd
 

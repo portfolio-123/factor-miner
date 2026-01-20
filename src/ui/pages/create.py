@@ -23,7 +23,7 @@ from src.ui.components.datasets import (
 
 
 def create_form() -> None:
-    navbar(show_steps=True, show_logs=True)
+    navbar(show_steps=True)
 
     try:
         render_dataset_card(get_active_dataset_metadata())

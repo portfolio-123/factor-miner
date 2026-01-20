@@ -14,7 +14,9 @@ from src.services.dataset_service import get_backup_dataset_metadata
 
 
 @st.cache_data
-def _deserialize_results(metrics_json: str, corr_json: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _deserialize_results(
+    metrics_json: str, corr_json: str
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     return deserialize_dataframe(metrics_json, corr_json)
 
 
@@ -39,7 +41,10 @@ def _render_analysis_progress(analysis_id: str) -> None:
     analysis = read_analysis(analysis_id)
 
     # if not in progress anymore, rerun to show results
-    if analysis.status == AnalysisStatus.COMPLETED or analysis.status == AnalysisStatus.ERROR:
+    if (
+        analysis.status == AnalysisStatus.COMPLETED
+        or analysis.status == AnalysisStatus.ERROR
+    ):
         merge_analysis_logs(analysis)
         st.rerun()
 
@@ -53,7 +58,8 @@ def _render_analysis_progress(analysis_id: str) -> None:
         st.subheader("Running Factor Analysis")
 
         st.progress(
-            progress.completed / progress.total, text=f"{progress.completed} / {progress.total} factors analyzed"
+            progress.completed / progress.total,
+            text=f"{progress.completed} / {progress.total} factors analyzed",
         )
 
         if progress.current_factor:
@@ -63,7 +69,9 @@ def _render_analysis_progress(analysis_id: str) -> None:
 
 
 @st.fragment
-def _render_filter_and_results(metrics: pd.DataFrame, corr_matrix: pd.DataFrame) -> None:
+def _render_filter_and_results(
+    metrics: pd.DataFrame, corr_matrix: pd.DataFrame
+) -> None:
     state = get_state()
     analysis = read_analysis(state.analysis_id)
 
@@ -148,8 +156,13 @@ def results(analysis_id: str) -> None:
         return
 
     try:
-        dataset_metadata = get_backup_dataset_metadata(get_state().factor_list_uid, analysis_id.split("/")[1])
-        update_state(formulas_data=pd.DataFrame(dataset_metadata.formulas), analysis_id=analysis_id)
+        dataset_metadata = get_backup_dataset_metadata(
+            get_state().factor_list_uid, analysis_id.split("/")[1]
+        )
+        update_state(
+            formulas_data=pd.DataFrame(dataset_metadata.formulas),
+            analysis_id=analysis_id,
+        )
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
         return
@@ -159,7 +172,8 @@ def results(analysis_id: str) -> None:
     render_analysis_params(analysis.params)
 
     if analysis.status == AnalysisStatus.ERROR:
-        st.error((analysis.error or "Analysis failed").split("\n")[0])
+        print("hola")
+        st.error((analysis.error or "Analysis failed"))
         return
 
     if analysis.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
