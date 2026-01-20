@@ -17,8 +17,8 @@ def update_parquet_metadata(path: Path, key: bytes, updates: Dict[str, Any]) -> 
     new_meta = {**existing_meta, key: json.dumps(current).encode("utf-8")}
     pq.write_table(table.replace_schema_metadata(new_meta), path)
 
-
-def update_parquet_metadata_preserve_mtime(
+# when updating the description of the active dataset, don't change the modification time, it's used for matching the versioning with the backups
+def update_active_dataset_metadata(
     path: Path, key: bytes, updates: Dict[str, Any]
 ) -> None:
     stat = os.stat(path)
