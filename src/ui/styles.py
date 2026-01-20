@@ -56,57 +56,6 @@ def load_global_css() -> None:
         background-color: var(--primary) !important;
     }
 
-    /* ===== Arrow Breadcrumb Navigation ===== */
-    .element-container:has(.arrow-btn) {
-        margin-bottom: 0 !important;
-    }
-
-    /* Base arrow button styles */
-    .element-container:has(.arrow-btn) + div button {
-        border-radius: 0 !important;
-        border: none !important;
-        margin: 0 !important;
-        padding: 10px 20px !important;
-        font-size: 14px !important;
-        font-weight: 500 !important;
-        height: 40px !important;
-        clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
-    }
-
-    /* First button - no left arrow */
-    .element-container:has(.arrow-btn-first) + div button {
-        clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%);
-        border-radius: 4px 0 0 4px !important;
-    }
-
-    /* Last button - no right arrow */
-    .element-container:has(.arrow-btn-last) + div button {
-        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%);
-        border-radius: 0 4px 4px 0 !important;
-    }
-
-    /* Current step - blue */
-    .element-container:has(.arrow-btn-current) + div button {
-        background-color: var(--primary) !important;
-        color: white !important;
-        font-weight: 600 !important;
-    }
-
-    /* Other available step - gray */
-    .element-container:has(.arrow-btn-other) + div button {
-        background-color: var(--bg-secondary) !important;
-        color: var(--text-secondary) !important;
-    }
-    .element-container:has(.arrow-btn-other) + div button:hover {
-        background-color: var(--bg-hover) !important;
-    }
-
-    /* Disabled step - light gray */
-    .element-container:has(.arrow-btn-disabled) + div button {
-        background-color: var(--bg-disabled) !important;
-        color: var(--bg-hover) !important;
-    }
-
     /* ===== Debug Modal Styling ===== */
     div[data-testid="stModal"] > div {
         max-height: 95vh !important;
@@ -336,6 +285,45 @@ def load_global_css() -> None:
     }
     .element-container:has(.view-factors-trigger) + .element-container button:hover p {
         color: var(--primary) !important;
+    }
+
+    /* ===== Copy Button Styles ===== */
+    .copy-btn {
+        border-radius: var(--radius-sm);
+        font-weight: 500;
+        font-size: 14px;
+        padding: 8px 16px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: "Source Sans Pro", sans-serif;
+    }
+
+    .copy-btn.primary {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+    }
+
+    .copy-btn.primary:hover {
+        background-color: var(--primary-hover);
+    }
+
+    .copy-btn.secondary {
+        background-color: var(--bg-secondary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-light);
+    }
+
+    .copy-btn.secondary:hover {
+        background-color: var(--bg-hover);
+    }
+
+    .copy-btn.stretch {
+        width: 100%;
+    }
+
+    .copy-btn.copied {
+        background-color: #4CAF50;
     }
     </style>
     """
