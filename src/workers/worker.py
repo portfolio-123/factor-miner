@@ -4,10 +4,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
-from src.core.constants import PRICE_COLUMN
-from src.core.constants import REQUIRED_COLUMNS
-from src.core.constants import AnalysisStatus
-from src.core.types import AnalysisParams
+from src.core.constants import PRICE_COLUMN, REQUIRED_COLUMNS
+from src.core.types import AnalysisParams, AnalysisStatus
 
 from src.core.utils import serialize_dataframe
 from src.workers.manager import read_analysis, update_analysis, append_analysis_log, clear_analysis_credentials
@@ -36,9 +34,9 @@ def log(message: str) -> None:
 def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
     log("Starting analysis...")
 
-    log(f"Processing dataset: {params.dataset_path}")
+    log(f"Processing dataset: {params.active_dataset_file}")
 
-    reader = ParquetDataReader(params.dataset_path)
+    reader = ParquetDataReader(params.active_dataset_file)
 
     date_df = reader.read_columns(["Date"])
     start_date, end_date = get_dataset_date_range(date_df)
