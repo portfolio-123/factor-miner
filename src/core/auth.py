@@ -5,7 +5,10 @@ from src.core.types import TokenPayload
 from src.core.cookie_utils import get_cookie, set_cookie
 from src.core.context import get_state, update_state
 from src.core.jwt_utils import decrypt_token
-from src.services.p123_client import authenticate as get_access_token, verify_factor_list_access
+from src.services.p123_client import (
+    authenticate as get_access_token,
+    verify_factor_list_access,
+)
 
 
 def _authenticate(token: str, save_cookie: bool = True) -> None:
@@ -57,18 +60,18 @@ def _render_auth_form() -> None:
                 placeholder="Enter your API Key",
             )
 
-            api_id_valid = api_id.isdigit() if api_id else False
-
             submitted = st.form_submit_button(
                 "Login",
                 type="primary",
                 width="stretch",
-                disabled=not (api_id_valid and api_key),
+                # disabled=not (api_id and api_key),
             )
 
             if submitted:
                 try:
-                    token = get_access_token(TokenPayload(apiId=int(api_id), apiKey=api_key))
+                    token = get_access_token(
+                        TokenPayload(apiId=int(api_id), apiKey=api_key)
+                    )
                     _authenticate(token)
                 except PermissionError as e:
                     st.error(str(e))

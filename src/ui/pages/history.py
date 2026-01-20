@@ -41,24 +41,32 @@ def history() -> None:
         key="selected_dataset_ver",
         format_func=format_dataset_option,
     )
-
+    print(selected_ver + " VERSION")
     is_viewing_live = selected_ver == "active"
+    print(is_viewing_live, "LIVE")
     update_state(is_viewing_live_dataset=is_viewing_live)
 
     try:
         selected_dataset_metadata = (
-            get_active_dataset_metadata() if is_viewing_live
+            get_active_dataset_metadata()
+            if is_viewing_live
             else get_backup_dataset_metadata(state.factor_list_uid, selected_ver)
         )
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
         return
 
-    if is_viewing_live:
+    if not is_viewing_live:
         st.info("You can only create a new analysis with your latest dataset")
 
-    selected_analyses = list_analyses_for_version(state.factor_list_uid, state.active_backup_version if is_viewing_live else selected_ver)
-       
+    selected_analyses = list_analyses_for_version(
+        state.factor_list_uid,
+        (
+            state.active_backup_version
+            if is_viewing_live and state.active_backup_version
+            else selected_ver
+        ),
+    )
 
     render_description_editor(selected_dataset_metadata.description, selected_ver)
 

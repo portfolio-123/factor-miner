@@ -1,13 +1,26 @@
 import streamlit as st
 
-from src.core.constants import DEFAULT_BENCHMARK, DEFAULT_MIN_ALPHA, DEFAULT_TOP_PCT, DEFAULT_BOTTOM_PCT
+from src.core.constants import (
+    DEFAULT_BENCHMARK,
+    DEFAULT_MIN_ALPHA,
+    DEFAULT_TOP_PCT,
+    DEFAULT_BOTTOM_PCT,
+)
 from src.core.context import get_state
 from src.core.types import SettingsForm
-from src.services.dataset_service import get_active_dataset_metadata, get_dataset_review_data
+from src.services.dataset_service import (
+    get_active_dataset_metadata,
+    get_dataset_review_data,
+)
 from src.services.create_service import submit_settings, submit_analysis_creation
 from src.ui.components.common import section_header
 from src.ui.components.headers import navbar
-from src.ui.components.datasets import render_dataset_card, render_dataset_preview, render_dataset_statistics
+from src.ui.components.datasets import (
+    render_dataset_card,
+    render_dataset_preview,
+    render_dataset_statistics,
+)
+
 
 def create_form() -> None:
     navbar(show_steps=True, show_logs=True)
@@ -18,7 +31,7 @@ def create_form() -> None:
         st.error(f"Failed to load dataset: {e}")
         return
 
-    if st.query_params.step == 2:
+    if st.query_params.get("step") == "2":
         _render_review()
     else:
         _render_settings()
@@ -68,15 +81,20 @@ def _render_settings() -> None:
         button_placeholder = st.empty()
         if button_placeholder.button("Continue", type="primary", width="stretch"):
             button_placeholder.button(
-                "Processing...", type="primary", icon="spinner", disabled=True, width="stretch"
+                "Processing...",
+                type="primary",
+                icon="spinner",
+                disabled=True,
+                width="stretch",
             )
-            submit_settings(SettingsForm(
-                benchmark_ticker=benchmark_ticker,
-                min_alpha=min_alpha,
-                top_pct=top_pct,
-                bottom_pct=bottom_pct,
-            ))
-            
+            submit_settings(
+                SettingsForm(
+                    benchmark_ticker=benchmark_ticker,
+                    min_alpha=min_alpha,
+                    top_pct=top_pct,
+                    bottom_pct=bottom_pct,
+                )
+            )
 
 
 def _render_review() -> None:
@@ -94,4 +112,9 @@ def _render_review() -> None:
     render_dataset_preview(preview_df)
 
     with st.columns([4, 1])[1]:
-        st.button("Run Analysis", type="primary", width="stretch", on_click=submit_analysis_creation)
+        st.button(
+            "Run Analysis",
+            type="primary",
+            width="stretch",
+            on_click=submit_analysis_creation,
+        )

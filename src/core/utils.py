@@ -46,7 +46,6 @@ def format_date(date_value: Any, format_str: str = "%m/%d/%Y") -> str:
         return "N/A"
 
 
-
 def serialize_dataframe(df: pd.DataFrame) -> str:
     return df.to_json(orient="split", date_format="iso")
 
@@ -58,7 +57,7 @@ def deserialize_dataframe(*data: str) -> pd.DataFrame | tuple[pd.DataFrame, ...]
 
 def format_dataset_option(ver: str) -> str:
     if ver == "active":
-        return "Active Version"
+        return "🟢 Active Version"
     return f"Version {ver}"
 
 

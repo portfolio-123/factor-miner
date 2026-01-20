@@ -25,7 +25,11 @@ def navbar(show_steps: bool = False, show_logs: bool = False) -> None:
                     st.button(
                         step_name,
                         key=f"step_btn_{step_num}",
-                        type="primary" if step_num == int(st.query_params.get("step", 1)) else "secondary",
+                        type=(
+                            "primary"
+                            if step_num == int(st.query_params.get("step", 1))
+                            else "secondary"
+                        ),
                         disabled=not is_available,
                         width="stretch",
                         on_click=lambda s=step_num: st.query_params.update(step=str(s)),
@@ -33,8 +37,10 @@ def navbar(show_steps: bool = False, show_logs: bool = False) -> None:
 
     if show_logs:
         with col_logs:
-            if st.button("Logs", key="debug_btn", type="primary"):
-                _show_debug_modal()
+            _, logs_btn_col = st.columns([2, 1])
+            with logs_btn_col:
+                if st.button("Logs", key="debug_btn", type="primary"):
+                    _show_debug_modal()
 
 
 def render_breadcrumb(steps: list[tuple[str, str | None]]) -> None:
@@ -59,7 +65,10 @@ def render_breadcrumb(steps: list[tuple[str, str | None]]) -> None:
 def render_page_header() -> None:
     state = get_state()
     steps = [
-        ("Factor List", f"{P123_BASE_URL}/sv/factorList/{state.factor_list_uid}/download"),
+        (
+            "Factor List",
+            f"{P123_BASE_URL}/sv/factorList/{state.factor_list_uid}/download",
+        ),
         ("FactorMiner", None),
     ]
 

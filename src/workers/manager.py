@@ -9,7 +9,13 @@ from pydantic import ValidationError
 
 from src.core.environment import FACTORMINER_DIR
 from src.core.context import get_state
-from src.core.types import Analysis, AnalysisSummary, AnalysisParams, AnalysisUpdates, AnalysisStatus
+from src.core.types import (
+    Analysis,
+    AnalysisSummary,
+    AnalysisParams,
+    AnalysisUpdates,
+    AnalysisStatus,
+)
 from src.core.utils import read_json_file, read_analysis_json
 from src.services.dataset_service import get_dataset_file_path
 from src.services.writers import (
@@ -33,10 +39,16 @@ def update_dataset_description(dataset_version: str, description: str) -> None:
     backup_path = get_dataset_file_path(state.factor_list_uid, dataset_version)
 
     if backup_path.exists():
-        update_parquet_metadata(backup_path, b"datasetMetadata", {"description": description})
+        update_parquet_metadata(
+            backup_path, b"datasetMetadata", {"description": description}
+        )
 
     if state.is_viewing_live_dataset:
-        update_active_dataset_metadata(Path(state.active_dataset_file), b"datasetMetadata", {"description": description})
+        update_active_dataset_metadata(
+            Path(state.active_dataset_file),
+            b"datasetMetadata",
+            {"description": description},
+        )
 
 
 def create_analysis(analysis_id: str, params: AnalysisParams) -> None:
@@ -51,7 +63,9 @@ def create_analysis(analysis_id: str, params: AnalysisParams) -> None:
     version_dir = FACTORMINER_DIR / Path(analysis_id).parent
     version_dir.mkdir(parents=True, exist_ok=True)
 
-    backup_parquet_metadata(params.active_dataset_file, version_dir / "dataset_metadata.parquet")
+    backup_parquet_metadata(
+        params.active_dataset_file, version_dir / "dataset_metadata.parquet"
+    )
 
     try:
         with open(FACTORMINER_DIR / analysis_id, "w") as f:
@@ -60,6 +74,7 @@ def create_analysis(analysis_id: str, params: AnalysisParams) -> None:
         logger.error(f"Failed to create analysis {analysis_id}: {e}")
         raise
 
+
 def read_analysis(analysis_id: str) -> Analysis | None:
     return read_analysis_json(FACTORMINER_DIR / analysis_id)
 
@@ -67,7 +82,7 @@ def read_analysis(analysis_id: str) -> Analysis | None:
 def update_analysis(analysis_id: str, **updates: Unpack[AnalysisUpdates]) -> None:
     analysis = read_analysis(analysis_id)
     if not analysis:
-        return 
+        return
 
     analysis_data = analysis.model_dump()
     analysis_data["updated_at"] = datetime.now().isoformat()
@@ -107,7 +122,7 @@ def clear_analysis_credentials(analysis_id: str) -> None:
 
 
 def list_analyses_for_version(fl_id: str, version: str) -> List[AnalysisSummary]:
-    version_dir = FACTORMINER_DIR / fl_id / version
+    version_dir = Path(FACTORMINER_DIR / fl_id / version)
     analyses = []
     for json_file in version_dir.glob("*.json"):
         data = read_json_file(json_file)

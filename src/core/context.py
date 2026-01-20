@@ -9,28 +9,24 @@ from src.core.types import Analysis, SettingsForm
 
 @dataclass
 class AppState:
-    # internal app config
     factor_list_uid: Optional[str] = None
 
     is_viewing_live_dataset: bool = True
 
     active_dataset_file: Optional[str] = None
 
-    # analysis settings from create form
     analysis_settings: Optional[SettingsForm] = None
 
-    # debug logs
     debug_logs: List[str] = field(default_factory=list)
 
-    # background analysis tracking
     analysis_id: Optional[str] = None
 
-    # cached data
     formulas_data: Optional[pd.DataFrame] = None
 
     active_backup_version: Optional[str] = None
 
-    # auth states
+    edit_dataset_mode: bool = False
+
     access_token: Optional[str] = None
     fl_name: Optional[str] = None
 
@@ -68,5 +64,3 @@ def clear_debug_logs() -> None:
     state = get_state()
     state.debug_logs = []
     add_debug_log("Logs cleared")
-
-

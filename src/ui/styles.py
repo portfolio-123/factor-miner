@@ -264,6 +264,13 @@ def load_global_css() -> None:
     }
 
     /* ===== View Factors Button (link style) ===== */
+    /* Remove gap in the FACTORS column container only */
+    div[data-testid="stColumn"]:has(.view-factors-trigger) > div[data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
+    .element-container:has(.view-factors-trigger) + .element-container {
+        margin-top: -2px !important;
+    }
     .element-container:has(.view-factors-trigger) + .element-container button {
         background: none !important;
         border: none !important;
@@ -275,12 +282,12 @@ def load_global_css() -> None:
     }
     .element-container:has(.view-factors-trigger) + .element-container button p {
         color: var(--text-dark) !important;
-        font-size: 18px !important;
+        font-size: 17px !important;
         font-weight: 600 !important;
         text-decoration: underline !important;
         margin: 0 !important;
         padding: 0 !important;
-        line-height: 1.2 !important;
+        line-height: 1 !important;
         font-family: "Source Sans";
     }
     .element-container:has(.view-factors-trigger) + .element-container button:hover p {
@@ -325,6 +332,7 @@ def load_global_css() -> None:
     .copy-btn.copied {
         background-color: #4CAF50;
     }
+
     </style>
     """
     )

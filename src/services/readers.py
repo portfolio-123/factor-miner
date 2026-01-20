@@ -17,7 +17,9 @@ class ParquetDataReader:
         return pq.ParquetFile(self.file_path)
 
     def _get_dataset_metadata_raw(self) -> str | None:
-        return self._parquet_file.schema_arrow.metadata.get(b"datasetMetadata").decode("utf-8")
+        return self._parquet_file.schema_arrow.metadata.get(b"datasetMetadata").decode(
+            "utf-8"
+        )
 
     def read_columns(self, columns: list) -> pd.DataFrame:
         return self._parquet_file.read(columns=columns).to_pandas()
@@ -48,7 +50,9 @@ class ParquetDataReader:
     def get_review_metadata(self) -> dict[str, Any]:
         return {
             "num_rows": self._parquet_file.metadata.num_rows,
-            "unique_dates": pd.to_datetime(self.read_columns(["Date"])).nunique(),
+            "unique_dates": pd.to_datetime(
+                self.read_columns(["Date"])["Date"]
+            ).nunique(),
         }
 
     def get_dataset_info(self) -> DatasetConfig:
@@ -65,5 +69,8 @@ class ParquetDataReader:
 
         if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
             dataset_info["normalization"] = dataset_info["preprocessor"]
+        else:
+            dataset_info["normalization"] = None
+        dataset_info.pop("preprocessor", None)
 
         return DatasetConfig(**dataset_info)

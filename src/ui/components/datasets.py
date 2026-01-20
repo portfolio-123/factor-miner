@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
-
+import streamlit.components.v1 as components
+from src.core.context import update_state, get_state
 from src.ui.components.tables import show_formulas_modal
 from src.workers.manager import update_dataset_description
 from src.core.types import DatasetConfig, ScopeType
@@ -16,10 +17,27 @@ from src.ui.components.common import (
 
 def _build_norm_items(normalization) -> list[str]:
     items = [
-        ("Scaling", SCALING_LABELS.get(normalization.scaling, str(normalization.scaling)) if normalization.scaling else "None"),
+        (
+            "Scaling",
+            (
+                SCALING_LABELS.get(normalization.scaling, str(normalization.scaling))
+                if normalization.scaling
+                else "None"
+            ),
+        ),
         ("Scope", normalization.scope.title() if normalization.scope else "None"),
-        ("Trim", f"{normalization.trimPct}%" if normalization.trimPct is not None else "N/A"),
-        ("Outlier", str(normalization.outlierLimit) if normalization.outlierLimit is not None else "None"),
+        (
+            "Trim",
+            f"{normalization.trimPct}%" if normalization.trimPct is not None else "N/A",
+        ),
+        (
+            "Outlier",
+            (
+                str(normalization.outlierLimit)
+                if normalization.outlierLimit is not None
+                else "None"
+            ),
+        ),
         ("N/A Handling", "Middle" if normalization.naFill else "None"),
     ]
 
@@ -56,7 +74,11 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
         big_items = [
             (c1, "Universe", dataset_metadata.universeName),
-            (c2, "Period", f"{dataset_metadata.startDt or 'N/A'} - {dataset_metadata.endDt or 'N/A'}"),
+            (
+                c2,
+                "Period",
+                f"{dataset_metadata.startDt or 'N/A'} - {dataset_metadata.endDt or 'N/A'}",
+            ),
             (c3, "Frequency", frequency_map.get(dataset_metadata.frequency, "N/A")),
         ]
         for col, label, value in big_items:
@@ -74,7 +96,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             ):
                 show_formulas_modal(pd.DataFrame(dataset_metadata.formulas))
 
-        spacer(21)
+        spacer(10)
 
         col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
 
@@ -97,29 +119,69 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     f'<div class="dataset-info-group">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
                 )
 
-        spacer(8)
-
 
 @st.fragment
-def render_description_editor(description: str | None, version: str) -> None:
+def render_description_editor(description: str, ds_ver: str) -> None:
+    edit_mode = get_state().edit_dataset_mode
     with st.container(border=True):
-        col1, col2 = st.columns([16, 2], vertical_alignment="center", gap="small")
-        with col1:
-            st.markdown(description or "*No description provided*")
-        with col2:
-            with st.popover("Edit", width="stretch"):
-                new_desc = st.text_input(
-                    "Description",
-                    value=description,
-                    placeholder="Enter dataset description",
-                    label_visibility="collapsed",
+        if edit_mode:
+            with st.form("edit_description_form", border=False):
+                st.html(
+                    """<style>
+                    .st-key-hidden_save_btn { display: none; }
+                    .st-key-edit_description_form > div[data-testid="stVerticalBlock"] { gap: 0 !important; }
+                    </style>"""
                 )
-                if st.button("Save", type="primary", width="stretch"):
-                    try:
-                        update_dataset_description(version, description=new_desc)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to update description: {e}")
+                save_enter = st.form_submit_button(
+                    "Save", type="primary", key="hidden_save_btn"
+                )
+                col1, col2, col3 = st.columns(
+                    [16, 2, 2], vertical_alignment="center", gap="small"
+                )
+                with col1:
+                    new_desc = st.text_input(
+                        "Description",
+                        value=description,
+                        placeholder="Enter dataset description",
+                        key="edit_description_input",
+                        label_visibility="collapsed",
+                    )
+                # unreliable, could research a better way
+                components.html(
+                    """
+                    <script>
+                        var input = window.parent.document.querySelector(
+                            'input[placeholder="Enter dataset description"]'
+                        );
+                        if (input) input.focus();
+                    </script>
+                    """,
+                    height=0,
+                )
+                with col2:
+                    cancel = st.form_submit_button("Cancel", width="stretch")
+                with col3:
+                    save = st.form_submit_button(
+                        "Save", type="primary", width="stretch"
+                    )
+                if save or save_enter:
+                    update_dataset_description(ds_ver, new_desc)
+                    update_state(edit_dataset_mode=False)
+                    st.rerun()
+                if cancel:
+                    update_state(edit_dataset_mode=False)
+                    st.rerun()
+        else:
+            col1, col2 = st.columns([16, 2], vertical_alignment="center", gap="small")
+            with col1:
+                st.markdown(description or "*No description provided*")
+            with col2:
+                st.button(
+                    "Edit",
+                    key="edit_desc_btn",
+                    width="stretch",
+                    on_click=lambda: update_state(edit_dataset_mode=True),
+                )
 
 
 def render_dataset_preview(df: pd.DataFrame) -> None:

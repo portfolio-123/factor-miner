@@ -90,8 +90,7 @@ class DatasetConfig(BaseModel):
     endDt: str
     benchmark: str = Field(alias="benchName")
     precision: int
-    normalization: bool
-    preprocessor: NormalizationConfig
+    normalization: NormalizationConfig | None = None
     factorCount: int | None = None
     formulas: list | None = None
     pitMethod: int

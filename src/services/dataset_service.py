@@ -30,7 +30,9 @@ def get_active_dataset_metadata() -> DatasetConfig:
 
 
 def get_backup_dataset_metadata(fl_id: str, version: str) -> DatasetConfig:
-    metadata = ParquetDataReader(str(get_dataset_file_path(fl_id, version))).get_dataset_info()
+    metadata = ParquetDataReader(
+        str(get_dataset_file_path(fl_id, version))
+    ).get_dataset_info()
     metadata.version = version
     return metadata
 
@@ -65,14 +67,15 @@ def get_dataset_review_data() -> tuple[pd.DataFrame, dict, str]:
     state = get_state()
     reader = ParquetDataReader(state.active_dataset_file)
     preview_df = reader.read_preview(num_rows=10)
+
     metadata = reader.get_review_metadata()
 
-    dates = pd.to_datetime(preview_df['Date'])
+    dates = pd.to_datetime(preview_df["Date"])
     stats = {
-        'num_rows': metadata.get('num_rows'),
-        'num_columns': len(preview_df.columns),
-        'num_dates': metadata.get('unique_dates'),
-        'min_date': format_date(dates.min()),
-        'max_date': format_date(dates.max()),
+        "num_rows": metadata.get("num_rows"),
+        "num_columns": len(preview_df.columns),
+        "num_dates": metadata.get("unique_dates"),
+        "min_date": format_date(dates.min()),
+        "max_date": format_date(dates.max()),
     }
     return preview_df, stats, state.analysis_settings.benchmark_ticker
