@@ -8,8 +8,6 @@ from src.services.dataset_service import get_file_mtime, create_version_dir_name
 
 def submit_settings(settings: SettingsForm) -> None:
     update_state(analysis_settings=settings)
-    st.query_params["step"] = "2"
-    st.rerun()
 
 
 def submit_analysis_creation() -> None:

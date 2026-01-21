@@ -1,10 +1,11 @@
 import os
 from pathlib import Path
+import streamlit as st
 
 import pandas as pd
 
 from src.core.context import get_state
-from src.core.environment import FACTORMINER_DIR
+from src.core.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
 from src.core.types import DatasetConfig
 from src.core.utils import format_date
 from src.services.readers import ParquetDataReader
@@ -23,11 +24,8 @@ def get_dataset_file_path(fl_id: str, dataset_version: str) -> Path:
     return FACTORMINER_DIR / fl_id / dataset_version / "dataset_metadata.parquet"
 
 
-def get_active_dataset_metadata() -> DatasetConfig:
-    metadata = ParquetDataReader(get_state().active_dataset_file).get_dataset_info()
-    metadata.version = "active"
-    return metadata
-
+def get_active_dataset_metadata(fl_id: str) -> DatasetConfig:
+    return ParquetDataReader(str(FACTOR_LIST_DIR / fl_id)).get_dataset_info()
 
 def get_backup_dataset_metadata(fl_id: str, version: str) -> DatasetConfig:
     metadata = ParquetDataReader(
@@ -63,7 +61,7 @@ def list_versions(fl_id: str) -> list[str]:
     return [d.name for d in fl_dir.iterdir()]
 
 
-def get_dataset_review_data() -> tuple[pd.DataFrame, dict, str]:
+def get_dataset_review_data() -> tuple[pd.DataFrame, dict]:
     state = get_state()
     reader = ParquetDataReader(state.active_dataset_file)
     preview_df = reader.read_preview(num_rows=10)
@@ -78,4 +76,4 @@ def get_dataset_review_data() -> tuple[pd.DataFrame, dict, str]:
         "min_date": format_date(dates.min()),
         "max_date": format_date(dates.max()),
     }
-    return preview_df, stats, state.analysis_settings.benchmark_ticker
+    return preview_df, stats

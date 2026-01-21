@@ -241,24 +241,6 @@ def load_global_css() -> None:
         font-weight: 400;
     }
 
-
-    .breadcrumb {
-        font-size: 14px;
-        margin-bottom: -15px;
-    }
-    .breadcrumb a {
-        text-decoration: none;
-        color: #666;
-    }
-    .breadcrumb a:hover {
-        text-decoration: underline;
-        color: var(--primary);
-    }
-    .breadcrumb span {
-        font-weight: bold;
-        color: #333;
-    }
-
     /* ===== View Factors Button (link style) ===== */
     /* Remove gap in the FACTORS column container only */
     div[data-testid="stColumn"]:has(.view-factors-trigger) > div[data-testid="stVerticalBlock"] {

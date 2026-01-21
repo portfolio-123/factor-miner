@@ -48,10 +48,10 @@ def _build_norm_items(normalization) -> list[str]:
     return [render_info_item(label, value) for label, value in items]
 
 
-def render_dataset_statistics(stats: dict, benchmark: str) -> None:
+def render_dataset_statistics(stats: dict) -> None:
     section_header("Dataset Statistics")
 
-    cols = st.columns([1, 1, 1, 2, 1], gap="small")
+    cols = st.columns([1, 1, 1, 2], gap="small")
     stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
 
     stat_items = [
@@ -59,7 +59,6 @@ def render_dataset_statistics(stats: dict, benchmark: str) -> None:
         ("Dates", stats["num_dates"]),
         ("Columns", stats["num_columns"]),
         ("Period", f"{stats['min_date']} - {stats['max_date']}"),
-        ("Benchmark", benchmark or "N/A"),
     ]
 
     for col, (label, value) in zip(cols, stat_items):

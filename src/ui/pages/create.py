@@ -23,18 +23,20 @@ from src.ui.components.datasets import (
 
 
 def create_form() -> None:
-    navbar(show_steps=True)
-
+    navbar()
     try:
-        render_dataset_card(get_active_dataset_metadata())
-    except Exception as e:
-        st.error(f"Failed to load dataset: {e}")
+        active_dataset_metadata = get_active_dataset_metadata(st.query_params.get("fl_id"))
+    except Exception:
+        st.error(f"Failed to load dataset")
         return
+        
+    render_dataset_card(active_dataset_metadata)
 
-    if st.query_params.get("step") == "2":
-        _render_review()
-    else:
+    settings_tab, review_tab = st.tabs(["Settings", "Review"])
+    with settings_tab:
         _render_settings()
+    with review_tab:
+        _render_review()
 
 
 def _render_settings() -> None:
@@ -99,7 +101,7 @@ def _render_settings() -> None:
 
 def _render_review() -> None:
     try:
-        preview_df, stats, benchmark = get_dataset_review_data()
+        preview_df, stats = get_dataset_review_data()
     except Exception as e:
         st.error(f"Failed to load dataset preview: {e}")
         return
@@ -108,7 +110,7 @@ def _render_review() -> None:
         st.error("Dataset is empty")
         return
 
-    render_dataset_statistics(stats, benchmark)
+    render_dataset_statistics(stats)
     render_dataset_preview(preview_df)
 
     with st.columns([4, 1])[1]:
