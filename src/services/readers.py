@@ -17,9 +17,13 @@ class ParquetDataReader:
         return pq.ParquetFile(self.file_path)
 
     def _get_dataset_metadata_raw(self) -> str | None:
-        return self._parquet_file.schema_arrow.metadata.get(b"datasetMetadata").decode(
-            "utf-8"
-        )
+        metadata = self._parquet_file.schema_arrow.metadata
+        if metadata is None:
+            return None
+        raw = metadata.get(b"datasetMetadata")
+        if raw is None:
+            return None
+        return raw.decode("utf-8")
 
     def read_columns(self, columns: list) -> pd.DataFrame:
         return self._parquet_file.read(columns=columns).to_pandas()

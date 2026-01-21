@@ -40,17 +40,20 @@ def select_best_features_cached(
 def _render_analysis_progress(analysis_id: str) -> None:
     analysis = read_analysis(analysis_id)
 
-    # if not in progress anymore, rerun to show results
-    if (
-        analysis.status == AnalysisStatus.COMPLETED
-        or analysis.status == AnalysisStatus.ERROR
-    ):
+    if analysis.status == AnalysisStatus.COMPLETED:
         merge_analysis_logs(analysis)
-        st.rerun()
+        st.success("Analysis completed! Refreshing...")
+        st.rerun(scope="app")
+        return
+
+    if analysis.status == AnalysisStatus.ERROR:
+        merge_analysis_logs(analysis)
+        st.error((analysis.error or "Analysis failed").split("\n")[0])
+        return
 
     progress = analysis.progress
     if not progress:
-        st.error("An error occurred while running the analysis")
+        st.info("Starting analysis...")
         return
 
     with st.columns([1, 2, 1])[1]:

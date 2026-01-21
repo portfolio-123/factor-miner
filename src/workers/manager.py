@@ -136,6 +136,27 @@ def list_analyses_for_version(fl_id: str, version: str) -> List[AnalysisSummary]
     return sorted(analyses, key=lambda a: a.created_at, reverse=True)
 
 
+def list_all_analyses(fl_id: str) -> List[AnalysisSummary]:
+    fl_dir = FACTORMINER_DIR / fl_id
+    if not fl_dir.exists():
+        return []
+
+    analyses = []
+    for version_dir in fl_dir.iterdir():
+        if not version_dir.is_dir():
+            continue
+        for json_file in version_dir.glob("*.json"):
+            data = read_json_file(json_file)
+            if data is None:
+                continue
+            try:
+                data["dataset_version"] = version_dir.name
+                analyses.append(AnalysisSummary.model_validate(data))
+            except ValidationError:
+                continue
+    return sorted(analyses, key=lambda a: a.created_at, reverse=True)
+
+
 def start_analysis(analysis_id: str, params: AnalysisParams) -> None:
     project_root = Path(__file__).resolve().parent.parent.parent
 

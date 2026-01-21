@@ -259,10 +259,6 @@ def load_global_css() -> None:
         color: #333;
     }
 
-    .stApp [data-testid="stToolbar"] {
-        display: none;
-    }
-
     /* ===== View Factors Button (link style) ===== */
     /* Remove gap in the FACTORS column container only */
     div[data-testid="stColumn"]:has(.view-factors-trigger) > div[data-testid="stVerticalBlock"] {

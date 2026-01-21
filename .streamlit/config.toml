@@ -13,6 +13,3 @@ gatherUsageStats = false
 
 [client]
 toolbarMode = "minimal"
-
-[ui]
-hideTopBar = true
