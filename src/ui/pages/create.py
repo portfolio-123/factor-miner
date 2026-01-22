@@ -6,14 +6,11 @@ from src.core.constants import (
     DEFAULT_TOP_PCT,
     DEFAULT_BOTTOM_PCT,
 )
-from src.services.dataset_service import (
-    get_active_dataset_metadata,
-    get_dataset_review_data,
-)
+from src.services.dataset_service import get_dataset_review_data
 from src.services.create_service import submit_analysis_creation
-from src.ui.components.common import section_header
 from src.ui.components.headers import navbar
 from src.ui.components.datasets import (
+    load_active_dataset,
     render_dataset_card,
     render_dataset_preview,
     render_dataset_statistics,
@@ -21,11 +18,18 @@ from src.ui.components.datasets import (
 
 
 def create_form() -> None:
+    if redirect_info := st.session_state.pop("_redirect_to_results", None):
+        st.switch_page(
+            st.session_state["pages"]["results"],
+            query_params={
+                "fl_id": redirect_info["fl_id"],
+                "id": redirect_info["analysis_id"],
+            },
+        )
+
     navbar()
-    try:
-        active_dataset_metadata = get_active_dataset_metadata(st.query_params.get("fl_id"))
-    except Exception:
-        st.error(f"Failed to load dataset")
+
+    if not (active_dataset_metadata := load_active_dataset()):
         return
 
     render_dataset_card(active_dataset_metadata)

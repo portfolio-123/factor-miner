@@ -16,11 +16,6 @@ def get_file_mtime(path: str) -> str:
 def get_dataset_file_path(fl_id: str, dataset_version: str) -> Path:
     return FACTORMINER_DIR / fl_id / f"{dataset_version}.parquet"
 
-
-def get_active_dataset_path(fl_id: str) -> str:
-    return str(FACTOR_LIST_DIR / fl_id)
-
-
 def get_active_dataset_metadata(fl_id: str) -> DatasetConfig:
     return ParquetDataReader(str(FACTOR_LIST_DIR / fl_id)).get_dataset_info()
 
@@ -40,7 +35,7 @@ def list_versions(fl_id: str) -> list[str]:
 
 
 def get_dataset_review_data(fl_id: str) -> tuple[pd.DataFrame, dict]:
-    reader = ParquetDataReader(get_active_dataset_path(fl_id))
+    reader = ParquetDataReader(str(FACTOR_LIST_DIR / fl_id))
     preview_df = reader.read_preview(num_rows=10)
 
     metadata = reader.get_review_metadata()

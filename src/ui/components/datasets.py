@@ -1,19 +1,36 @@
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 from src.ui.components.tables import show_formulas_modal
+from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
 from src.core.types import DatasetConfig, ScopeType
+from src.services.dataset_service import get_active_dataset_metadata
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
-    section_header,
     render_info_item,
     render_big_info_item,
     get_section_label_html,
     spacer,
 )
 from src.core.utils import format_date
+
+
+def load_active_dataset() -> DatasetConfig | None:
+    fl_id = st.query_params.get("fl_id")
+    dataset_path = Path(FACTOR_LIST_DIR) / fl_id
+
+    if not dataset_path.is_file():
+        download_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/download"
+        st.warning(f"No dataset found for this Factor List. [Generate]({download_url})")
+        return None
+
+    try:
+        return get_active_dataset_metadata(fl_id)
+    except Exception:
+        st.error("Failed to load dataset")
+        return None
 
 
 def _parse_created_timestamp(version: str | None) -> str:
