@@ -2,12 +2,7 @@ import streamlit as st
 
 from src.core.utils import format_date
 from src.core.types import Analysis, AnalysisParams
-from src.ui.constants import ANALYSIS_STATUS_COLORS, ANALYSIS_STATUS_COLORS_DEFAULT
 from src.ui.components.common import section_header, render_info_item
-
-
-def render_analysis_param(label: str, value: str) -> str:
-    return f'<div class="analysis-card-param"><span class="label">{label}</span><span class="value">{value}</span></div>'
 
 
 def render_analysis_params(params: AnalysisParams) -> None:
@@ -24,28 +19,38 @@ def render_analysis_params(params: AnalysisParams) -> None:
     st.html(f'<div class="dataset-info-group">{"".join(items)}</div>')
 
 
+def _render_card_field(label: str, value: str) -> None:
+    st.markdown(
+        f'<div style="display:flex;flex-direction:column;justify-content:center;min-height:38px;line-height:1.3;">'
+        f'<span style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:0.5px;">{label}</span>'
+        f'<span style="font-size:14px;font-weight:500;">{value}</span>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+
 def render_analysis_card(analysis: Analysis) -> None:
     formatted_date = format_date(analysis.created_at, "%b %d, %Y %H:%M:%S")
-    status_bg, status_color = ANALYSIS_STATUS_COLORS.get(analysis.status, ANALYSIS_STATUS_COLORS_DEFAULT)
 
-    params_html = "".join((
-        render_analysis_param("Min Alpha", str(analysis.params.min_alpha)),
-        render_analysis_param("Top X", f"{analysis.params.top_pct}%"),
-        render_analysis_param("Bottom X", f"{analysis.params.bottom_pct}%"),
-    ))
+    with st.container(border=True):
+        cols = st.columns([2, 2, 2, 3, 1.5, 1], vertical_alignment="top")
 
-    card_html = f"""
-    <div class="analysis-card-content">
-        <div class="analysis-card-name">{analysis.name or "Untitled Analysis"}</div>
-        <div class="analysis-card-params">{params_html}</div>
-        <div class="analysis-card-right">
-            <span class="analysis-card-date">{formatted_date}</span>
-            <span class="analysis-card-status" style="background-color:{status_bg};color:{status_color};">{analysis.status}</span>
-        </div>
-    </div>
-    <span class="analysis-card-trigger"></span>
-    """
-    st.html(card_html)
+        with cols[0]:
+            _render_card_field("Min Alpha", str(analysis.params.min_alpha))
 
-    if st.button("Open Analysis", key=f"analysis_btn_{analysis.id}", width="stretch"):
-        st.switch_page(st.session_state["pages"]["results"], query_params={"fl_id": analysis.fl_id, "id": analysis.id})
+        with cols[1]:
+            _render_card_field("Top X", f"{analysis.params.top_pct}%")
+
+        with cols[2]:
+            _render_card_field("Bottom X", f"{analysis.params.bottom_pct}%")
+
+        with cols[3]:
+            _render_card_field("Date", formatted_date)
+
+        with cols[4]:
+            st.html('<span class="analysis-badge-marker"></span>')
+            st.badge(analysis.status.display, color=analysis.status.color)
+
+        with cols[5]:
+            if st.button("→", key=f"analysis_btn_{analysis.id}", help="Open analysis results", use_container_width=True):
+                st.switch_page(st.session_state["pages"]["results"], query_params={"fl_id": analysis.fl_id, "id": analysis.id})

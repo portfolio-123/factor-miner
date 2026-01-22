@@ -8,8 +8,22 @@ from pydantic import BaseModel, ConfigDict, Field
 class AnalysisStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
-    COMPLETED = "completed"
-    ERROR = "error"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+    @property
+    def color(self) -> str:
+        colors = {
+            AnalysisStatus.PENDING: "blue",
+            AnalysisStatus.RUNNING: "blue",
+            AnalysisStatus.SUCCESS: "green",
+            AnalysisStatus.FAILED: "red",
+        }
+        return colors[self]
+
+    @property
+    def display(self) -> str:
+        return self.value.capitalize()
 
 
 class AnalysisProgress(TypedDict):

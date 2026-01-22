@@ -40,13 +40,13 @@ def select_best_features_cached(
 def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
     analysis = read_analysis(fl_id, analysis_id)
 
-    if analysis.status == AnalysisStatus.COMPLETED:
+    if analysis.status == AnalysisStatus.SUCCESS:
         merge_analysis_logs(analysis)
         st.success("Analysis completed! Refreshing...")
         st.rerun(scope="app")
         return
 
-    if analysis.status == AnalysisStatus.ERROR:
+    if analysis.status == AnalysisStatus.FAILED:
         merge_analysis_logs(analysis)
         st.error((analysis.error or "Analysis failed").split("\n")[0])
         return
@@ -173,7 +173,7 @@ def results() -> None:
 
     render_analysis_params(analysis.params)
 
-    if analysis.status == AnalysisStatus.ERROR:
+    if analysis.status == AnalysisStatus.FAILED:
         st.error((analysis.error or "Analysis failed"))
         return
 

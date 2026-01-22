@@ -12,8 +12,8 @@ from src.core.types import (
     Analysis,
     AnalysisSummary,
     AnalysisParams,
-    AnalysisUpdates,
     AnalysisStatus,
+    AnalysisUpdates,
 )
 from src.core.utils import read_json_file, read_analysis_json
 from src.services.dataset_service import get_dataset_file_path
@@ -81,7 +81,7 @@ def update_analysis(
         analysis_data[key] = value
 
     # clear progress when analysis is finished (no longer needed)
-    if updates.get("status") in (AnalysisStatus.COMPLETED, AnalysisStatus.ERROR):
+    if updates.get("status") in (AnalysisStatus.SUCCESS, AnalysisStatus.FAILED):
         analysis_data["progress"] = None
 
     _write_analysis(fl_id, analysis_id, analysis_data)

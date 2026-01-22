@@ -73,6 +73,13 @@ def load_global_css() -> None:
         padding-bottom: 0.5rem;
     }
 
+    div[data-testid="stColumn"]:has(.analysis-badge-marker) > div[data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
+    .element-container:has(.analysis-badge-marker) + .element-container {
+        margin-top: 8px !important;
+    }
+
     /* Reduce divider margins */
     div[data-testid="stElementContainer"]:has(hr) {
         margin-top: 0 !important;
@@ -115,121 +122,6 @@ def load_global_css() -> None:
 
     .dataset-info-item .value.muted {
         color: var(--text-muted);
-    }
-
-    /* ===== Analysis Card Content Styles ===== */
-    .analysis-card-content {
-        display: flex;
-        align-items: center;
-        gap: 24px;
-        padding: 0 16px; /* Vertical padding handled by height */
-        height: 52px;
-        box-sizing: border-box;
-        /* Matches link style minus border/hover */
-        border: 1px solid transparent; /* Placeholder to match height */
-        border-radius: var(--radius);
-        background-color: white;
-    }
-    .analysis-card-name {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text-dark);
-        white-space: nowrap;
-    }
-    .analysis-card-params {
-        display: flex;
-        gap: 24px;
-        align-items: center;
-        flex: 1;
-    }
-    .analysis-card-right {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-left: auto;
-    }
-    .analysis-card-date {
-        font-size: 13px;
-        font-weight: 400;
-        color: #9ca3af;
-        white-space: nowrap;
-    }
-    .analysis-card-param {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .analysis-card-param .label {
-        font-size: 11px;
-        color: #64748b;
-        text-transform: uppercase;
-        margin-right: 6px;
-    }
-    .analysis-card-param .value {
-        font-size: 13px;
-        font-weight: 500;
-        color: #333;
-    }
-    .analysis-card-status {
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: capitalize;
-        letter-spacing: 0.4px;
-        white-space: nowrap;
-    }
-
-    /* ANALYSIS CARD BUTTON OVERLAY STYLES */
-    /* 1. Target the markdown container to remove bottom margin */
-    .element-container:has(.analysis-card-trigger) {
-        margin-bottom: 0 !important;
-    }
-
-    /* 2. Target button following the trigger */
-    .element-container:has(.analysis-card-trigger) + div button {
-        /* Position to cover the card */
-        margin-top: -52px !important; /* Exact match for height */
-        height: 52px !important;
-        width: 100% !important;
-        display: block !important;
-        cursor: pointer !important;
-
-        /* Visuals */
-        background-color: transparent !important; /* Start transparent */
-        border: 1px solid var(--border-light) !important;
-        border-radius: var(--radius) !important;
-        transition: all 0.2s ease !important;
-        z-index: 5;
-
-        /* Text handling */
-        color: transparent !important; /* Hide button label */
-
-        /* Spacing for next card */
-        margin-bottom: 6px !important;
-    }
-
-    .element-container:has(.analysis-card-trigger) + div button:hover {
-        border-color: var(--primary) !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-        background-color: rgba(255, 255, 255, 0) !important; /* Ensure transparent bg */
-    }
-
-    .element-container:has(.analysis-card-trigger) + div button:focus {
-        border-color: var(--primary) !important;
-        box-shadow: none !important;
-        color: transparent !important;
-    }
-
-    .element-container:has(.analysis-card-trigger) + div button:active {
-        background-color: rgba(33, 150, 243, 0.05) !important;
-        border-color: var(--primary) !important;
-        color: transparent !important;
-    }
-
-    /* Ensure inner p is hidden */
-    .element-container:has(.analysis-card-trigger) + div button p {
-        display: none;
     }
 
     /* New Analysis button alignment and styling */

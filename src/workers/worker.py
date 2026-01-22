@@ -140,13 +140,13 @@ def main():
         params = analysis.params
         results = run_analysis(_fl_id, _analysis_id, params)
 
-        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.COMPLETED, results=results)
+        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.SUCCESS, results=results)
         log("Analysis completed successfully")
 
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
         log(f"Error: {error_msg}")
-        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.ERROR, error=error_msg)
+        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.FAILED, error=error_msg)
         sys.exit(1)
 
 
