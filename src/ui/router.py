@@ -1,8 +1,8 @@
 import streamlit as st
 
-from pages.history import history
-from pages.create import create_form
-from pages.results import results
+from src.ui.pages.history import history
+from src.ui.pages.create import create_form
+from src.ui.pages.results import results
 
 
 def render_content():
