@@ -2,19 +2,17 @@ import re
 
 import streamlit as st
 
-from src.core.environment import P123_BASE_URL
-from src.core.context import get_state, update_state, clear_debug_logs
+from src.core.context import clear_debug_logs
 
 
 def navbar(show_logs: bool = False, show_back_button: bool = False) -> None:
-    state = get_state()
     col_back, col_nav, col_logs = st.columns([1, 2, 1], vertical_alignment="center")
 
     if show_back_button:
         with col_back:
             if st.button("Back", type="secondary", key="back_btn"):
-                update_state(analysis_id=None)
-                st.query_params.from_dict({"fl_id": state.factor_list_uid})
+                fl_id = st.query_params.get("fl_id")
+                st.query_params.from_dict({"fl_id": fl_id})
                 st.rerun()
 
     if show_logs:
@@ -29,11 +27,11 @@ def _show_debug_modal():
 
     @st.fragment
     def _logs_content():
-        state = get_state()
+        debug_logs = st.session_state.get("debug_logs", [])
 
-        if state.debug_logs:
+        if debug_logs:
             log_lines = []
-            for log in state.debug_logs[-100:]:
+            for log in debug_logs[-100:]:
                 formatted = re.sub(
                     r"(\[.*?\])", r'<span style="color: #2196F3;">\1</span>', log
                 )

@@ -18,7 +18,6 @@ def read_json_file(path: Path) -> dict | None:
 
 
 def read_analysis_json(path: Path) -> Analysis | None:
-    """Read JSON file and validate as Analysis, returning None on any error."""
     data = read_json_file(path)
     if data is None:
         return None

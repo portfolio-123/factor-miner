@@ -18,14 +18,11 @@ st.set_page_config(
 init()
 # login()
 
-if analysis_id := st.query_params.get("analysis_id"):
-    results(analysis_id)
-    st.stop()
-
 history_page = st.Page(history, title="Your Results", icon=":material/list:", default=True)
 create_page = st.Page(create_form, title="New Analysis", icon=":material/add:", url_path="create")
+results_pg = st.Page(results, title="Results", url_path="results")
 
-pg = st.navigation([history_page, create_page], position="hidden")
+pg = st.navigation([history_page, create_page, results_pg], position="hidden")
 
 
 fl_id = st.query_params.get("fl_id")

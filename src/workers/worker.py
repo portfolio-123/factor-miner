@@ -25,6 +25,7 @@ from src.core.calculations import (
     calculate_correlation_matrix,
 )
 
+_fl_id: str | None = None
 _analysis_id: str | None = None
 
 
@@ -32,11 +33,11 @@ def log(message: str) -> None:
     timestamp = datetime.now().strftime("%H:%M:%S")
     formatted = f"[{timestamp}] [WORKER] {message}"
 
-    if _analysis_id:
-        append_analysis_log(_analysis_id, formatted)
+    if _fl_id and _analysis_id:
+        append_analysis_log(_fl_id, _analysis_id, formatted)
 
 
-def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
+def run_analysis(fl_id: str, analysis_id: str, params: AnalysisParams) -> dict:
     log("Starting analysis...")
 
     log(f"Processing dataset: {params.active_dataset_file}")
@@ -55,7 +56,7 @@ def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
             end_date=end_date,
         )
     finally:
-        clear_analysis_credentials(analysis_id)
+        clear_analysis_credentials(fl_id, analysis_id)
 
     log("Benchmark data fetched successfully")
 
@@ -63,6 +64,7 @@ def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
         log(f"Progress: {completed}/{total} factors - {current_factor}")
         update_analysis(
+            fl_id,
             analysis_id,
             status=AnalysisStatus.RUNNING,
             progress={
@@ -77,6 +79,7 @@ def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
     factor_columns = [col for col in columns if col not in excluded_columns]
 
     update_analysis(
+        fl_id,
         analysis_id,
         status=AnalysisStatus.RUNNING,
         progress={"completed": 0, "total": len(factor_columns), "current_factor": ""},
@@ -119,30 +122,31 @@ def run_analysis(analysis_id: str, params: AnalysisParams) -> dict:
 
 
 def main():
-    global _analysis_id
-    _analysis_id = sys.argv[1]
+    global _fl_id, _analysis_id
+    _fl_id = sys.argv[1]
+    _analysis_id = sys.argv[2]
 
-    log(f"Worker started for analysis: {_analysis_id}")
+    log(f"Worker started for analysis: {_fl_id}/{_analysis_id}")
 
     try:
-        analysis = read_analysis(_analysis_id)
+        analysis = read_analysis(_fl_id, _analysis_id)
         if analysis is None:
-            log(f"Analysis {_analysis_id} not found")
+            log(f"Analysis {_fl_id}/{_analysis_id} not found")
             sys.exit(1)
 
-        update_analysis(_analysis_id, status=AnalysisStatus.RUNNING)
+        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.RUNNING)
         log("Status updated to running")
 
         params = analysis.params
-        results = run_analysis(_analysis_id, params)
+        results = run_analysis(_fl_id, _analysis_id, params)
 
-        update_analysis(_analysis_id, status=AnalysisStatus.COMPLETED, results=results)
+        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.COMPLETED, results=results)
         log("Analysis completed successfully")
 
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
         log(f"Error: {error_msg}")
-        update_analysis(_analysis_id, status=AnalysisStatus.ERROR, error=error_msg)
+        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.ERROR, error=error_msg)
         sys.exit(1)
 
 

@@ -1,9 +1,9 @@
+from datetime import datetime
+
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-from src.core.context import update_state, get_state
 from src.ui.components.tables import show_formulas_modal
-from src.workers.manager import update_dataset_description
 from src.core.types import DatasetConfig, ScopeType
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
@@ -14,6 +14,18 @@ from src.ui.components.common import (
     spacer,
 )
 from src.core.utils import format_date
+
+
+def _parse_created_timestamp(version: str | None) -> str:
+    """Parse timestamp from version string and return readable date."""
+    if not version:
+        return "N/A"
+    try:
+        timestamp = int(version)
+        dt = datetime.fromtimestamp(timestamp)
+        return dt.strftime("%b %d, %Y at %I:%M %p")
+    except ValueError:
+        return "N/A"
 
 
 def _build_norm_items(normalization) -> list[str]:
@@ -70,6 +82,18 @@ def render_dataset_statistics(stats: dict) -> None:
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
     with st.container(border=True):
+        # Header row with title and creation date
+        header_left, header_right = st.columns([1, 1], vertical_alignment="center")
+        with header_left:
+            st.html('<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Your Dataset</p>')
+        with header_right:
+            created_on = _parse_created_timestamp(dataset_metadata.version)
+            st.html(
+                f'<p style="text-align: right; color: #666; margin: 0;">Created on: {created_on}</p>'
+            )
+
+        spacer(10)
+
         c1, c2, c3, c4 = st.columns([1.5, 2, 1, 1], vertical_alignment="top")
 
         big_items = [
@@ -118,71 +142,6 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 st.html(
                     f'<div class="dataset-info-group">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
                 )
-
-
-@st.fragment
-def render_description_editor(description: str, ds_ver: str) -> None:
-    edit_mode = get_state().edit_dataset_mode
-    with st.container(border=True):
-        if edit_mode:
-            with st.form("edit_description_form", border=False):
-                st.html(
-                    """<style>
-                    .st-key-hidden_save_btn { display: none; }
-                    .st-key-edit_description_form > div[data-testid="stVerticalBlock"] { gap: 0 !important; }
-                    </style>"""
-                )
-                save_enter = st.form_submit_button(
-                    "Save", type="primary", key="hidden_save_btn"
-                )
-                col1, col2, col3 = st.columns(
-                    [16, 2, 2], vertical_alignment="center", gap="small"
-                )
-                with col1:
-                    new_desc = st.text_input(
-                        "Description",
-                        value=description,
-                        placeholder="Enter dataset description",
-                        key="edit_description_input",
-                        label_visibility="collapsed",
-                    )
-                # unreliable, could research a better way
-                components.html(
-                    """
-                    <script>
-                        var input = window.parent.document.querySelector(
-                            'input[placeholder="Enter dataset description"]'
-                        );
-                        if (input) input.focus();
-                    </script>
-                    """,
-                    height=0,
-                )
-                with col2:
-                    cancel = st.form_submit_button("Cancel", width="stretch")
-                with col3:
-                    save = st.form_submit_button(
-                        "Save", type="primary", width="stretch"
-                    )
-                if save or save_enter:
-                    update_dataset_description(ds_ver, new_desc)
-                    update_state(edit_dataset_mode=False)
-                    st.rerun()
-                if cancel:
-                    update_state(edit_dataset_mode=False)
-                    st.rerun()
-        else:
-            col1, col2 = st.columns([16, 2], vertical_alignment="center", gap="small")
-            with col1:
-                st.markdown(description or "*No description provided*")
-            with col2:
-                st.button(
-                    "Edit",
-                    key="edit_desc_btn",
-                    width="stretch",
-                    on_click=lambda: update_state(edit_dataset_mode=True),
-                )
-
 
 def render_dataset_preview(df: pd.DataFrame) -> None:
     if len(df) > 20:

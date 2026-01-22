@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.core.context import get_state, update_state, merge_analysis_logs
+from src.core.context import merge_analysis_logs
 from src.core.types import AnalysisStatus, FilterParams
 from src.ui.components.common import copy_button, section_header
 from src.ui.components.headers import navbar
@@ -37,8 +37,8 @@ def select_best_features_cached(
 
 
 @st.fragment(run_every="0.5s")
-def _render_analysis_progress(analysis_id: str) -> None:
-    analysis = read_analysis(analysis_id)
+def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
+    analysis = read_analysis(fl_id, analysis_id)
 
     if analysis.status == AnalysisStatus.COMPLETED:
         merge_analysis_logs(analysis)
@@ -73,10 +73,9 @@ def _render_analysis_progress(analysis_id: str) -> None:
 
 @st.fragment
 def _render_filter_and_results(
-    metrics: pd.DataFrame, corr_matrix: pd.DataFrame
+    fl_id: str, analysis_id: str, metrics: pd.DataFrame, corr_matrix: pd.DataFrame
 ) -> None:
-    state = get_state()
-    analysis = read_analysis(state.analysis_id)
+    analysis = read_analysis(fl_id, analysis_id)
 
     section_header("Filter Parameters")
 
@@ -103,7 +102,7 @@ def _render_filter_and_results(
         )
 
     best_features = select_best_features_cached(
-        state.analysis_id,
+        analysis_id,
         metrics,
         corr_matrix,
         FilterParams(n_features, correlation_threshold, analysis.params.min_alpha),
@@ -117,16 +116,16 @@ def _render_filter_and_results(
 
 
 def _prepare_download_csv(display_df: pd.DataFrame) -> str:
-    state = get_state()
-    download_df = add_formula_column(display_df, state.formulas_data)
+    formulas_data = st.session_state.get("formulas_data")
+    download_df = add_formula_column(display_df, formulas_data)
     return download_df.to_csv(index=False)
 
 
 def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
-    state = get_state()
-
     if display_df is None or display_df.empty:
         return
+
+    fl_id = st.query_params.get("fl_id")
 
     _, col1, col2 = st.columns([3, 1, 1])
 
@@ -144,28 +143,28 @@ def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
             type="primary",
             label="Download CSV",
             data=csv_to_download,
-            file_name=f"{state.factor_list_uid}_best_features.csv",
+            file_name=f"{fl_id}_best_features.csv",
             mime="text/csv",
             width="stretch",
         )
 
+def results() -> None:
+    fl_id = st.query_params.get("fl_id")
+    if not (analysis_id := st.query_params.get("id")):
+        st.error("Missing analysis id")
+        return
 
-def results(analysis_id: str) -> None:
     navbar()
 
-    analysis = read_analysis(analysis_id)
+    analysis = read_analysis(fl_id, analysis_id)
     if not analysis:
         st.error("Analysis not found")
         return
 
     try:
-        dataset_metadata = get_backup_dataset_metadata(
-            get_state().factor_list_uid, analysis_id.split("/")[1]
-        )
-        update_state(
-            formulas_data=pd.DataFrame(dataset_metadata.formulas),
-            analysis_id=analysis_id,
-        )
+        # Get dataset_version from the analysis object
+        dataset_metadata = get_backup_dataset_metadata(fl_id, analysis.dataset_version)
+        st.session_state.formulas_data = pd.DataFrame(dataset_metadata.formulas)
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
         return
@@ -175,12 +174,11 @@ def results(analysis_id: str) -> None:
     render_analysis_params(analysis.params)
 
     if analysis.status == AnalysisStatus.ERROR:
-        print("hola")
         st.error((analysis.error or "Analysis failed"))
         return
 
     if analysis.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
-        _render_analysis_progress(analysis_id)
+        _render_analysis_progress(fl_id, analysis_id)
         return
 
     # completed: load results and render
@@ -189,4 +187,4 @@ def results(analysis_id: str) -> None:
         analysis.results["all_metrics"],
         analysis.results["all_corr_matrix"],
     )
-    _render_filter_and_results(metrics, corr)
+    _render_filter_and_results(fl_id, analysis_id, metrics, corr)

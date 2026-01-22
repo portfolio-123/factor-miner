@@ -3,7 +3,6 @@ import streamlit as st
 from src.core.constants import AUTH_COOKIE_KEY
 from src.core.types import TokenPayload
 from src.core.cookie_utils import get_cookie, set_cookie
-from src.core.context import get_state, update_state
 from src.core.jwt_utils import decrypt_token
 from src.services.p123_client import (
     authenticate as get_access_token,
@@ -12,16 +11,15 @@ from src.services.p123_client import (
 
 
 def _authenticate(token: str, save_cookie: bool = True) -> None:
-    factor_list_data = verify_factor_list_access(token)
-    update_state(access_token=token, fl_name=factor_list_data.get("name", "Unknown"))
+    fl_id = st.query_params.get("fl_id")
+    verify_factor_list_access(fl_id, token)
+    st.session_state.access_token = token
     if save_cookie:
         set_cookie(AUTH_COOKIE_KEY, token, days=1)
 
 
 def login():
-    state = get_state()
-
-    if state.access_token:
+    if st.session_state.get("access_token"):
         return
 
     # url token (webapp redirect)

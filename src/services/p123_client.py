@@ -3,7 +3,6 @@ import requests
 
 from src.core.environment import API_BASE_URL
 from src.core.types import TokenPayload
-from src.core.context import get_state
 
 
 def _request(method: str, endpoint: str, token: str | None = None, timeout: int = 30, **kwargs) -> requests.Response:
@@ -23,10 +22,9 @@ def authenticate(payload: TokenPayload) -> str:
         raise PermissionError("Authentication failed")
 
 
-def verify_factor_list_access(access_token: str) -> dict:
+def verify_factor_list_access(fl_id: str, access_token: str) -> dict:
     try:
-        factor_list_uid = get_state().factor_list_uid
-        response = _request("GET", f"/factorList/{factor_list_uid}", token=access_token)
+        response = _request("GET", f"/factorList/{fl_id}", token=access_token)
         return response.json()
     except Exception:
         raise PermissionError("Factor List not accessible or invalid session")

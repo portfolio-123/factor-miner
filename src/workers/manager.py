@@ -8,7 +8,6 @@ from typing import Any, List, Unpack
 from pydantic import ValidationError
 
 from src.core.environment import FACTORMINER_DIR
-from src.core.context import get_state
 from src.core.types import (
     Analysis,
     AnalysisSummary,
@@ -18,69 +17,60 @@ from src.core.types import (
 )
 from src.core.utils import read_json_file, read_analysis_json
 from src.services.dataset_service import get_dataset_file_path
-from src.services.writers import (
-    update_parquet_metadata,
-    update_active_dataset_metadata,
-    backup_parquet_metadata,
-)
+from src.services.writers import backup_parquet_metadata
 
 logger = logging.getLogger(__name__)
 
 FACTORMINER_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _write_analysis(analysis_id: str, analysis_data: dict[str, Any]) -> None:
-    with open(FACTORMINER_DIR / analysis_id, "w") as f:
+def _get_analysis_path(fl_id: str, analysis_id: str) -> Path:
+    return FACTORMINER_DIR / fl_id / f"{analysis_id}.json"
+
+
+def _write_analysis(fl_id: str, analysis_id: str, analysis_data: dict[str, Any]) -> None:
+    path = _get_analysis_path(fl_id, analysis_id)
+    with open(path, "w") as f:
         json.dump(analysis_data, f, indent=2)
 
 
-def update_dataset_description(dataset_version: str, description: str) -> None:
-    state = get_state()
-    backup_path = get_dataset_file_path(state.factor_list_uid, dataset_version)
-
-    if backup_path.exists():
-        update_parquet_metadata(
-            backup_path, b"datasetMetadata", {"description": description}
-        )
-
-    if state.is_viewing_live_dataset:
-        update_active_dataset_metadata(
-            Path(state.active_dataset_file),
-            b"datasetMetadata",
-            {"description": description},
-        )
-
-
-def create_analysis(analysis_id: str, params: AnalysisParams) -> None:
+def create_analysis(
+    fl_id: str, analysis_id: str, dataset_version: str, params: AnalysisParams
+) -> None:
     analysis = Analysis(
         id=analysis_id,
+        fl_id=fl_id,
+        dataset_version=dataset_version,
         status=AnalysisStatus.PENDING,
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
         params=params,
     )
 
-    version_dir = FACTORMINER_DIR / Path(analysis_id).parent
-    version_dir.mkdir(parents=True, exist_ok=True)
+    # Ensure fl_id directory exists
+    fl_dir = FACTORMINER_DIR / fl_id
+    fl_dir.mkdir(parents=True, exist_ok=True)
 
-    backup_parquet_metadata(
-        params.active_dataset_file, version_dir / "dataset_metadata.parquet"
-    )
+    # Create backup of dataset metadata if it doesn't exist
+    dest_path = get_dataset_file_path(fl_id, dataset_version)
+    if not dest_path.exists():
+        backup_parquet_metadata(fl_id, dest_path)
 
     try:
-        with open(FACTORMINER_DIR / analysis_id, "w") as f:
-            json.dump(analysis.model_dump(), f, indent=2)
+        _write_analysis(fl_id, analysis_id, analysis.model_dump())
     except (IOError, OSError) as e:
-        logger.error(f"Failed to create analysis {analysis_id}: {e}")
+        logger.error(f"Failed to create analysis {fl_id}/{analysis_id}: {e}")
         raise
 
 
-def read_analysis(analysis_id: str) -> Analysis | None:
-    return read_analysis_json(FACTORMINER_DIR / analysis_id)
+def read_analysis(fl_id: str, analysis_id: str) -> Analysis | None:
+    return read_analysis_json(_get_analysis_path(fl_id, analysis_id))
 
 
-def update_analysis(analysis_id: str, **updates: Unpack[AnalysisUpdates]) -> None:
-    analysis = read_analysis(analysis_id)
+def update_analysis(
+    fl_id: str, analysis_id: str, **updates: Unpack[AnalysisUpdates]
+) -> None:
+    analysis = read_analysis(fl_id, analysis_id)
     if not analysis:
         return
 
@@ -94,11 +84,11 @@ def update_analysis(analysis_id: str, **updates: Unpack[AnalysisUpdates]) -> Non
     if updates.get("status") in (AnalysisStatus.COMPLETED, AnalysisStatus.ERROR):
         analysis_data["progress"] = None
 
-    _write_analysis(analysis_id, analysis_data)
+    _write_analysis(fl_id, analysis_id, analysis_data)
 
 
-def append_analysis_log(analysis_id: str, message: str) -> None:
-    analysis = read_analysis(analysis_id)
+def append_analysis_log(fl_id: str, analysis_id: str, message: str) -> None:
+    analysis = read_analysis(fl_id, analysis_id)
     if not analysis:
         return
 
@@ -107,33 +97,18 @@ def append_analysis_log(analysis_id: str, message: str) -> None:
         analysis_data["logs"] = []
 
     analysis_data["logs"].append(message)
-    _write_analysis(analysis_id, analysis_data)
+    _write_analysis(fl_id, analysis_id, analysis_data)
 
 
-def clear_analysis_credentials(analysis_id: str) -> None:
-    analysis = read_analysis(analysis_id)
+def clear_analysis_credentials(fl_id: str, analysis_id: str) -> None:
+    analysis = read_analysis(fl_id, analysis_id)
     if not analysis:
         return
 
     analysis_data = analysis.model_dump()
     analysis_data["params"].pop("access_token", None)
 
-    _write_analysis(analysis_id, analysis_data)
-
-
-def list_analyses_for_version(fl_id: str, version: str) -> List[AnalysisSummary]:
-    version_dir = Path(FACTORMINER_DIR / fl_id / version)
-    analyses = []
-    for json_file in version_dir.glob("*.json"):
-        data = read_json_file(json_file)
-        if data is None:
-            continue
-        try:
-            data["dataset_version"] = version
-            analyses.append(AnalysisSummary.model_validate(data))
-        except ValidationError:
-            continue
-    return sorted(analyses, key=lambda a: a.created_at, reverse=True)
+    _write_analysis(fl_id, analysis_id, analysis_data)
 
 
 def list_all_analyses(fl_id: str) -> List[AnalysisSummary]:
@@ -142,29 +117,27 @@ def list_all_analyses(fl_id: str) -> List[AnalysisSummary]:
         return []
 
     analyses = []
-    for version_dir in fl_dir.iterdir():
-        if not version_dir.is_dir():
+    for json_file in fl_dir.glob("*.json"):
+        data = read_json_file(json_file)
+        if data is None:
             continue
-        for json_file in version_dir.glob("*.json"):
-            data = read_json_file(json_file)
-            if data is None:
-                continue
-            try:
-                data["dataset_version"] = version_dir.name
-                analyses.append(AnalysisSummary.model_validate(data))
-            except ValidationError:
-                continue
+        try:
+            analyses.append(AnalysisSummary.model_validate(data))
+        except ValidationError:
+            continue
     return sorted(analyses, key=lambda a: a.created_at, reverse=True)
 
 
-def start_analysis(analysis_id: str, params: AnalysisParams) -> None:
+def start_analysis(
+    fl_id: str, analysis_id: str, dataset_version: str, params: AnalysisParams
+) -> None:
     project_root = Path(__file__).resolve().parent.parent.parent
 
-    create_analysis(analysis_id, params)
+    create_analysis(fl_id, analysis_id, dataset_version, params)
 
     # Spawn worker process
     subprocess.Popen(
-        [sys.executable, "-m", "src.workers.worker", analysis_id],
+        [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id],
         cwd=str(project_root),
         start_new_session=True,
         stdout=subprocess.DEVNULL,

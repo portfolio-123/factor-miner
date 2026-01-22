@@ -82,7 +82,6 @@ class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     version: str | None = None
-    description: str | None = None
     universeName: str
     frequency: int
     currency: str
@@ -98,10 +97,11 @@ class DatasetConfig(BaseModel):
 
 class AnalysisSummary(BaseModel):
     id: str
+    fl_id: str
     name: str | None = None
     status: AnalysisStatus
     created_at: str
-    dataset_version: str | None = None
+    dataset_version: str
     params: AnalysisParams
 
 
