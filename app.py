@@ -2,9 +2,9 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from src.core.init import init
-from src.ui.pages.history import history
-from src.ui.pages.create import create_form
-from src.ui.pages.results import results
+from pages.history import history
+from pages.create import create_form
+from pages.results import results
 from src.ui.components.common import spacer
 load_dotenv()
 
@@ -20,9 +20,9 @@ init()
 
 history_page = st.Page(history, title="Your Results", icon=":material/list:", default=True)
 create_page = st.Page(create_form, title="New Analysis", icon=":material/add:", url_path="create")
-results_pg = st.Page(results, title="Results", url_path="results")
+results_page = st.Page(results, title="Results", url_path="results")
 
-pg = st.navigation([history_page, create_page, results_pg], position="hidden")
+pg = st.navigation([history_page, create_page, results_page], position="hidden")
 
 
 fl_id = st.query_params.get("fl_id")

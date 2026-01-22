@@ -10,14 +10,13 @@ from src.ui.components.common import (
     section_header,
     render_info_item,
     render_big_info_item,
-    render_section_label,
+    get_section_label_html,
     spacer,
 )
 from src.core.utils import format_date
 
 
 def _parse_created_timestamp(version: str | None) -> str:
-    """Parse timestamp from version string and return readable date."""
     if not version:
         return "N/A"
     try:
@@ -61,8 +60,6 @@ def _build_norm_items(normalization) -> list[str]:
 
 
 def render_dataset_statistics(stats: dict) -> None:
-    section_header("Dataset Statistics")
-
     cols = st.columns([1, 1, 1, 2], gap="small")
     stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
 
@@ -85,25 +82,23 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         # Header row with title and creation date
         header_left, header_right = st.columns([1, 1], vertical_alignment="center")
         with header_left:
-            st.html('<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Your Dataset</p>')
+            st.html('<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters</p>')
         with header_right:
             created_on = _parse_created_timestamp(dataset_metadata.version)
             st.html(
                 f'<p style="text-align: right; color: #666; margin: 0;">Created on: {created_on}</p>'
             )
 
-        spacer(10)
-
-        c1, c2, c3, c4 = st.columns([1.5, 2, 1, 1], vertical_alignment="top")
+        c1, c2, c3, c4 = st.columns([0.9, 0.9, 1.3, 0.7], vertical_alignment="top")
 
         big_items = [
             (c1, "Universe", dataset_metadata.universeName),
+            (c2, "Frequency", frequency_map.get(dataset_metadata.frequency, "N/A")),
             (
-                c2,
+                c3,
                 "Period",
-                f"{format_date(dataset_metadata.startDt) if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt) if dataset_metadata.endDt else 'N/A'}",
+                f"{format_date(dataset_metadata.startDt, '%Y/%m/%d') if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt, '%Y/%m/%d') if dataset_metadata.endDt else 'N/A'}",
             ),
-            (c3, "Frequency", frequency_map.get(dataset_metadata.frequency, "N/A")),
         ]
         for col, label, value in big_items:
             with col:
@@ -120,12 +115,11 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             ):
                 show_formulas_modal(pd.DataFrame(dataset_metadata.formulas))
 
-        spacer(10)
+        spacer(6)
 
         col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
 
         with col_left:
-            render_section_label("Other Settings")
             items = [
                 ("Currency", dataset_metadata.currency),
                 ("Benchmark", dataset_metadata.benchmark),
@@ -133,14 +127,13 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 ("Pit Method", dataset_metadata.pitMethod),
             ]
             st.html(
-                f'<div class="dataset-info-group">{"".join(render_info_item(l, v) for l, v in items)}</div>'
+                f'{get_section_label_html("Other Settings")}<div class="dataset-info-group">{"".join(render_info_item(l, v) for l, v in items)}</div>'
             )
 
         with col_right:
             if dataset_metadata.normalization:
-                render_section_label("Normalization")
                 st.html(
-                    f'<div class="dataset-info-group">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
+                    f'{get_section_label_html("Normalization")}<div class="dataset-info-group">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
                 )
 
 def render_dataset_preview(df: pd.DataFrame) -> None:

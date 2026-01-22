@@ -48,6 +48,4 @@ def render_analysis_card(analysis: Analysis) -> None:
     st.html(card_html)
 
     if st.button("Open Analysis", key=f"analysis_btn_{analysis.id}", width="stretch"):
-        st.query_params["fl_id"] = analysis.fl_id
-        st.query_params["id"] = analysis.id
-        st.switch_page("results")
+        st.switch_page("pages/results.py", query_params={"fl_id": analysis.fl_id, "id": analysis.id})

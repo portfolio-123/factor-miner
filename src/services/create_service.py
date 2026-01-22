@@ -22,7 +22,6 @@ def submit_analysis_creation() -> None:
             access_token=st.session_state.get("access_token"),
         )
         start_analysis(fl_id, analysis_id, dataset_version, params)
-        st.query_params.from_dict({"fl_id": fl_id, "id": analysis_id})
-        st.switch_page("results")
+        st.switch_page("pages/results.py", query_params={"fl_id": fl_id, "id": analysis_id})
     except Exception as e:
         st.toast(f"Error starting analysis: {e}")

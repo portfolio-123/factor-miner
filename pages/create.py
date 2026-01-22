@@ -27,7 +27,7 @@ def create_form() -> None:
     except Exception:
         st.error(f"Failed to load dataset")
         return
-        
+
     render_dataset_card(active_dataset_metadata)
 
     settings_tab, review_tab = st.tabs(["Settings", "Review"])
@@ -36,10 +36,16 @@ def create_form() -> None:
     with review_tab:
         _render_review()
 
+    with st.columns([4, 1])[1]:
+        st.button(
+            "Run Analysis",
+            type="primary",
+            width="stretch",
+            on_click=submit_analysis_creation,
+        )
+
 
 def _render_settings() -> None:
-    section_header("Configuration")
-
     col1, col2 = st.columns(2)
     with col1:
         st.text_input(
@@ -92,11 +98,3 @@ def _render_review() -> None:
 
     render_dataset_statistics(stats)
     render_dataset_preview(dataset_preview)
-
-    with st.columns([4, 1])[1]:
-        st.button(
-            "Run Analysis",
-            type="primary",
-            width="stretch",
-            on_click=submit_analysis_creation,
-        )
