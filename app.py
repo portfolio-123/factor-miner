@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 init()
-# login()
+login()
 
 pg = setup_navigation()
 render_sidebar()

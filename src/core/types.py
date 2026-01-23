@@ -76,7 +76,8 @@ class SettingsForm(BaseModel):
 
 
 class AnalysisParams(SettingsForm):
-    access_token: str | None = None
+    api_id: int | None = None
+    api_key: str | None = None
 
 
 class NormalizationConfig(BaseModel):

@@ -1,8 +1,8 @@
 import pandas as pd
 import requests
+import p123api
 
 from src.core.environment import API_BASE_URL
-from src.core.types import TokenPayload
 
 
 def _request(
@@ -18,12 +18,16 @@ def _request(
     return response
 
 
-def authenticate(payload: TokenPayload) -> str:
+def create_client(api_id: int, api_key: str) -> p123api.Client:
+    return p123api.Client(api_id=str(api_id), api_key=api_key, endpoint=API_BASE_URL)
+
+
+def validate_credentials(api_id: int, api_key: str) -> bool:
     try:
-        response = _request("POST", "/auth", json=payload.model_dump(), timeout=10)
-        return response.text.strip('"')
-    except Exception:
-        raise PermissionError("Authentication failed")
+        create_client(api_id, api_key)
+        return True
+    except p123api.ClientException:
+        return False
 
 
 def verify_factor_list_access(fl_id: str, access_token: str) -> dict:
@@ -35,21 +39,22 @@ def verify_factor_list_access(fl_id: str, access_token: str) -> dict:
 
 
 def fetch_benchmark_data(
-    benchmark_ticker: str, access_token: str, start_date: str, end_date: str
+    benchmark_ticker: str, api_id: int, api_key: str, start_date: str, end_date: str
 ) -> pd.DataFrame:
     try:
-        response = _request(
-            "GET",
-            f"/data/prices/{benchmark_ticker}",
-            token="92010591882026161054635938144034138417",
-            params={"start": start_date, "end": end_date},
+        client = create_client(api_id, api_key)
+        client.auth()
+        data = client.data_prices(
+            identifier=benchmark_ticker,
+            start=start_date,
+            end=end_date,
+            to_pandas=False,
         )
-        data = response.json()
 
         benchmark_df = pd.DataFrame(data["prices"])
         if "date" in benchmark_df.columns and "dt" not in benchmark_df.columns:
             benchmark_df = benchmark_df.rename(columns={"date": "dt"})
 
         return benchmark_df
-    except Exception:
-        raise PermissionError(f"Failed to fetch benchmark data")
+    except p123api.ClientException as e:
+        raise PermissionError(f"Failed to fetch benchmark data: {e}")

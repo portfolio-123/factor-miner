@@ -102,7 +102,8 @@ def clear_analysis_credentials(fl_id: str, analysis_id: str) -> None:
         return
 
     analysis_data = analysis.model_dump()
-    analysis_data["params"].pop("access_token", None)
+    analysis_data["params"].pop("api_id", None)
+    analysis_data["params"].pop("api_key", None)
 
     _write_analysis(fl_id, analysis_id, analysis_data)
 

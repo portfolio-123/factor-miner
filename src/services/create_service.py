@@ -18,7 +18,8 @@ def submit_analysis_creation() -> None:
             min_alpha=st.session_state.get("min_alpha"),
             top_pct=st.session_state.get("top_pct"),
             bottom_pct=st.session_state.get("bottom_pct"),
-            access_token=st.session_state.get("access_token"),
+            api_id=st.session_state.get("api_id"),
+            api_key=st.session_state.get("api_key"),
         )
         start_analysis(fl_id, analysis_id, dataset_version, params)
         st.session_state["_redirect_to_results"] = analysis_id
