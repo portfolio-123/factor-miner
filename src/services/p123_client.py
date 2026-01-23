@@ -41,7 +41,7 @@ def fetch_benchmark_data(
         response = _request(
             "GET",
             f"/data/prices/{benchmark_ticker}",
-            token="92010591882026161054635938144034138417",
+            token=access_token,
             params={"start": start_date, "end": end_date},
         )
         data = response.json()

@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 
 from src.core.constants import AUTH_COOKIE_KEY
@@ -35,6 +36,7 @@ def login():
             st.stop()
 
     # token already present in cookies
+
     if cookie_token := get_cookie(AUTH_COOKIE_KEY):
         try:
             _authenticate(cookie_token, save_cookie=False)
@@ -68,8 +70,11 @@ def _render_auth_form() -> None:
 
             if submitted:
                 try:
-                    token = get_access_token(TokenPayload(apiId=api_id, apiKey=api_key))
+                    token = get_access_token(
+                        TokenPayload(apiId=int(api_id), apiKey=api_key)
+                    )
                     _authenticate(token)
+                    time.sleep(2)
                     st.rerun()
                 except PermissionError as e:
                     st.error(str(e))

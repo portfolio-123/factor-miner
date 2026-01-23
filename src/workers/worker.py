@@ -50,7 +50,7 @@ def run_analysis(analysis: Analysis) -> dict:
 
     dataset_info = reader.get_dataset_info()
     start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
-    start_date = start_dt.strftime("%Y/%m/%d")
+    start_date = start_dt.strftime("%Y-%m-%d")
     end_date = dataset_info.endDt
 
     log(f"Fetching benchmark data for {params.benchmark_ticker}...")

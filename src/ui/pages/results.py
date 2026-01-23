@@ -41,11 +41,14 @@ def select_best_features_cached(
 def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
     analysis = read_analysis(fl_id, analysis_id)
 
+    if not analysis:
+        st.error("Analysis not found")
+        return
+
     if analysis.status == AnalysisStatus.SUCCESS:
         merge_analysis_logs(analysis)
         st.success("Analysis completed! Refreshing...")
         st.rerun(scope="app")
-        return
 
     if analysis.status == AnalysisStatus.FAILED:
         merge_analysis_logs(analysis)
@@ -61,13 +64,17 @@ def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         st.space(100)
         st.subheader("Running Factor Analysis")
 
+        completed = progress.get("completed", 0)
+        total = progress.get("total", 1)
+        current_factor = progress.get("current_factor")
+
         st.progress(
-            progress.completed / progress.total,
-            text=f"{progress.completed} / {progress.total} factors analyzed",
+            completed / total if total > 0 else 0,
+            text=f"{completed} / {total} factors analyzed",
         )
 
-        if progress.current_factor:
-            st.info(f"Analyzing: **{progress.current_factor}**")
+        if current_factor:
+            st.info(f"Analyzing: **{current_factor}**")
         else:
             st.info("Starting...")
 

@@ -53,7 +53,9 @@ class FilterParams:
 
 
 class TokenPayload(BaseModel):
-    apiId: str
+    model_config = ConfigDict(extra="ignore")
+
+    apiId: int
     apiKey: str
 
 
