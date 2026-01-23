@@ -77,14 +77,13 @@ def _build_norm_items(normalization) -> list[str]:
 
 
 def render_dataset_statistics(stats: dict) -> None:
-    cols = st.columns([1, 1, 1, 2], gap="small")
+    cols = st.columns(3, gap="small")
     stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
 
     stat_items = [
         ("Rows", stats["num_rows"]),
         ("Dates", stats["num_dates"]),
         ("Columns", stats["num_columns"]),
-        ("Period", f"{stats['min_date']} - {stats['max_date']}"),
     ]
 
     for col, (label, value) in zip(cols, stat_items):

@@ -1,6 +1,8 @@
 import sys
 import traceback
 from datetime import datetime
+
+import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,7 +20,6 @@ from src.workers.manager import (
 from src.services.readers import ParquetDataReader
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import (
-    get_dataset_date_range,
     calculate_benchmark_returns,
     calculate_future_performance,
     analyze_factors,
@@ -47,8 +48,10 @@ def run_analysis(analysis: Analysis) -> dict:
 
     reader = ParquetDataReader(dataset_path)
 
-    date_df = reader.read_columns(["Date"])
-    start_date, end_date = get_dataset_date_range(date_df)
+    dataset_info = reader.get_dataset_info()
+    start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
+    start_date = start_dt.strftime("%Y/%m/%d")
+    end_date = dataset_info.endDt
 
     log(f"Fetching benchmark data for {params.benchmark_ticker}...")
     try:

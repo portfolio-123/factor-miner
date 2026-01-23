@@ -5,7 +5,6 @@ import pandas as pd
 
 from src.core.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
 from src.core.types import DatasetConfig
-from src.core.utils import format_date
 from src.services.readers import ParquetDataReader
 
 
@@ -36,12 +35,9 @@ def get_dataset_review_data(fl_id: str) -> tuple[pd.DataFrame, dict]:
 
     metadata = reader.get_review_metadata()
 
-    dates = pd.to_datetime(preview_df["Date"])
     stats = {
         "num_rows": metadata.get("num_rows"),
         "num_columns": len(preview_df.columns),
         "num_dates": metadata.get("unique_dates"),
-        "min_date": format_date(dates.min()),
-        "max_date": format_date(dates.max()),
     }
     return preview_df, stats

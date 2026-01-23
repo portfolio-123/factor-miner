@@ -5,26 +5,6 @@ from typing import Callable, List, Optional, Tuple
 from src.services.readers import ParquetDataReader
 
 
-def get_dataset_date_range(df: pd.DataFrame) -> Tuple[str, str]:
-    if 'Date' not in df.columns:
-        raise ValueError("Dataset must contain a 'Date' column")
-
-    dates = pd.to_datetime(df['Date'])
-
-    if dates.empty:
-        raise ValueError("Dataset contains no valid dates")
-
-    earliest_date = dates.min()
-    latest_date = dates.max()
-
-    # Subtract 14 days from earliest to ensure previous week data
-    start_date = earliest_date - pd.Timedelta(days=14)
-
-    # Add 14 days to latest to ensure future week data
-    end_date = latest_date + pd.Timedelta(days=14)
-
-    return start_date.strftime("%Y/%m/%d"), end_date.strftime("%Y/%m/%d")
-
 def calculate_benchmark_returns(
     raw_data: pd.DataFrame,
     benchmark_data: pd.DataFrame
