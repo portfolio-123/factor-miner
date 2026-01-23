@@ -1,0 +1,24 @@
+import streamlit as st
+
+from src.ui.pages.history import history
+from src.ui.pages.create import create_form
+from src.ui.pages.results import results
+
+
+def setup_navigation() -> st.navigation:
+    """Configure and return the navigation object with page definitions."""
+    history_page = st.Page(
+        history, title="Your Results", icon=":material/list:", default=True
+    )
+    create_page = st.Page(
+        create_form, title="New Analysis", icon=":material/add:", url_path="create"
+    )
+    results_page = st.Page(results, title="Results", url_path="results")
+
+    st.session_state["pages"] = {
+        "history": history_page,
+        "create": create_page,
+        "results": results_page,
+    }
+
+    return st.navigation([history_page, create_page, results_page], position="hidden")

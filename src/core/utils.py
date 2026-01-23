@@ -27,14 +27,6 @@ def read_analysis_json(path: Path) -> Analysis | None:
         return None
 
 
-def format_timestamp(ts_str: str) -> str:
-    try:
-        ts = float(ts_str)
-        return datetime.fromtimestamp(ts).strftime("%b %d, %Y at %I:%M %p")
-    except (ValueError, TypeError):
-        return f"Version: {ts_str}"
-
-
 def format_date(date_value: Any, format_str: str = "%Y-%m-%d") -> str:
     try:
         import pandas as pd
@@ -52,12 +44,6 @@ def serialize_dataframe(df: pd.DataFrame) -> str:
 def deserialize_dataframe(*data: str) -> pd.DataFrame | tuple[pd.DataFrame, ...]:
     results = [pd.read_json(StringIO(d), orient="split") for d in data]
     return results[0] if len(results) == 1 else tuple(results)
-
-
-def format_dataset_option(ver: str) -> str:
-    if ver == "active":
-        return "🟢 Active Version"
-    return f"Version {ver}"
 
 
 def add_formula_column(

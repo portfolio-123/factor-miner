@@ -1,16 +1,16 @@
 import streamlit as st
 import pandas as pd
 from src.core.context import merge_analysis_logs
-from src.core.types import AnalysisStatus, FilterParams
-from src.ui.components.common import copy_button, section_header
+from src.core.types import AnalysisParams, AnalysisStatus, FilterParams
+from src.ui.components.common import copy_button, render_info_item, section_header
 from src.ui.components.headers import navbar
 from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
-from src.ui.components.analyses import render_analysis_params, render_analysis_notes
+from src.ui.components.analyses import render_analysis_notes
 from src.core.utils import add_formula_column, deserialize_dataframe
 from src.core.calculations import select_best_features as _select_best_features
 from src.workers.manager import read_analysis
-from src.services.dataset_service import get_backup_dataset_metadata
+from src.services.dataset_service import get_dataset_metadata
 
 
 @st.cache_data
@@ -73,37 +73,52 @@ def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
 
 @st.fragment
 def _render_filter_and_results(
-    analysis_id: str, min_alpha: float, metrics: pd.DataFrame, corr_matrix: pd.DataFrame
+    analysis_id: str,
+    params: AnalysisParams,
+    metrics: pd.DataFrame,
+    corr_matrix: pd.DataFrame,
 ) -> None:
-    section_header("Filter Parameters")
+    section_header("Parameters")
 
-    col1, col2, _ = st.columns([1, 1, 2])
+    col_analysis, col_sep, col_filter = st.columns([2, 0.1, 2])
 
-    with col1:
-        correlation_threshold = st.slider(
-            "Correlation Threshold",
-            min_value=0.0,
-            max_value=1.0,
-            value=st.session_state.get("filter_correlation", 0.5),
-            key="filter_correlation",
-            step=0.05,
-        )
+    with col_analysis:
+        param_items = [
+            render_info_item("Min Alpha", f"{params.min_alpha}%"),
+            render_info_item("Top X", f"{params.top_pct}%"),
+            render_info_item("Bottom X", f"{params.bottom_pct}%"),
+        ]
+        st.html(f'<div class="dataset-info-group">{"".join(param_items)}</div>')
 
-    with col2:
-        n_features = st.number_input(
-            "Number of Features",
-            min_value=1,
-            max_value=100,
-            value=st.session_state.get("filter_n_features", 10),
-            key="filter_n_features",
-            step=1,
-        )
+    with col_sep:
+        st.html('<div style="border-left: 1px solid #e0e0e0; height: 60px; margin: 0 auto;"></div>')
+
+    with col_filter:
+        subcol1, subcol2 = st.columns(2)
+        with subcol1:
+            correlation_threshold = st.slider(
+                "Correlation Threshold",
+                min_value=0.0,
+                max_value=1.0,
+                value=st.session_state.get("filter_correlation", 0.5),
+                key="filter_correlation",
+                step=0.05,
+            )
+        with subcol2:
+            n_features = st.number_input(
+                "Number of Features",
+                min_value=1,
+                max_value=100,
+                value=st.session_state.get("filter_n_features", 10),
+                key="filter_n_features",
+                step=1,
+            )
 
     best_features = select_best_features_cached(
         analysis_id,
         metrics,
         corr_matrix,
-        FilterParams(n_features, correlation_threshold, min_alpha),
+        FilterParams(n_features, correlation_threshold, params.min_alpha),
     )
 
     section_header("Best Performing Factors")
@@ -161,8 +176,7 @@ def results() -> None:
         return
 
     try:
-        # Get dataset_version from the analysis object
-        dataset_metadata = get_backup_dataset_metadata(fl_id, analysis.dataset_version)
+        dataset_metadata = get_dataset_metadata(fl_id, analysis.dataset_version)
         st.session_state.formulas_data = pd.DataFrame(dataset_metadata.formulas)
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
@@ -170,10 +184,9 @@ def results() -> None:
 
     render_dataset_card(dataset_metadata)
 
-    render_analysis_params(analysis.params)
-
     if analysis.status == AnalysisStatus.FAILED:
-        st.error((analysis.error or "Analysis failed"))
+        st.subheader("Analysis Failed")
+        st.error((analysis.error or "Analysis failed").split("\n")[0])
         return
 
     if analysis.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
@@ -188,4 +201,4 @@ def results() -> None:
         analysis.results["all_metrics"],
         analysis.results["all_corr_matrix"],
     )
-    _render_filter_and_results(analysis.id, analysis.params.min_alpha, metrics, corr)
+    _render_filter_and_results(analysis.id, analysis.params, metrics, corr)

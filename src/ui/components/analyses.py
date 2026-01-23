@@ -20,18 +20,27 @@ def render_analysis_params(params: AnalysisParams) -> None:
 def render_analysis_notes(analysis: Analysis) -> None:
     section_header("Notes")
 
-    notes_value = st.text_area(
-        "Notes",
-        value=analysis.notes or "",
-        placeholder="Add notes about this analysis...",
-        label_visibility="collapsed",
-        key=f"notes_{analysis.id}",
-    )
+    def _save_notes():
+        notes_value = st.session_state.get(f"notes_{analysis.id}", "")
+        if notes_value != (analysis.notes or ""):
+            update_analysis(analysis, notes=notes_value)
 
-    if st.button("Save Notes", key=f"save_notes_{analysis.id}"):
-        update_analysis(analysis, notes=notes_value)
-        st.success("Notes saved")
-        st.rerun()
+    col_input, col_btn = st.columns([8, 1])
+
+    with col_input:
+        st.text_input(
+            "Notes",
+            value=analysis.notes or "",
+            placeholder="Add notes about this analysis...",
+            label_visibility="collapsed",
+            key=f"notes_{analysis.id}",
+            on_change=_save_notes,
+        )
+
+    with col_btn:
+        if st.button("Save", key=f"save_notes_{analysis.id}", use_container_width=True):
+            _save_notes()
+            st.rerun()
 
 
 def _render_card_field(label: str, value: str) -> None:

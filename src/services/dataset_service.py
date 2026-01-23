@@ -16,14 +16,10 @@ def get_file_mtime(path: str) -> str:
 def get_dataset_file_path(fl_id: str, dataset_version: str) -> Path:
     return FACTORMINER_DIR / fl_id / f"{dataset_version}.parquet"
 
-def get_active_dataset_metadata(fl_id: str) -> DatasetConfig:
-    return ParquetDataReader(str(FACTOR_LIST_DIR / fl_id)).get_dataset_info()
-
-def get_backup_dataset_metadata(fl_id: str, version: str) -> DatasetConfig:
-    metadata = ParquetDataReader(
-        str(get_dataset_file_path(fl_id, version))
-    ).get_dataset_info()
-    metadata.version = version
+def get_dataset_metadata(fl_id: str, version: str | None = None) -> DatasetConfig:
+    path = str(get_dataset_file_path(fl_id, version) if version else FACTOR_LIST_DIR / fl_id)
+    metadata = ParquetDataReader(path).get_dataset_info()
+    metadata.version = version or get_file_mtime(path)
     return metadata
 
 def list_versions(fl_id: str) -> list[str]:

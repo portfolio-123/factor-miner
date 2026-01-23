@@ -42,6 +42,7 @@ class AnalysisUpdates(TypedDict, total=False):
     results: AnalysisResults
     error: str
     progress: AnalysisProgress
+    notes: str
 
 
 @dataclass
@@ -125,3 +126,4 @@ class Analysis(AnalysisSummary):
     error: str | None = None
     progress: AnalysisProgress | None = None
     logs: list[str] | None = None
+    notes: str | None = None

@@ -6,7 +6,7 @@ import streamlit as st
 from src.ui.components.tables import show_formulas_modal
 from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
 from src.core.types import DatasetConfig, ScopeType
-from src.services.dataset_service import get_active_dataset_metadata
+from src.services.dataset_service import get_dataset_metadata
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
     render_info_item,
@@ -27,7 +27,7 @@ def load_active_dataset() -> DatasetConfig | None:
         return None
 
     try:
-        return get_active_dataset_metadata(fl_id)
+        return get_dataset_metadata(fl_id)
     except Exception:
         st.error("Failed to load dataset")
         return None
@@ -96,15 +96,12 @@ def render_dataset_statistics(stats: dict) -> None:
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
     with st.container(border=True):
-        # Header row with title and creation date
-        header_left, header_right = st.columns([1, 1], vertical_alignment="center")
+        header_left, _, header_right = st.columns([2, 1, 1], vertical_alignment="center")
         with header_left:
             st.html('<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters</p>')
         with header_right:
             created_on = _parse_created_timestamp(dataset_metadata.version)
-            st.html(
-                f'<p style="text-align: right; color: #666; margin: 0;">Created on: {created_on}</p>'
-            )
+            st.caption(f"Created on: {created_on}")
 
         c1, c2, c3, c4 = st.columns([0.9, 0.9, 1.3, 0.7], vertical_alignment="top")
 

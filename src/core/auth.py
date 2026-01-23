@@ -12,8 +12,9 @@ from src.services.p123_client import (
 
 def _authenticate(token: str, save_cookie: bool = True) -> None:
     fl_id = st.query_params.get("fl_id")
-    verify_factor_list_access(fl_id, token)
+    fl_info = verify_factor_list_access(fl_id, token)
     st.session_state.access_token = token
+    st.session_state.fl_name = fl_info.get("name", fl_id)
     if save_cookie:
         set_cookie(AUTH_COOKIE_KEY, token, days=1)
 
