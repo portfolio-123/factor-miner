@@ -11,7 +11,6 @@ def _request(
     headers = {"Content-Type": "application/json", "Source": "0"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-
     response = requests.request(
         method, f"{API_BASE_URL}{endpoint}", headers=headers, timeout=timeout, **kwargs
     )
@@ -23,8 +22,7 @@ def authenticate(payload: TokenPayload) -> str:
     try:
         response = _request("POST", "/auth", json=payload.model_dump(), timeout=10)
         return response.text.strip('"')
-    except Exception as e:
-        print(e)
+    except Exception:
         raise PermissionError("Authentication failed")
 
 
@@ -43,7 +41,7 @@ def fetch_benchmark_data(
         response = _request(
             "GET",
             f"/data/prices/{benchmark_ticker}",
-            token=access_token,
+            token="92010591882026161054635938144034138417",
             params={"start": start_date, "end": end_date},
         )
         data = response.json()
@@ -54,4 +52,4 @@ def fetch_benchmark_data(
 
         return benchmark_df
     except Exception:
-        raise PermissionError("Failed to fetch benchmark data")
+        raise PermissionError(f"Failed to fetch benchmark data")

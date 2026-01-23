@@ -163,46 +163,6 @@ def load_global_css() -> None:
     .element-container:has(.view-factors-trigger) + .element-container button:hover p {
         color: var(--primary) !important;
     }
-
-    /* ===== Copy Button Styles ===== */
-    .copy-btn {
-        border-radius: var(--radius-sm);
-        font-weight: 500;
-        font-size: 14px;
-        padding: 8px 16px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        font-family: "Source Sans Pro", sans-serif;
-    }
-
-    .copy-btn.primary {
-        background-color: var(--primary);
-        color: white;
-        border: none;
-    }
-
-    .copy-btn.primary:hover {
-        background-color: var(--primary-hover);
-    }
-
-    .copy-btn.secondary {
-        background-color: var(--bg-secondary);
-        color: var(--text-secondary);
-        border: 1px solid var(--border-light);
-    }
-
-    .copy-btn.secondary:hover {
-        background-color: var(--bg-hover);
-    }
-
-    .copy-btn.stretch {
-        width: 100%;
-    }
-
-    .copy-btn.copied {
-        background-color: #4CAF50;
-    }
-
     </style>
     """
     )

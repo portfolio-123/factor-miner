@@ -68,9 +68,7 @@ def _render_auth_form() -> None:
 
             if submitted:
                 try:
-                    token = get_access_token(
-                        TokenPayload(apiId=int(api_id), apiKey=api_key)
-                    )
+                    token = get_access_token(TokenPayload(apiId=api_id, apiKey=api_key))
                     _authenticate(token)
                     st.rerun()
                 except PermissionError as e:

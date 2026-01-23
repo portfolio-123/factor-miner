@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
+from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 from src.core.context import merge_analysis_logs
 from src.core.types import AnalysisParams, AnalysisStatus, FilterParams
-from src.ui.components.common import copy_button, render_info_item, section_header
+from src.ui.components.common import render_info_item, section_header
 from src.ui.components.headers import navbar
 from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
@@ -91,7 +92,9 @@ def _render_filter_and_results(
         st.html(f'<div class="dataset-info-group">{"".join(param_items)}</div>')
 
     with col_sep:
-        st.html('<div style="border-left: 1px solid #e0e0e0; height: 60px; margin: 0 auto;"></div>')
+        st.html(
+            '<div style="border-left: 1px solid #e0e0e0; height: 60px; margin: 0 auto;"></div>'
+        )
 
     with col_filter:
         subcol1, subcol2 = st.columns(2)
@@ -149,7 +152,10 @@ def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
     csv_to_download = _prepare_download_csv(display_df)
 
     with col1:
-        copy_button(csv_to_copy, label="Copy to Clipboard", width="stretch")
+        if st.button(type="primary", label="Copy to Clipboard", width="stretch"):
+            copy_to_clipboard_unsecured(csv_to_copy)
+            copy_to_clipboard(csv_to_copy)
+            st.toast("Best features copied to clipboard")
 
     with col2:
         st.download_button(

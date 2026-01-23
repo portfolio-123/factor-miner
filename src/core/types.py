@@ -53,7 +53,7 @@ class FilterParams:
 
 
 class TokenPayload(BaseModel):
-    apiId: int
+    apiId: str
     apiKey: str
 
 
