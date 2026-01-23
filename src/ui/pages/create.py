@@ -18,12 +18,12 @@ from src.ui.components.datasets import (
 
 
 def create_form() -> None:
-    if redirect_info := st.session_state.pop("_redirect_to_results", None):
+    if analysis_id := st.session_state.pop("_redirect_to_results", None):
         st.switch_page(
             st.session_state["pages"]["results"],
             query_params={
-                "fl_id": redirect_info["fl_id"],
-                "id": redirect_info["analysis_id"],
+                "fl_id": st.query_params.get("fl_id"),
+                "id": analysis_id,
             },
         )
 

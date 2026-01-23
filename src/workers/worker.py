@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from src.core.constants import PRICE_COLUMN, REQUIRED_COLUMNS
+from src.core.environment import FACTOR_LIST_DIR
 from src.core.types import Analysis, AnalysisStatus
 
 from src.core.utils import serialize_dataframe
@@ -41,9 +42,10 @@ def run_analysis(analysis: Analysis) -> dict:
     log("Starting analysis...")
 
     params = analysis.params
-    log(f"Processing dataset: {params.active_dataset_file}")
+    dataset_path = str(FACTOR_LIST_DIR / analysis.fl_id)
+    log(f"Processing dataset: {dataset_path}")
 
-    reader = ParquetDataReader(params.active_dataset_file)
+    reader = ParquetDataReader(dataset_path)
 
     date_df = reader.read_columns(["Date"])
     start_date, end_date = get_dataset_date_range(date_df)

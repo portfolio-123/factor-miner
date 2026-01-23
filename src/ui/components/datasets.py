@@ -71,7 +71,7 @@ def _build_norm_items(normalization) -> list[str]:
     ]
 
     if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
-        items.append(("ML Training End", normalization.mlTrainingEnd))
+        items.append(("ML Training End", format_date(normalization.mlTrainingEnd, "%Y/%m/%d")))
 
     return [render_info_item(label, value) for label, value in items]
 

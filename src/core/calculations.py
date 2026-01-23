@@ -23,7 +23,7 @@ def get_dataset_date_range(df: pd.DataFrame) -> Tuple[str, str]:
     # Add 14 days to latest to ensure future week data
     end_date = latest_date + pd.Timedelta(days=14)
 
-    return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+    return start_date.strftime("%Y/%m/%d"), end_date.strftime("%Y/%m/%d")
 
 def calculate_benchmark_returns(
     raw_data: pd.DataFrame,

@@ -27,7 +27,7 @@ def read_analysis_json(path: Path) -> Analysis | None:
         return None
 
 
-def format_date(date_value: Any, format_str: str = "%Y-%m-%d") -> str:
+def format_date(date_value: Any, format_str: str = "%Y/%m/%d") -> str:
     try:
         import pandas as pd
 

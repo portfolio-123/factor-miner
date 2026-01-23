@@ -76,7 +76,6 @@ class SettingsForm(BaseModel):
 
 
 class AnalysisParams(SettingsForm):
-    active_dataset_file: str
     access_token: str | None = None
 
 
