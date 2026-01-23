@@ -40,11 +40,11 @@ def log(message: str) -> None:
 
 
 def run_analysis(analysis: Analysis) -> dict:
-    # log("Starting analysis...")
+    log("Starting analysis...")
 
     params = analysis.params
     dataset_path = str(FACTOR_LIST_DIR / analysis.fl_id)
-    # log(f"Processing dataset: {dataset_path}")
+    log(f"Processing dataset: {dataset_path}")
 
     reader = ParquetDataReader(dataset_path)
 
@@ -53,23 +53,22 @@ def run_analysis(analysis: Analysis) -> dict:
     start_date = start_dt.strftime("%Y/%m/%d")
     end_date = dataset_info.endDt
 
-    # log(f"Fetching benchmark data for {params.benchmark_ticker}...")
+    log(f"Fetching benchmark data for {params.benchmark_ticker}...")
     try:
         benchmark_data = fetch_benchmark_data(
             benchmark_ticker=params.benchmark_ticker,
-            api_id=params.api_id,
-            api_key=params.api_key,
+            access_token=params.access_token,
             start_date=start_date,
             end_date=end_date,
         )
     finally:
         clear_analysis_credentials(analysis.fl_id, analysis.id)
 
-    # log("Benchmark data fetched successfully")
+    log("Benchmark data fetched successfully")
 
     # Progress callback to update analysis file
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
-        # log(f"Progress: {completed}/{total} factors - {current_factor}")
+        log(f"Progress: {completed}/{total} factors - {current_factor}")
         update_analysis(
             analysis,
             status=AnalysisStatus.RUNNING,
@@ -90,12 +89,12 @@ def run_analysis(analysis: Analysis) -> dict:
         progress={"completed": 0, "total": len(factor_columns), "current_factor": ""},
     )
 
-    # log("Calculating future performance...")
+    log("Calculating future performance...")
 
     perf_core = reader.read_columns(["Date", "Ticker", PRICE_COLUMN])
     future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
 
-    # log("Analyzing factors...")
+    log("Analyzing factors...")
     results_df = analyze_factors(
         future_perf_df,
         reader,
@@ -106,19 +105,19 @@ def run_analysis(analysis: Analysis) -> dict:
     )
     raw_data = reader.read_columns(["Date"])
 
-    # log("Calculating benchmark returns...")
+    log("Calculating benchmark returns...")
     raw_data = calculate_benchmark_returns(raw_data, benchmark_data)
 
     if results_df.empty:
         raise ValueError("No results from factor analysis")
 
-    # log("Calculating factor metrics...")
+    log("Calculating factor metrics...")
     metrics_df = calculate_factor_metrics(results_df, raw_data)
 
-    # log("Calculating correlation matrix...")
+    log("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(results_df)
 
-    # log("Analysis complete!")
+    log("Analysis complete!")
 
     return {
         "all_metrics": serialize_dataframe(metrics_df),
@@ -131,25 +130,25 @@ def main():
     _fl_id = sys.argv[1]
     _analysis_id = sys.argv[2]
 
-    # log(f"Worker started for analysis: {_fl_id}/{_analysis_id}")
+    log(f"Worker started for analysis: {_fl_id}/{_analysis_id}")
 
     analysis = read_analysis(_fl_id, _analysis_id)
     if analysis is None:
-        # log(f"Analysis {_fl_id}/{_analysis_id} not found")
+        log(f"Analysis {_fl_id}/{_analysis_id} not found")
         sys.exit(1)
 
     try:
         update_analysis(analysis, status=AnalysisStatus.RUNNING)
-        # log("Status updated to running")
+        log("Status updated to running")
 
         results = run_analysis(analysis)
 
         update_analysis(analysis, status=AnalysisStatus.SUCCESS, results=results)
-        # log("Analysis completed successfully")
+        log("Analysis completed successfully")
 
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
-        # log(f"Error: {error_msg}")
+        log(f"Error: {error_msg}")
         update_analysis(analysis, status=AnalysisStatus.FAILED, error=error_msg)
         sys.exit(1)
 
