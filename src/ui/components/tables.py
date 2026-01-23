@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 
 
@@ -17,6 +18,27 @@ def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
             },
             hide_index=True,
         )
+
+        _, col1, col2 = st.columns([3, 1, 1])
+
+        csv_to_copy = formulas_df[["formula", "name", "tag"]].to_csv(index=False, sep="\t")
+        csv_to_download = formulas_df[["formula", "name", "tag"]].to_csv(index=False)
+
+        with col1:
+            if st.button(type="primary", label="Copy to Clipboard", width="stretch"):
+                copy_to_clipboard_unsecured(csv_to_copy)
+                copy_to_clipboard(csv_to_copy)
+                st.toast("Formulas copied to clipboard")
+
+        with col2:
+            st.download_button(
+                type="primary",
+                label="Download CSV",
+                data=csv_to_download,
+                file_name="dataset_formulas.csv",
+                mime="text/csv",
+                width="stretch",
+            )
 
     _render()
 
