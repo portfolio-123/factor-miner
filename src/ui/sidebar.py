@@ -8,7 +8,7 @@ def render_sidebar() -> None:
     pages = st.session_state.get("pages", {})
 
     with st.sidebar:
-        fl_name = st.session_state.get("fl_name", fl_id)
+        fl_name = st.session_state.get("fl_name", "Factor List")
         st.markdown(
             "<h1 style='padding: 0; margin: 0;'>Factor Miner</h1>",
             unsafe_allow_html=True,

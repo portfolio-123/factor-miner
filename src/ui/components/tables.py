@@ -3,7 +3,6 @@ import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 
-
 def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
     @st.dialog(f"Dataset Formulas ({len(formulas_df)})", width="large")
     def _render() -> None:
@@ -21,7 +20,9 @@ def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
 
         _, col1, col2 = st.columns([3, 1, 1])
 
-        csv_to_copy = formulas_df[["formula", "name", "tag"]].to_csv(index=False, sep="\t")
+        csv_to_copy = formulas_df[["formula", "name", "tag"]].to_csv(
+            index=False, sep="\t"
+        )
         csv_to_download = formulas_df[["formula", "name", "tag"]].to_csv(index=False)
 
         with col1:
@@ -35,7 +36,7 @@ def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
                 type="primary",
                 label="Download CSV",
                 data=csv_to_download,
-                file_name="dataset_formulas.csv",
+                file_name="datasssset_formulas.csv",
                 mime="text/csv",
                 width="stretch",
             )

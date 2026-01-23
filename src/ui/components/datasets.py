@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from src.ui.components.tables import show_formulas_modal
 from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
-from src.core.types import DatasetConfig, ScopeType
+from src.core.types import DatasetConfig, ScalingMethod, ScopeType
 from src.services.dataset_service import get_dataset_metadata
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
@@ -45,33 +45,51 @@ def _parse_created_timestamp(version: str | None) -> str:
 
 
 def _build_norm_items(normalization) -> list[str]:
+    scaling_label = (
+        SCALING_LABELS.get(normalization.scaling, str(normalization.scaling))
+        if normalization.scaling
+        else "None"
+    )
+
+    # Always shown
     items = [
-        (
-            "Scaling",
-            (
-                SCALING_LABELS.get(normalization.scaling, str(normalization.scaling))
-                if normalization.scaling
-                else "None"
-            ),
-        ),
+        ("Scaling", scaling_label),
         ("Scope", normalization.scope.title() if normalization.scope else "None"),
-        (
-            "Trim",
-            f"{normalization.trimPct}%" if normalization.trimPct is not None else "N/A",
-        ),
-        (
-            "Outlier",
-            (
-                str(normalization.outlierLimit)
-                if normalization.outlierLimit is not None
-                else "None"
-            ),
-        ),
         ("N/A Handling", "Middle" if normalization.naFill else "None"),
     ]
 
+    if normalization.scaling in (ScalingMethod.NORMAL, ScalingMethod.MINMAX):
+        items.insert(
+            2,
+            (
+                "Trim",
+                (
+                    f"{normalization.trimPct}%"
+                    if normalization.trimPct is not None
+                    else "N/A"
+                ),
+            ),
+        )
+
+        outlier_label = (
+            "Outliers" if normalization.scaling == ScalingMethod.MINMAX else "Outlier"
+        )
+        items.insert(
+            3,
+            (
+                outlier_label,
+                (
+                    str(normalization.outlierLimit)
+                    if normalization.outlierLimit is not None
+                    else "None"
+                ),
+            ),
+        )
+
     if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
-        items.append(("ML Training End", format_date(normalization.mlTrainingEnd, "%Y/%m/%d")))
+        items.append(
+            ("ML Training End", format_date(normalization.mlTrainingEnd, "%Y/%m/%d"))
+        )
 
     return [render_info_item(label, value) for label, value in items]
 
@@ -95,9 +113,13 @@ def render_dataset_statistics(stats: dict) -> None:
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
     with st.container(border=True):
-        header_left, _, header_right = st.columns([2, 1, 1], vertical_alignment="center")
+        header_left, _, header_right = st.columns(
+            [2, 1, 1], vertical_alignment="center"
+        )
         with header_left:
-            st.html('<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters</p>')
+            st.html(
+                '<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters</p>'
+            )
         with header_right:
             created_on = _parse_created_timestamp(dataset_metadata.version)
             st.caption(f"Created on: {created_on}")
@@ -148,6 +170,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 st.html(
                     f'{get_section_label_html("Normalization")}<div class="dataset-info-group">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
                 )
+
 
 def render_dataset_preview(df: pd.DataFrame) -> None:
     if len(df) > 20:
