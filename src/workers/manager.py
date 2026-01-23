@@ -28,7 +28,9 @@ def _get_analysis_path(fl_id: str, analysis_id: str) -> Path:
     return FACTORMINER_DIR / fl_id / f"{analysis_id}.json"
 
 
-def _write_analysis(fl_id: str, analysis_id: str, analysis_data: dict[str, Any]) -> None:
+def _write_analysis(
+    fl_id: str, analysis_id: str, analysis_data: dict[str, Any]
+) -> None:
     path = _get_analysis_path(fl_id, analysis_id)
     with open(path, "w") as f:
         json.dump(analysis_data, f, indent=2)
@@ -67,13 +69,7 @@ def read_analysis(fl_id: str, analysis_id: str) -> Analysis | None:
     return read_analysis_json(_get_analysis_path(fl_id, analysis_id))
 
 
-def update_analysis(
-    fl_id: str, analysis_id: str, **updates: Unpack[AnalysisUpdates]
-) -> None:
-    analysis = read_analysis(fl_id, analysis_id)
-    if not analysis:
-        return
-
+def update_analysis(analysis: Analysis, **updates: Unpack[AnalysisUpdates]) -> None:
     analysis_data = analysis.model_dump()
     analysis_data["updated_at"] = datetime.now().isoformat()
 
@@ -84,7 +80,7 @@ def update_analysis(
     if updates.get("status") in (AnalysisStatus.SUCCESS, AnalysisStatus.FAILED):
         analysis_data["progress"] = None
 
-    _write_analysis(fl_id, analysis_id, analysis_data)
+    _write_analysis(analysis.fl_id, analysis.id, analysis_data)
 
 
 def append_analysis_log(fl_id: str, analysis_id: str, message: str) -> None:

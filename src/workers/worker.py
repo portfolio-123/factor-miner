@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from src.core.constants import PRICE_COLUMN, REQUIRED_COLUMNS
-from src.core.types import AnalysisParams, AnalysisStatus
+from src.core.types import Analysis, AnalysisStatus
 
 from src.core.utils import serialize_dataframe
 from src.workers.manager import (
@@ -37,9 +37,10 @@ def log(message: str) -> None:
         append_analysis_log(_fl_id, _analysis_id, formatted)
 
 
-def run_analysis(fl_id: str, analysis_id: str, params: AnalysisParams) -> dict:
+def run_analysis(analysis: Analysis) -> dict:
     log("Starting analysis...")
 
+    params = analysis.params
     log(f"Processing dataset: {params.active_dataset_file}")
 
     reader = ParquetDataReader(params.active_dataset_file)
@@ -56,7 +57,7 @@ def run_analysis(fl_id: str, analysis_id: str, params: AnalysisParams) -> dict:
             end_date=end_date,
         )
     finally:
-        clear_analysis_credentials(fl_id, analysis_id)
+        clear_analysis_credentials(analysis.fl_id, analysis.id)
 
     log("Benchmark data fetched successfully")
 
@@ -64,8 +65,7 @@ def run_analysis(fl_id: str, analysis_id: str, params: AnalysisParams) -> dict:
     def on_progress(completed: int, total: int, current_factor: str = "") -> None:
         log(f"Progress: {completed}/{total} factors - {current_factor}")
         update_analysis(
-            fl_id,
-            analysis_id,
+            analysis,
             status=AnalysisStatus.RUNNING,
             progress={
                 "completed": completed,
@@ -79,8 +79,7 @@ def run_analysis(fl_id: str, analysis_id: str, params: AnalysisParams) -> dict:
     factor_columns = [col for col in columns if col not in excluded_columns]
 
     update_analysis(
-        fl_id,
-        analysis_id,
+        analysis,
         status=AnalysisStatus.RUNNING,
         progress={"completed": 0, "total": len(factor_columns), "current_factor": ""},
     )
@@ -128,25 +127,24 @@ def main():
 
     log(f"Worker started for analysis: {_fl_id}/{_analysis_id}")
 
-    try:
-        analysis = read_analysis(_fl_id, _analysis_id)
-        if analysis is None:
-            log(f"Analysis {_fl_id}/{_analysis_id} not found")
-            sys.exit(1)
+    analysis = read_analysis(_fl_id, _analysis_id)
+    if analysis is None:
+        log(f"Analysis {_fl_id}/{_analysis_id} not found")
+        sys.exit(1)
 
-        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.RUNNING)
+    try:
+        update_analysis(analysis, status=AnalysisStatus.RUNNING)
         log("Status updated to running")
 
-        params = analysis.params
-        results = run_analysis(_fl_id, _analysis_id, params)
+        results = run_analysis(analysis)
 
-        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.SUCCESS, results=results)
+        update_analysis(analysis, status=AnalysisStatus.SUCCESS, results=results)
         log("Analysis completed successfully")
 
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
         log(f"Error: {error_msg}")
-        update_analysis(_fl_id, _analysis_id, status=AnalysisStatus.FAILED, error=error_msg)
+        update_analysis(analysis, status=AnalysisStatus.FAILED, error=error_msg)
         sys.exit(1)
 
 

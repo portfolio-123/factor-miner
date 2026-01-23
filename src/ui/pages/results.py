@@ -6,7 +6,7 @@ from src.ui.components.common import copy_button, section_header
 from src.ui.components.headers import navbar
 from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
-from src.ui.components.analyses import render_analysis_params
+from src.ui.components.analyses import render_analysis_params, render_analysis_notes
 from src.core.utils import add_formula_column, deserialize_dataframe
 from src.core.calculations import select_best_features as _select_best_features
 from src.workers.manager import read_analysis
@@ -73,10 +73,8 @@ def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
 
 @st.fragment
 def _render_filter_and_results(
-    fl_id: str, analysis_id: str, metrics: pd.DataFrame, corr_matrix: pd.DataFrame
+    analysis_id: str, min_alpha: float, metrics: pd.DataFrame, corr_matrix: pd.DataFrame
 ) -> None:
-    analysis = read_analysis(fl_id, analysis_id)
-
     section_header("Filter Parameters")
 
     col1, col2, _ = st.columns([1, 1, 2])
@@ -105,7 +103,7 @@ def _render_filter_and_results(
         analysis_id,
         metrics,
         corr_matrix,
-        FilterParams(n_features, correlation_threshold, analysis.params.min_alpha),
+        FilterParams(n_features, correlation_threshold, min_alpha),
     )
 
     section_header("Best Performing Factors")
@@ -148,6 +146,7 @@ def _render_action_buttons(display_df: pd.DataFrame | None) -> None:
             width="stretch",
         )
 
+
 def results() -> None:
     fl_id = st.query_params.get("fl_id")
     if not (analysis_id := st.query_params.get("id")):
@@ -183,8 +182,10 @@ def results() -> None:
 
     # completed: load results and render
     merge_analysis_logs(analysis)
+
+    render_analysis_notes(analysis)
     metrics, corr = _deserialize_results(
         analysis.results["all_metrics"],
         analysis.results["all_corr_matrix"],
     )
-    _render_filter_and_results(fl_id, analysis_id, metrics, corr)
+    _render_filter_and_results(analysis.id, analysis.params.min_alpha, metrics, corr)

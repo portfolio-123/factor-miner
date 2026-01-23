@@ -1,6 +1,6 @@
 import uuid
 import streamlit as st
-from core.environment import FACTOR_LIST_DIR
+from src.core.environment import FACTOR_LIST_DIR
 from src.core.types import AnalysisParams
 from src.workers.manager import start_analysis
 from src.services.dataset_service import get_file_mtime
