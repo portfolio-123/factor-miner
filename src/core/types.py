@@ -43,6 +43,7 @@ class AnalysisUpdates(TypedDict, total=False):
     error: str
     progress: AnalysisProgress
     notes: str
+    avg_abs_alpha: float
 
 
 @dataclass
@@ -109,6 +110,7 @@ class DatasetConfig(BaseModel):
     factorCount: int | None = None
     formulas: list | None = None
     pitMethod: int
+    active: bool = False
 
 
 class AnalysisSummary(BaseModel):
@@ -119,6 +121,8 @@ class AnalysisSummary(BaseModel):
     created_at: str
     dataset_version: str
     params: AnalysisParams
+    notes: str | None = None
+    avg_abs_alpha: float | None = None
 
 
 class Analysis(AnalysisSummary):
@@ -127,4 +131,3 @@ class Analysis(AnalysisSummary):
     error: str | None = None
     progress: AnalysisProgress | None = None
     logs: list[str] | None = None
-    notes: str | None = None

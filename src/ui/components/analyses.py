@@ -17,6 +17,7 @@ def render_analysis_params(params: AnalysisParams) -> None:
     st.html(f'<div class="dataset-info-group">{"".join(items)}</div>')
 
 
+@st.fragment
 def render_analysis_notes(analysis: Analysis) -> None:
     section_header("Notes")
 
@@ -38,9 +39,8 @@ def render_analysis_notes(analysis: Analysis) -> None:
         )
 
     with col_btn:
-        if st.button("Save", key=f"save_notes_{analysis.id}", use_container_width=True):
+        if st.button("Save", key=f"save_notes_{analysis.id}", width="stretch"):
             _save_notes()
-            st.rerun()
 
 
 def _render_card_field(label: str, value: str) -> None:
@@ -80,7 +80,7 @@ def render_analysis_card(analysis: Analysis) -> None:
                 "→",
                 key=f"analysis_btn_{analysis.id}",
                 help="Open analysis results",
-                use_container_width=True,
+                width="stretch",
             ):
                 st.switch_page(
                     st.session_state["pages"]["results"],

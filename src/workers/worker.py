@@ -117,11 +117,15 @@ def run_analysis(analysis: Analysis) -> dict:
     log("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(results_df)
 
+    avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
+    log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")
+
     log("Analysis complete!")
 
     return {
         "all_metrics": serialize_dataframe(metrics_df),
         "all_corr_matrix": serialize_dataframe(corr_matrix),
+        "avg_abs_alpha": avg_abs_alpha,
     }
 
 
@@ -143,7 +147,15 @@ def main():
 
         results = run_analysis(analysis)
 
-        update_analysis(analysis, status=AnalysisStatus.SUCCESS, results=results)
+        update_analysis(
+            analysis,
+            status=AnalysisStatus.SUCCESS,
+            results={
+                "all_metrics": results["all_metrics"],
+                "all_corr_matrix": results["all_corr_matrix"],
+            },
+            avg_abs_alpha=results["avg_abs_alpha"],
+        )
         log("Analysis completed successfully")
 
     except Exception as e:

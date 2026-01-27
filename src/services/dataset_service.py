@@ -16,6 +16,7 @@ def get_dataset_file_path(fl_id: str, dataset_version: str) -> Path:
     return FACTORMINER_DIR / fl_id / f"{dataset_version}.parquet"
 
 def get_dataset_metadata(fl_id: str, version: str | None = None) -> DatasetConfig:
+    #if there's a version, it's a backed up dataset. otherwise, it's the active one.
     path = str(get_dataset_file_path(fl_id, version) if version else FACTOR_LIST_DIR / fl_id)
     metadata = ParquetDataReader(path).get_dataset_info()
     metadata.version = version or get_file_mtime(path)
@@ -25,8 +26,19 @@ def list_versions(fl_id: str) -> list[str]:
     fl_dir = FACTORMINER_DIR / fl_id
     if not fl_dir.exists():
         return []
-    # Get version from parquet filenames (without .parquet extension)
     return [f.stem for f in fl_dir.glob("*.parquet")]
+
+
+def load_all_datasets(fl_id: str) -> dict[str, DatasetConfig]:
+    active_version = get_file_mtime(str(FACTOR_LIST_DIR / fl_id))
+    versions = list_versions(fl_id)
+
+    result = {}
+    for version in versions:
+        dataset = get_dataset_metadata(fl_id, version)
+        dataset.active = version == active_version
+        result[version] = dataset
+    return result
 
 
 def get_dataset_review_data(fl_id: str) -> tuple[pd.DataFrame, dict]:

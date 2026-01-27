@@ -35,3 +35,10 @@ def render_sidebar() -> None:
                 icon=":material/add:",
                 query_params={"fl_id": fl_id},
             )
+        if about_page := pages.get("about"):
+            st.page_link(
+                about_page,
+                label="About",
+                icon=":material/info:",
+                query_params={"fl_id": fl_id},
+            )

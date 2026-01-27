@@ -1,4 +1,3 @@
-import time
 import streamlit as st
 
 from src.core.constants import AUTH_COOKIE_KEY
@@ -44,11 +43,18 @@ def login():
         except PermissionError:
             pass
 
-    _render_auth_form()
+    login_container = st.empty()
+    with login_container.container():
+        success = _render_auth_form()
+
+    if success:
+        login_container.empty()
+        return
+
     st.stop()
 
 
-def _render_auth_form() -> None:
+def _render_auth_form() -> bool:
     with st.columns([1, 2, 1])[1]:
         st.markdown("### Login")
         st.caption("Enter your API credentials to access this Factor List.")
@@ -65,7 +71,6 @@ def _render_auth_form() -> None:
                 "Login",
                 type="primary",
                 width="stretch",
-                # disabled=not (api_id and api_key),
             )
 
             if submitted:
@@ -74,7 +79,8 @@ def _render_auth_form() -> None:
                         TokenPayload(apiId=int(api_id), apiKey=api_key)
                     )
                     _authenticate(token)
-                    time.sleep(2)
-                    st.rerun()
+                    return True
                 except PermissionError as e:
                     st.error(str(e))
+
+    return False

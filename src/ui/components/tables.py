@@ -2,43 +2,91 @@ import streamlit as st
 import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
+from src.core.types import AnalysisSummary
+from src.core.utils import format_date, format_timestamp
+from src.services.dataset_service import load_all_datasets
 
-def show_formulas_modal(formulas_df: pd.DataFrame) -> None:
-    @st.dialog(f"Dataset Formulas ({len(formulas_df)})", width="large")
+
+def show_factors_modal(
+    formulas_df: pd.DataFrame,
+    stats: dict,
+    preview_df: pd.DataFrame,
+) -> None:
+    @st.dialog(f"Dataset Factors ({len(formulas_df)})", width="large")
     def _render() -> None:
-        st.dataframe(
-            formulas_df[["formula", "name", "tag"]],
-            height=400,
-            width="stretch",
-            column_config={
-                "formula": st.column_config.TextColumn("Formula", width="large"),
-                "name": st.column_config.TextColumn("Name", width="medium"),
-                "tag": st.column_config.TextColumn("Tag", width="small"),
-            },
-            hide_index=True,
-        )
+        cols = st.columns(3, gap="small")
+        stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
+        stat_items = [
+            ("Rows", stats["num_rows"]),
+            ("Dates", stats["num_dates"]),
+            ("Columns", stats["num_columns"]),
+        ]
+        for col, (label, value) in zip(cols, stat_items):
+            with col:
+                st.badge(label)
+                st.html(f"<p style='{stat_style}'>{value}</p>")
 
-        _, col1, col2 = st.columns([3, 1, 1])
+        factors_tab, preview_tab = st.tabs(["Factors", "Preview"])
 
-        csv_to_copy = formulas_df[["formula", "name", "tag"]].to_csv(
-            index=False, sep="\t"
-        )
-        csv_to_download = formulas_df[["formula", "name", "tag"]].to_csv(index=False)
-
-        with col1:
-            if st.button(type="primary", label="Copy to Clipboard", width="stretch"):
-                copy_to_clipboard_unsecured(csv_to_copy)
-                copy_to_clipboard(csv_to_copy)
-                st.toast("Formulas copied to clipboard")
-
-        with col2:
-            st.download_button(
-                type="primary",
-                label="Download CSV",
-                data=csv_to_download,
-                file_name="datasssset_formulas.csv",
-                mime="text/csv",
+        with factors_tab:
+            st.dataframe(
+                formulas_df[["formula", "name", "tag"]],
+                height=400,
                 width="stretch",
+                column_config={
+                    "formula": st.column_config.TextColumn("Formula", width="large"),
+                    "name": st.column_config.TextColumn("Name", width="medium"),
+                    "tag": st.column_config.TextColumn("Tag", width="small"),
+                },
+                hide_index=True,
+            )
+
+            _, col1, col2 = st.columns([3, 1, 1])
+
+            csv_to_copy = formulas_df[["formula", "name", "tag"]].to_csv(
+                index=False, sep="\t"
+            )
+            csv_to_download = formulas_df[["formula", "name", "tag"]].to_csv(
+                index=False
+            )
+
+            with col1:
+                if st.button(
+                    type="primary", label="Copy to Clipboard", width="stretch"
+                ):
+                    copy_to_clipboard_unsecured(csv_to_copy)
+                    copy_to_clipboard(csv_to_copy)
+                    st.toast("Factors copied to clipboard")
+
+            with col2:
+                st.download_button(
+                    type="primary",
+                    label="Download CSV",
+                    data=csv_to_download,
+                    file_name="dataset_factors.csv",
+                    mime="text/csv",
+                    width="stretch",
+                )
+
+        with preview_tab:
+            if len(preview_df) > 20:
+                first_10 = preview_df.head(10)
+                last_10 = preview_df.tail(10)
+                display_preview = pd.concat([first_10, last_10], ignore_index=False)
+            else:
+                display_preview = preview_df
+
+            st.caption("Showing first and last 10 rows")
+
+            display_df = display_preview.reset_index()
+            display_df.rename(columns={"index": "Row"}, inplace=True)
+
+            st.dataframe(
+                display_df,
+                height=500,
+                width="stretch",
+                hide_index=True,
+                column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
             )
 
     _render()
@@ -79,17 +127,60 @@ def render_results_table(
     for col, fmt in formatters.items():
         display_df[col] = display_df[col].apply(fmt)
 
+    st.caption("Sorted by absolute annualized alpha (highest first)")
     st.dataframe(
         display_df,
         height=400,
         width="stretch",
         hide_index=True,
         column_config={
-            "Factor": st.column_config.TextColumn("Factor", width="medium"),
-            "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
-            "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
-            "P-Value": st.column_config.TextColumn("P-Value", width="small"),
+            "Factor": st.column_config.TextColumn("Factor", width="large"),
+            "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="medium"),
+            "T-Statistic": st.column_config.TextColumn("T-Statistic", width="medium"),
+            "P-Value": st.column_config.TextColumn("P-Value", width="medium"),
         },
     )
 
     return display_df
+
+
+def render_history_table(analyses: list[AnalysisSummary]) -> None:
+    fl_id = st.query_params.get("fl_id")
+    dataset_cache = load_all_datasets(fl_id)
+
+    data = []
+    for a in analyses:
+        dataset = dataset_cache.get(a.dataset_version)
+
+        data.append(
+            {
+                "": f"/results?fl_id={a.fl_id}&id={a.id}",
+                "Analysis Date": format_date(a.created_at, "%b %d, %Y %H:%M"),
+                "Universe": dataset.universeName if dataset else "N/A",
+                "Factors": dataset.factorCount if dataset else "N/A",
+                "Avg Abs Alpha": f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A",
+                "Period": f"{format_date(dataset.startDt, "%Y/%m/%d")} - {format_date(dataset.endDt, "%Y/%m/%d")}",
+                "Dataset Created": format_timestamp(a.dataset_version) + (" 🟢" if dataset and dataset.active else ""),
+                "Status": a.status.display,
+                "Notes": a.notes or "",
+            }
+        )
+
+    st.dataframe(
+        df= pd.DataFrame(data),
+        height=400,
+                width="stretch",
+
+        hide_index=True,
+        column_config={
+            "": st.column_config.LinkColumn("", display_text="View →", width="small"),
+            "Analysis Date": st.column_config.TextColumn("Analysis Date", width="medium"),
+            "Universe": st.column_config.TextColumn("Universe", width="medium"),
+            "Factors": st.column_config.NumberColumn("Factors", width="small"),
+            "Avg Abs Alpha": st.column_config.TextColumn("Avg Abs Alpha", width="small"),
+            "Period": st.column_config.TextColumn("Period", width="medium"),
+            "Dataset Created": st.column_config.TextColumn("Dataset Created", width="medium"),
+            "Status": st.column_config.TextColumn("Status", width="small"),
+            "Notes": st.column_config.TextColumn("Notes", width="small"),
+        },
+    )

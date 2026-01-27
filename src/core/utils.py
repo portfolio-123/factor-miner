@@ -37,6 +37,17 @@ def format_date(date_value: Any, format_str: str = "%Y/%m/%d") -> str:
         return "N/A"
 
 
+def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y at %I:%M %p") -> str:
+    if not timestamp:
+        return "N/A"
+    try:
+        ts = int(timestamp)
+        dt = datetime.fromtimestamp(ts)
+        return dt.strftime(format_str)
+    except (ValueError, TypeError):
+        return "N/A"
+
+
 def serialize_dataframe(df: pd.DataFrame) -> str:
     return df.to_json(orient="split", date_format="iso")
 

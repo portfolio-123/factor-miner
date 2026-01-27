@@ -1,12 +1,11 @@
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from src.ui.components.tables import show_formulas_modal
+from src.ui.components.tables import show_factors_modal
 from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
 from src.core.types import DatasetConfig, ScalingMethod, ScopeType
-from src.services.dataset_service import get_dataset_metadata
+from src.services.dataset_service import get_dataset_metadata, get_dataset_review_data
 from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
     render_info_item,
@@ -14,7 +13,7 @@ from src.ui.components.common import (
     get_section_label_html,
     spacer,
 )
-from src.core.utils import format_date
+from src.core.utils import format_date, format_timestamp
 
 
 def load_active_dataset() -> DatasetConfig | None:
@@ -31,17 +30,6 @@ def load_active_dataset() -> DatasetConfig | None:
     except Exception:
         st.error("Failed to load dataset")
         return None
-
-
-def _parse_created_timestamp(version: str | None) -> str:
-    if not version:
-        return "N/A"
-    try:
-        timestamp = int(version)
-        dt = datetime.fromtimestamp(timestamp)
-        return dt.strftime("%b %d, %Y at %I:%M %p")
-    except ValueError:
-        return "N/A"
 
 
 def _build_norm_items(normalization) -> list[str]:
@@ -121,7 +109,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 '<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters</p>'
             )
         with header_right:
-            created_on = _parse_created_timestamp(dataset_metadata.version)
+            created_on = format_timestamp(dataset_metadata.version)
             st.caption(f"Created on: {created_on}")
 
         c1, c2, c3, c4 = st.columns([0.9, 0.9, 1.3, 0.7], vertical_alignment="top")
@@ -148,7 +136,13 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 f"View ({count})",
                 key=f"view_factors_{dataset_metadata.version}",
             ):
-                show_formulas_modal(pd.DataFrame(dataset_metadata.formulas))
+                fl_id = st.query_params.get("fl_id")
+                preview_df, stats = get_dataset_review_data(fl_id)
+                show_factors_modal(
+                    pd.DataFrame(dataset_metadata.formulas),
+                    stats,
+                    preview_df,
+                )
 
         spacer(6)
 

@@ -1,5 +1,5 @@
 import streamlit as st
-from src.ui.components.analyses import render_analysis_card
+from src.ui.components.tables import render_history_table
 from src.workers.manager import list_all_analyses
 
 
@@ -19,5 +19,4 @@ def history() -> None:
         st.info("No past analyses found for this Factor List.")
         return
 
-    for analysis in all_analyses:
-        render_analysis_card(analysis)
+    render_history_table(all_analyses)

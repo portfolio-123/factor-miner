@@ -6,15 +6,9 @@ from src.core.constants import (
     DEFAULT_TOP_PCT,
     DEFAULT_BOTTOM_PCT,
 )
-from src.services.dataset_service import get_dataset_review_data
 from src.services.create_service import submit_analysis_creation
 from src.ui.components.headers import navbar
-from src.ui.components.datasets import (
-    load_active_dataset,
-    render_dataset_card,
-    render_dataset_preview,
-    render_dataset_statistics,
-)
+from src.ui.components.datasets import load_active_dataset, render_dataset_card
 
 
 def create_form() -> None:
@@ -34,11 +28,7 @@ def create_form() -> None:
 
     render_dataset_card(active_dataset_metadata)
 
-    settings_tab, review_tab = st.tabs(["Settings", "Review"])
-    with settings_tab:
-        _render_settings()
-    with review_tab:
-        _render_review()
+    _render_settings()
 
     with st.columns([4, 1])[1]:
         st.button(
@@ -88,17 +78,3 @@ def _render_settings() -> None:
         )
 
 
-def _render_review() -> None:
-    try:
-        fl_id = st.query_params.get("fl_id")
-        dataset_preview, stats = get_dataset_review_data(fl_id)
-    except Exception:
-        st.error("Failed to load dataset preview")
-        return
-
-    if dataset_preview.empty:
-        st.error("Dataset is empty")
-        return
-
-    render_dataset_statistics(stats)
-    render_dataset_preview(dataset_preview)

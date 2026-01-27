@@ -24,7 +24,7 @@ def load_global_css() -> None:
     .block-container,
     [data-testid="stMainBlockContainer"] {
         padding: 0.5rem 2rem 2rem 2rem !important;
-        max-width: 1000px !important;
+        max-width: 1400px !important;
         margin: 0 auto !important;
     }
 
