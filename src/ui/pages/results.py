@@ -43,6 +43,7 @@ def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         else:
             st.info("Starting...")
 
+
 def results() -> None:
     fl_id = st.query_params.get("fl_id")
     if not (analysis_id := st.query_params.get("id")):
@@ -74,20 +75,20 @@ def results() -> None:
 
     render_analysis_notes(analysis)
 
-    if st.button("View Logs", icon=":material/description:"):
-        show_analysis_logs_modal(analysis.logs)
+    section_header("Analysis Results")
 
-    section_header("Analysis Parameters")
+    col1, col2 = st.columns([8, 1])
 
-    param_items = [
-        render_info_item("Min Alpha", f"{analysis.params.min_alpha}%"),
-        render_info_item("Top X", f"{analysis.params.top_pct}%"),
-        render_info_item("Bottom X", f"{analysis.params.bottom_pct}%"),
-    ]
-    st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
+    with col1:
+        param_items = [
+            render_info_item("Min Alpha", f"{analysis.params.min_alpha}"),
+            render_info_item("Top X", f"{analysis.params.top_pct}%"),
+            render_info_item("Bottom X", f"{analysis.params.bottom_pct}%"),
+        ]
+        st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
 
-    section_header("Factors Sorted by Abs. Annual Alpha")
+    with col2:
+        if st.button("Logs", type="primary", width="stretch"):
+            show_analysis_logs_modal(analysis.logs)
 
-    render_results_table(
-        deserialize_dataframe(analysis.results.all_metrics)
-    )
+    render_results_table(deserialize_dataframe(analysis.results.all_metrics))

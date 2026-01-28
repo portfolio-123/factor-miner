@@ -12,14 +12,16 @@ from src.services.readers import ParquetDataReader
 
 
 class DatasetService:
-    """Service for dataset/parquet file operations."""
-
     def __init__(self, fl_id: str):
         self.fl_id = fl_id
 
     @property
     def base_path(self) -> Path:
         return FACTOR_LIST_DIR / self.fl_id
+
+    @property
+    def exists(self) -> bool:
+        return self.base_path.exists()
 
     @property
     def backup_dir(self) -> Path:
@@ -30,7 +32,9 @@ class DatasetService:
         return ParquetDataReader(str(self.base_path))
 
     @property
-    def current_version(self) -> str:
+    def current_version(self) -> str | None:
+        if not self.base_path.exists():
+            return None
         return str(int(os.path.getmtime(self.base_path)))
 
     @property
@@ -44,6 +48,8 @@ class DatasetService:
         if version:
             reader = ParquetDataReader(str(self.get_backup_path(version)))
         else:
+            if not self.base_path.exists():
+                raise FileNotFoundError(f"Dataset file not found: {self.base_path}")
             reader = self._reader
             version = self.current_version
 
@@ -77,7 +83,7 @@ class DatasetService:
         for f in self.backup_dir.glob("*.parquet"):
             version = f.stem
             dataset = self.get_metadata(version)
-            dataset.active = version == active
+            dataset.active = active is not None and version == active
             result[version] = dataset
         return result
 

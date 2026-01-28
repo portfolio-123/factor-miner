@@ -18,18 +18,9 @@ def init() -> None:
     .stMainBlockContainer,
     .block-container,
     [data-testid="stMainBlockContainer"] {
-        max-width: 1200px !important;
+        max-width: 1250px !important;
         margin: 0 auto !important;
         padding: 0.5rem 2rem 2rem 2rem !important;
-    }
-
-    div[data-testid="stModal"] > div {
-        max-height: 95vh !important;
-        max-width: 95vw !important;
-    }
-    div[data-testid="stModal"] [data-testid="stVerticalBlock"] {
-        max-height: 85vh;
-        overflow-y: auto;
     }
 
     div[data-testid="stVerticalBlockBorderWrapper"] > div {

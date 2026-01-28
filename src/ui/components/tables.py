@@ -92,9 +92,7 @@ def show_factors_modal(
     _render()
 
 
-def render_results_table(
-    metrics: pd.DataFrame
-) -> None:
+def render_results_table(metrics: pd.DataFrame) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
 
@@ -122,7 +120,18 @@ def render_results_table(
         display[col] = display[col].apply(fmt)
 
     st.caption("All factors sorted by absolute annualized alpha (highest first)")
-    st.table(display)
+    st.dataframe(
+        display,
+        height=500,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Factor": st.column_config.TextColumn("Factor", width="large"),
+            "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
+            "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
+            "P-Value": st.column_config.TextColumn("P-Value", width="small"),
+        },
+    )
 
     _, col1, col2 = st.columns([3, 1, 1])
 
@@ -164,9 +173,16 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 "Analysis Date": format_date(a.created_at, "%b %d, %Y %H:%M"),
                 "Universe": dataset.universeName if dataset else "N/A",
                 "Factors": dataset.factorCount if dataset else "N/A",
-                "Avg Abs Alpha": f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A",
-                "Period": f"{format_date(dataset.startDt, "%Y/%m/%d")} - {format_date(dataset.endDt, "%Y/%m/%d")}",
-                "Dataset Created": format_timestamp(a.dataset_version) + (" 🟢" if dataset and dataset.active else ""),
+                "Avg Abs Alpha": (
+                    f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
+                ),
+                "Period": (
+                    f"{format_date(dataset.startDt, '%Y/%m/%d')} - {format_date(dataset.endDt, '%Y/%m/%d')}"
+                    if dataset
+                    else "N/A"
+                ),
+                "Dataset Created": format_timestamp(a.dataset_version)
+                + (" 🟢" if dataset and dataset.active else ""),
                 "Status": a.status.display,
                 "Notes": a.notes or "",
             }
@@ -179,12 +195,18 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         hide_index=True,
         column_config={
             "": st.column_config.LinkColumn("", display_text="View →", width="small"),
-            "Analysis Date": st.column_config.TextColumn("Analysis Date", width="medium"),
+            "Analysis Date": st.column_config.TextColumn(
+                "Analysis Date", width="medium"
+            ),
             "Universe": st.column_config.TextColumn("Universe", width="medium"),
             "Factors": st.column_config.NumberColumn("Factors", width="small"),
-            "Avg Abs Alpha": st.column_config.TextColumn("Avg Abs Alpha", width="small"),
+            "Avg Abs Alpha": st.column_config.TextColumn(
+                "Avg Abs Alpha", width="small"
+            ),
             "Period": st.column_config.TextColumn("Period", width="medium"),
-            "Dataset Created": st.column_config.TextColumn("Dataset Created", width="medium"),
+            "Dataset Created": st.column_config.TextColumn(
+                "Dataset Created", width="medium"
+            ),
             "Status": st.column_config.TextColumn("Status", width="small"),
             "Notes": st.column_config.TextColumn("Notes", width="small"),
         },

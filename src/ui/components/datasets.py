@@ -80,9 +80,12 @@ def _build_norm_items(normalization) -> list[str]:
 
     return [render_info_item(label, value) for label, value in items]
 
+
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
     with st.container(border=True):
-        header_left, _, header_right = st.columns([3, 1, 0.5], vertical_alignment="center")
+        header_left, _, header_right = st.columns(
+            [3, 1, 0.5], vertical_alignment="center"
+        )
         created_on = format_timestamp(dataset_metadata.version)
         with header_left:
             st.html(
@@ -103,7 +106,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     preview_df,
                 )
 
-        c1, c2, c3, _ = st.columns([0.5, 0.5, 0.5, 1.5], vertical_alignment="top")
+        c1, c2, c3, _ = st.columns([1, 0.5, 1, 1.5], vertical_alignment="top")
 
         big_items = [
             (c1, "Universe", dataset_metadata.universeName),
@@ -138,5 +141,3 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 st.html(
                     f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
                 )
-
-
