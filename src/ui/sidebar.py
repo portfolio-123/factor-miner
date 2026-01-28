@@ -3,7 +3,7 @@ import streamlit as st
 from src.ui.components.common import spacer
 
 
-def render_sidebar() -> None:
+def sidebar() -> None:
     fl_id = st.query_params.get("fl_id")
     pages = st.session_state.get("pages", {})
 

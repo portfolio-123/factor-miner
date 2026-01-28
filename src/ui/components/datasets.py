@@ -3,10 +3,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from src.ui.components.tables import show_factors_modal
+from src.core.constants import FREQUENCY_LABELS, SCALING_LABELS
 from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
 from src.core.types import DatasetConfig, ScalingMethod, ScopeType
 from src.services.dataset_service import get_dataset_metadata, get_dataset_review_data
-from src.ui.constants import SCALING_LABELS, frequency_map
 from src.ui.components.common import (
     render_info_item,
     render_big_info_item,
@@ -108,7 +108,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
         big_items = [
             (c1, "Universe", dataset_metadata.universeName),
-            (c2, "Frequency", frequency_map.get(dataset_metadata.frequency, "N/A")),
+            (c2, "Frequency", FREQUENCY_LABELS.get(dataset_metadata.frequency, "N/A")),
             (
                 c3,
                 "Period",
@@ -131,13 +131,13 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 ("Pit Method", dataset_metadata.pitMethod),
             ]
             st.html(
-                f'{get_section_label_html("Other Settings")}<div class="dataset-info-group">{"".join(render_info_item(l, v) for l, v in items)}</div>'
+                f'{get_section_label_html("Other Settings")}<div style="display: flex; gap: 24px;">{"".join(render_info_item(l, v) for l, v in items)}</div>'
             )
 
         with col_right:
             if dataset_metadata.normalization:
                 st.html(
-                    f'{get_section_label_html("Normalization")}<div class="dataset-info-group">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
+                    f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
                 )
 
 

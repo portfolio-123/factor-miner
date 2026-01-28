@@ -6,8 +6,7 @@ from src.ui.pages.create import create_form
 from src.ui.pages.results import results
 
 
-def setup_navigation() -> st.navigation:
-    """Configure and return the navigation object with page definitions."""
+def navigation() -> st.navigation:
     history_page = st.Page(
         history, title="Your Results", icon=":material/list:", default=True
     )

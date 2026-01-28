@@ -93,25 +93,17 @@ def show_factors_modal(
 
 
 def render_results_table(
-    best_features: list,
-    metrics_df: pd.DataFrame,
-    formulas_data: pd.DataFrame | None = None,
-    fl_id: str | None = None,
+    metrics: pd.DataFrame
 ) -> None:
-    if not best_features:
-        st.warning(
-            "No features found matching the current criteria."
-            "Try adjusting the correlation threshold or minimum alpha."
-        )
-        return
+    fl_id = st.query_params.get("fl_id")
+    formulas_data = st.session_state.get("formulas_data")
 
-    # filter to best features and sort by absolute alpha
-    best_metrics_df = metrics_df[metrics_df["column"].isin(best_features)].copy()
-    best_metrics_df = best_metrics_df.sort_values(
+    # sort all factors by absolute alpha
+    sorted_metrics = metrics.sort_values(
         by="annualized alpha %", key=abs, ascending=False
     )
 
-    display_df = best_metrics_df.rename(
+    display = sorted_metrics.rename(
         columns={
             "column": "Factor",
             "annualized alpha %": "Ann. Alpha %",
@@ -127,38 +119,27 @@ def render_results_table(
         "P-Value": lambda x: f"{x:.6f}",
     }
     for col, fmt in formatters.items():
-        display_df[col] = display_df[col].apply(fmt)
+        display[col] = display[col].apply(fmt)
 
-    st.caption("Sorted by absolute annualized alpha (highest first)")
-    st.dataframe(
-        display_df,
-        height=400,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Factor": st.column_config.TextColumn("Factor", width="large"),
-            "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="medium"),
-            "T-Statistic": st.column_config.TextColumn("T-Statistic", width="medium"),
-            "P-Value": st.column_config.TextColumn("P-Value", width="medium"),
-        },
-    )
+    st.caption("All factors sorted by absolute annualized alpha (highest first)")
+    st.table(display)
 
     _, col1, col2 = st.columns([3, 1, 1])
 
     # tab delimited for copy to clipboard (without Formula)
-    csv_to_copy = display_df.to_csv(index=False, sep="\t")
+    csv_to_copy = display.to_csv(index=False, sep="\t")
 
     # comma delimited for file download (with Formula in second position)
-    download_df = add_formula_column(display_df, formulas_data) if formulas_data is not None else display_df
+    download_df = add_formula_column(display, formulas_data)
 
     with col1:
         if st.button(type="primary", label="Copy to Clipboard", width="stretch"):
             copy_to_clipboard_unsecured(csv_to_copy)
             copy_to_clipboard(csv_to_copy)
-            st.toast("Best features copied to clipboard")
+            st.toast("Factors copied to clipboard")
 
     with col2:
-        file_name = f"{fl_id}_best_features.csv" if fl_id else "best_features.csv"
+        file_name = f"{fl_id}_factors.csv" if fl_id else "factors.csv"
         st.download_button(
             type="primary",
             label="Download CSV",
@@ -171,11 +152,11 @@ def render_results_table(
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
-    dataset_cache = load_all_datasets(fl_id)
+    datasets = load_all_datasets(fl_id)
 
     data = []
     for a in analyses:
-        dataset = dataset_cache.get(a.dataset_version)
+        dataset = datasets.get(a.dataset_version)
 
         data.append(
             {
@@ -185,7 +166,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 "Factors": dataset.factorCount if dataset else "N/A",
                 "Avg Abs Alpha": f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A",
                 "Period": f"{format_date(dataset.startDt, "%Y/%m/%d")} - {format_date(dataset.endDt, "%Y/%m/%d")}",
-                "Dataset Created": (" 🟢" if dataset and dataset.active else "") + format_timestamp(a.dataset_version),
+                "Dataset Created": format_timestamp(a.dataset_version) + (" 🟢" if dataset and dataset.active else ""),
                 "Status": a.status.display,
                 "Notes": a.notes or "",
             }

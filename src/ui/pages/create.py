@@ -7,7 +7,6 @@ from src.core.constants import (
     DEFAULT_BOTTOM_PCT,
 )
 from src.services.create_service import submit_analysis_creation
-from src.ui.components.headers import navbar
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
 
 
@@ -20,8 +19,6 @@ def create_form() -> None:
                 "id": analysis_id,
             },
         )
-
-    navbar()
 
     if not (active_dataset_metadata := load_active_dataset()):
         return

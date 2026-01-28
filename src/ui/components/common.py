@@ -1,40 +1,4 @@
-import html
 import streamlit as st
-
-
-def copy_button(
-    text: str,
-    label: str = "Copy",
-    success_label: str = "Copied!",
-    button_type: str = "primary",
-    width: str = "auto",
-) -> None:
-    escaped_text = html.escape(text).replace("`", "\\`").replace("$", "\\$")
-    width_class = "stretch" if width == "stretch" else ""
-    width_style = f"width: {width};" if width not in ("auto", "stretch") else ""
-
-    button_id = f"copy-btn-{id(text)}"
-
-    st.html(f"""
-        <button
-            id="{button_id}"
-            class="copy-btn {button_type} {width_class}"
-            style="{width_style}"
-            onclick="
-                navigator.clipboard.writeText(`{escaped_text}`).then(() => {{
-                    const btn = document.getElementById('{button_id}');
-                    const originalText = btn.textContent;
-                    btn.textContent = '{success_label}';
-                    btn.classList.add('copied');
-                    setTimeout(() => {{
-                        btn.textContent = originalText;
-                        btn.classList.remove('copied');
-                    }}, 2000);
-                }});
-            "
-        >{label}</button>
-    """)
-
 
 def section_header(title: str) -> None:
     st.html(
@@ -49,16 +13,22 @@ def section_header(title: str) -> None:
 
 
 def render_info_item(label: str, value: str, muted: bool = False) -> str:
-    value_class = "value muted" if muted else "value"
-    return f'<div class="dataset-info-item"><div class="label">{label}</div><div class="{value_class}">{value}</div></div>'
+    value_color = "#6c757d" if muted else "#212529"
+    return f'''<div style="display: flex; flex-direction: column;">
+        <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">{label}</div>
+        <div style="font-size: 14px; font-weight: 500; color: {value_color};">{value}</div>
+    </div>'''
 
 
 def render_big_info_item(label: str, value: str) -> str:
-    return f'<div class="dataset-info-item big"><div class="label">{label}</div><div class="value">{value}</div></div>'
+    return f'''<div style="display: flex; flex-direction: column;">
+        <div style="font-size: 12px; font-weight: 600; color: #2196F3; margin-bottom: 1px; text-transform: uppercase;">{label}</div>
+        <div style="font-size: 18px; font-weight: 600; color: #1a1a1a; line-height: 1.2;">{value}</div>
+    </div>'''
 
 
 def get_section_label_html(title: str) -> str:
-    return f'<div class="dataset-info-item"><div class="label" style="margin-bottom: 4px; font-size: 14px; font-weight: 600; color: #212529; letter-spacing: 0.5px; text-transform: none;">{title}</div></div>'
+    return f'<div style="font-size: 14px; font-weight: 600; color: #212529; letter-spacing: 0.5px; margin-bottom: 4px;">{title}</div>'
 
 
 def spacer(height: int = 16) -> None:

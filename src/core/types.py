@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -46,13 +45,6 @@ class AnalysisUpdates(TypedDict, total=False):
     avg_abs_alpha: float
 
 
-@dataclass
-class FilterParams:
-    n_features: int
-    correlation_threshold: float
-    min_alpha: float
-
-
 class TokenPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -69,6 +61,16 @@ class ScalingMethod(StrEnum):
 class ScopeType(StrEnum):
     DATASET = "dataset"
     DATE = "date"
+
+
+class Frequency(IntEnum):
+    WEEKLY = 1
+    BIWEEKLY = 7
+    FOUR_WEEKS = 2
+    EIGHT_WEEKS = 8
+    THIRTEEN_WEEKS = 3
+    TWENTY_SIX_WEEKS = 9
+    FIFTY_TWO_WEEKS = 10
 
 
 class SettingsForm(BaseModel):
@@ -100,7 +102,7 @@ class DatasetConfig(BaseModel):
 
     version: str | None = None
     universeName: str
-    frequency: int
+    frequency: Frequency
     currency: str
     startDt: str
     endDt: str
