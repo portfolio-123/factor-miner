@@ -57,10 +57,6 @@ def render_big_info_item(label: str, value: str) -> str:
     return f'<div class="dataset-info-item big"><div class="label">{label}</div><div class="value">{value}</div></div>'
 
 
-def render_section_label(title: str) -> None:
-    st.html(get_section_label_html(title))
-
-
 def get_section_label_html(title: str) -> str:
     return f'<div class="dataset-info-item"><div class="label" style="margin-bottom: 4px; font-size: 14px; font-weight: 600; color: #212529; letter-spacing: 0.5px; text-transform: none;">{title}</div></div>'
 

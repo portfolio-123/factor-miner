@@ -19,13 +19,12 @@ def load_global_css() -> None:
         --radius-sm: 6px;
     }
 
-    /* Reduce main content padding */
     .stMainBlockContainer,
     .block-container,
     [data-testid="stMainBlockContainer"] {
-        padding: 0.5rem 2rem 2rem 2rem !important;
-        max-width: 1400px !important;
+        max-width: 1200px !important;
         margin: 0 auto !important;
+        padding: 0.5rem 2rem 2rem 2rem !important;
     }
 
     /* Button styling - consistent for all buttons */
@@ -124,44 +123,12 @@ def load_global_css() -> None:
         color: var(--text-muted);
     }
 
-    /* New Analysis button alignment and styling */
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stColumn"]:last-child .stButton {
         display: flex;
         justify-content: flex-end;
     }
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stColumn"]:last-child .stButton button {
         font-weight: 400;
-    }
-
-    /* ===== View Factors Button (link style) ===== */
-    /* Remove gap in the FACTORS column container only */
-    div[data-testid="stColumn"]:has(.view-factors-trigger) > div[data-testid="stVerticalBlock"] {
-        gap: 0 !important;
-    }
-    .element-container:has(.view-factors-trigger) + .element-container {
-        margin-top: -2px !important;
-    }
-    .element-container:has(.view-factors-trigger) + .element-container button {
-        background: none !important;
-        border: none !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        min-height: auto !important;
-        height: auto !important;
-        width: auto !important;
-    }
-    .element-container:has(.view-factors-trigger) + .element-container button p {
-        color: var(--text-dark) !important;
-        font-size: 17px !important;
-        font-weight: 600 !important;
-        text-decoration: underline !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-        font-family: "Source Sans";
-    }
-    .element-container:has(.view-factors-trigger) + .element-container button:hover p {
-        color: var(--primary) !important;
     }
     </style>
     """

@@ -81,38 +81,30 @@ def _build_norm_items(normalization) -> list[str]:
 
     return [render_info_item(label, value) for label, value in items]
 
-
-def render_dataset_statistics(stats: dict) -> None:
-    cols = st.columns(3, gap="small")
-    stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
-
-    stat_items = [
-        ("Rows", stats["num_rows"]),
-        ("Dates", stats["num_dates"]),
-        ("Columns", stats["num_columns"]),
-    ]
-
-    for col, (label, value) in zip(cols, stat_items):
-        with col:
-            st.badge(label)
-            st.html(f"<p style='{stat_style}'>{value}</p>")
-
-
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
-
     with st.container(border=True):
-        header_left, _, header_right = st.columns(
-            [2, 1, 1], vertical_alignment="center"
-        )
+        header_left, _, header_right = st.columns([3, 1, 0.5], vertical_alignment="center")
+        created_on = format_timestamp(dataset_metadata.version)
         with header_left:
             st.html(
-                '<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters</p>'
+                f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></p>'
             )
         with header_right:
-            created_on = format_timestamp(dataset_metadata.version)
-            st.caption(f"Created on: {created_on}")
+            if st.button(
+                "Preview",
+                width="stretch",
+                key=f"preview_dataset_{dataset_metadata.version}",
+                type="secondary",
+            ):
+                fl_id = st.query_params.get("fl_id")
+                preview_df, stats = get_dataset_review_data(fl_id)
+                show_factors_modal(
+                    pd.DataFrame(dataset_metadata.formulas),
+                    stats,
+                    preview_df,
+                )
 
-        c1, c2, c3, c4 = st.columns([0.9, 0.9, 1.3, 0.7], vertical_alignment="top")
+        c1, c2, c3 = st.columns([0.5, 0.5, 0.5, 1.5], vertical_alignment="top")
 
         big_items = [
             (c1, "Universe", dataset_metadata.universeName),
@@ -126,23 +118,6 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         for col, label, value in big_items:
             with col:
                 st.html(render_big_info_item(label, value))
-
-        with c4:
-            count = dataset_metadata.factorCount
-            st.html(
-                '<div class="dataset-info-item big view-factors-trigger"><div class="label">FACTORS</div></div>'
-            )
-            if st.button(
-                f"View ({count})",
-                key=f"view_factors_{dataset_metadata.version}",
-            ):
-                fl_id = st.query_params.get("fl_id")
-                preview_df, stats = get_dataset_review_data(fl_id)
-                show_factors_modal(
-                    pd.DataFrame(dataset_metadata.formulas),
-                    stats,
-                    preview_df,
-                )
 
         spacer(6)
 
@@ -166,24 +141,3 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 )
 
 
-def render_dataset_preview(df: pd.DataFrame) -> None:
-    if len(df) > 20:
-        first_10 = df.head(10)
-        last_10 = df.tail(10)
-        preview_df = pd.concat([first_10, last_10], ignore_index=False)
-    else:
-        preview_df = df
-
-    st.caption(f"Showing first and last 10 rows")
-
-    # Reset index to make it a regular column for better width control
-    display_df = preview_df.reset_index()
-    display_df.rename(columns={"index": "Row"}, inplace=True)
-
-    st.dataframe(
-        display_df,
-        height=500,
-        width="stretch",
-        hide_index=True,
-        column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
-    )

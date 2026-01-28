@@ -3,7 +3,7 @@ import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 from src.core.types import AnalysisSummary
-from src.core.utils import format_date, format_timestamp
+from src.core.utils import add_formula_column, format_date, format_timestamp
 from src.services.dataset_service import load_all_datasets
 
 
@@ -12,20 +12,8 @@ def show_factors_modal(
     stats: dict,
     preview_df: pd.DataFrame,
 ) -> None:
-    @st.dialog(f"Dataset Factors ({len(formulas_df)})", width="large")
+    @st.dialog("Dataset Preview", width="large")
     def _render() -> None:
-        cols = st.columns(3, gap="small")
-        stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
-        stat_items = [
-            ("Rows", stats["num_rows"]),
-            ("Dates", stats["num_dates"]),
-            ("Columns", stats["num_columns"]),
-        ]
-        for col, (label, value) in zip(cols, stat_items):
-            with col:
-                st.badge(label)
-                st.html(f"<p style='{stat_style}'>{value}</p>")
-
         factors_tab, preview_tab = st.tabs(["Factors", "Preview"])
 
         with factors_tab:
@@ -69,6 +57,18 @@ def show_factors_modal(
                 )
 
         with preview_tab:
+            cols = st.columns(6, gap="small")
+            stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
+            stat_items = [
+                ("Rows", stats["num_rows"]),
+                ("Dates", stats["num_dates"]),
+                ("Columns", stats["num_columns"]),
+            ]
+            for col, (label, value) in zip(cols, stat_items):
+                with col:
+                    st.badge(label)
+                    st.html(f"<p style='{stat_style}'>{value}</p>")
+
             if len(preview_df) > 20:
                 first_10 = preview_df.head(10)
                 last_10 = preview_df.tail(10)
@@ -95,13 +95,15 @@ def show_factors_modal(
 def render_results_table(
     best_features: list,
     metrics_df: pd.DataFrame,
-) -> pd.DataFrame | None:
+    formulas_data: pd.DataFrame | None = None,
+    fl_id: str | None = None,
+) -> None:
     if not best_features:
         st.warning(
             "No features found matching the current criteria."
             "Try adjusting the correlation threshold or minimum alpha."
         )
-        return None
+        return
 
     # filter to best features and sort by absolute alpha
     best_metrics_df = metrics_df[metrics_df["column"].isin(best_features)].copy()
@@ -141,7 +143,30 @@ def render_results_table(
         },
     )
 
-    return display_df
+    _, col1, col2 = st.columns([3, 1, 1])
+
+    # tab delimited for copy to clipboard (without Formula)
+    csv_to_copy = display_df.to_csv(index=False, sep="\t")
+
+    # comma delimited for file download (with Formula in second position)
+    download_df = add_formula_column(display_df, formulas_data) if formulas_data is not None else display_df
+
+    with col1:
+        if st.button(type="primary", label="Copy to Clipboard", width="stretch"):
+            copy_to_clipboard_unsecured(csv_to_copy)
+            copy_to_clipboard(csv_to_copy)
+            st.toast("Best features copied to clipboard")
+
+    with col2:
+        file_name = f"{fl_id}_best_features.csv" if fl_id else "best_features.csv"
+        st.download_button(
+            type="primary",
+            label="Download CSV",
+            data=download_df.to_csv(index=False),
+            file_name=file_name,
+            mime="text/csv",
+            width="stretch",
+        )
 
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
@@ -160,17 +185,16 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 "Factors": dataset.factorCount if dataset else "N/A",
                 "Avg Abs Alpha": f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A",
                 "Period": f"{format_date(dataset.startDt, "%Y/%m/%d")} - {format_date(dataset.endDt, "%Y/%m/%d")}",
-                "Dataset Created": format_timestamp(a.dataset_version) + (" 🟢" if dataset and dataset.active else ""),
+                "Dataset Created": (" 🟢" if dataset and dataset.active else "") + format_timestamp(a.dataset_version),
                 "Status": a.status.display,
                 "Notes": a.notes or "",
             }
         )
 
     st.dataframe(
-        df= pd.DataFrame(data),
+        pd.DataFrame(data),
         height=400,
-                width="stretch",
-
+        width="stretch",
         hide_index=True,
         column_config={
             "": st.column_config.LinkColumn("", display_text="View →", width="small"),

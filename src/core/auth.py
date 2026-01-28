@@ -35,7 +35,6 @@ def login():
             st.stop()
 
     # token already present in cookies
-
     if cookie_token := get_cookie(AUTH_COOKIE_KEY):
         try:
             _authenticate(cookie_token, save_cookie=False)
@@ -43,18 +42,20 @@ def login():
         except PermissionError:
             pass
 
+    # otherwise, normal login form
     login_container = st.empty()
     with login_container.container():
-        success = _render_auth_form()
+        token = _render_auth_form() 
 
-    if success:
+    if token:
         login_container.empty()
+        set_cookie(AUTH_COOKIE_KEY, token, days=1)
         return
 
     st.stop()
 
 
-def _render_auth_form() -> bool:
+def _render_auth_form() -> str | None:
     with st.columns([1, 2, 1])[1]:
         st.markdown("### Login")
         st.caption("Enter your API credentials to access this Factor List.")
@@ -78,9 +79,11 @@ def _render_auth_form() -> bool:
                     token = get_access_token(
                         TokenPayload(apiId=int(api_id), apiKey=api_key)
                     )
-                    _authenticate(token)
-                    return True
+                    fl_info = verify_factor_list_access(st.query_params.get("fl_id"), token)
+                    st.session_state.access_token = token
+                    st.session_state.fl_name = fl_info.get("name")
+                    return token
                 except PermissionError as e:
                     st.error(str(e))
 
-    return False
+    return None
