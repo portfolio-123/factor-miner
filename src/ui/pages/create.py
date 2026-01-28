@@ -1,3 +1,5 @@
+import uuid
+
 import streamlit as st
 
 from src.core.constants import (
@@ -6,8 +8,30 @@ from src.core.constants import (
     DEFAULT_TOP_PCT,
     DEFAULT_BOTTOM_PCT,
 )
-from src.services.create_service import submit_analysis_creation
+from src.core.types import AnalysisParams
+from src.services.dataset_service import dataset_service
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
+from src.workers.analysis_service import analysis_service
+
+
+def _submit_analysis_creation() -> None:
+    fl_id = st.query_params.get("fl_id")
+
+    dataset_version = dataset_service(fl_id).current_version
+    analysis_id = uuid.uuid4().hex[:8]
+
+    try:
+        params = AnalysisParams(
+            benchmark_ticker=st.session_state.get("benchmark_ticker"),
+            min_alpha=st.session_state.get("min_alpha"),
+            top_pct=st.session_state.get("top_pct"),
+            bottom_pct=st.session_state.get("bottom_pct"),
+            access_token=st.session_state.get("access_token"),
+        )
+        analysis_service.start(fl_id, analysis_id, dataset_version, params)
+        st.session_state["_redirect_to_results"] = analysis_id
+    except Exception as e:
+        st.toast(f"Error starting analysis: {e}")
 
 
 def create_form() -> None:
@@ -32,7 +56,7 @@ def create_form() -> None:
             "Run Analysis",
             type="primary",
             width="stretch",
-            on_click=submit_analysis_creation,
+            on_click=_submit_analysis_creation,
         )
 
 

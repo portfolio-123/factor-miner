@@ -4,26 +4,11 @@ from io import StringIO
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
-from pydantic import ValidationError
-
-from src.core.types import Analysis
-
-
 def read_json_file(path: Path) -> dict | None:
     try:
         with open(path, "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, IOError):
-        return None
-
-
-def read_analysis_json(path: Path) -> Analysis | None:
-    data = read_json_file(path)
-    if data is None:
-        return None
-    try:
-        return Analysis.model_validate(data)
-    except ValidationError:
         return None
 
 

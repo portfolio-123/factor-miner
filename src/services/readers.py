@@ -16,6 +16,10 @@ class ParquetDataReader:
     def _parquet_file(self) -> pq.ParquetFile:
         return pq.ParquetFile(self.file_path)
 
+    @property
+    def column_names(self) -> list[str]:
+        return self._parquet_file.schema_arrow.names
+
     def _get_dataset_metadata_raw(self) -> str | None:
         metadata = self._parquet_file.schema_arrow.metadata
         if metadata is None:

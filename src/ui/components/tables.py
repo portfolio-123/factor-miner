@@ -4,7 +4,7 @@ from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 from src.core.types import AnalysisSummary
 from src.core.utils import add_formula_column, format_date, format_timestamp
-from src.services.dataset_service import load_all_datasets
+from src.services.dataset_service import dataset_service
 
 
 def show_factors_modal(
@@ -152,7 +152,7 @@ def render_results_table(
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
-    datasets = load_all_datasets(fl_id)
+    datasets = dataset_service(fl_id).load_all_versions()
 
     data = []
     for a in analyses:

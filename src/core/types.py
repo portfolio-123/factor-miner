@@ -1,5 +1,4 @@
 from enum import IntEnum, StrEnum
-from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,24 +24,15 @@ class AnalysisStatus(StrEnum):
         return self.value.capitalize()
 
 
-class AnalysisProgress(TypedDict):
+class AnalysisProgress(BaseModel):
     completed: int
     total: int
-    current_factor: str
+    current_factor: str = ""
 
 
-class AnalysisResults(TypedDict):
+class AnalysisResults(BaseModel):
     all_metrics: str
     all_corr_matrix: str
-
-
-class AnalysisUpdates(TypedDict, total=False):
-    status: AnalysisStatus
-    results: AnalysisResults
-    error: str
-    progress: AnalysisProgress
-    notes: str
-    avg_abs_alpha: float
 
 
 class TokenPayload(BaseModel):
@@ -85,7 +75,6 @@ class AnalysisParams(SettingsForm):
 
 
 class NormalizationConfig(BaseModel):
-
     model_config = ConfigDict(extra="ignore")
 
     scaling: str

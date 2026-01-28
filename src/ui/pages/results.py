@@ -6,14 +6,17 @@ from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal
 from src.core.utils import deserialize_dataframe
-from src.workers.manager import read_analysis
-from src.services.dataset_service import get_dataset_metadata
+from src.workers.analysis_service import analysis_service
+from src.services.dataset_service import dataset_service
 
 
 @st.fragment(run_every="0.5s")
 def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
-    analysis = read_analysis(fl_id, analysis_id)
-    
+    analysis = analysis_service.get(fl_id, analysis_id)
+    if not analysis:
+        st.error("Analysis not found")
+        return
+
     if analysis.status == AnalysisStatus.SUCCESS:
         st.rerun(scope="app")
 
@@ -22,22 +25,21 @@ def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         return
 
     progress = analysis.progress
+    if not progress:
+        st.info("Starting...")
+        return
 
     with st.columns([1, 2, 1])[1]:
         st.space(100)
         st.subheader("Running Factor Analysis")
 
-        completed = progress.get("completed", 0)
-        total = progress.get("total")
-        current_factor = progress.get("current_factor")
-
         st.progress(
-            completed / total if total > 0 else 0,
-            text=f"{completed} / {total} factors analyzed",
+            progress.completed / progress.total if progress.total > 0 else 0,
+            text=f"{progress.completed} / {progress.total} factors analyzed",
         )
 
-        if current_factor:
-            st.info(f"Analyzing: **{current_factor}**")
+        if progress.current_factor:
+            st.info(f"Analyzing: **{progress.current_factor}**")
         else:
             st.info("Starting...")
 
@@ -47,13 +49,13 @@ def results() -> None:
         st.error("Missing analysis id")
         return
 
-    analysis = read_analysis(fl_id, analysis_id)
+    analysis = analysis_service.get(fl_id, analysis_id)
     if not analysis:
         st.error("Analysis not found")
         return
 
     try:
-        dataset_metadata = get_dataset_metadata(fl_id, analysis.dataset_version)
+        dataset_metadata = dataset_service(fl_id).get_metadata(analysis.dataset_version)
         st.session_state.formulas_data = pd.DataFrame(dataset_metadata.formulas)
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
@@ -87,5 +89,5 @@ def results() -> None:
     section_header("Factors Sorted by Abs. Annual Alpha")
 
     render_results_table(
-        deserialize_dataframe(analysis.results["all_metrics"])
+        deserialize_dataframe(analysis.results.all_metrics)
     )

@@ -3,7 +3,7 @@ import streamlit as st
 
 from src.core.types import Analysis
 from src.ui.components.common import section_header
-from src.workers.manager import update_analysis
+from src.workers.analysis_service import analysis_service
 
 
 def show_analysis_logs_modal(logs: list[str] | None) -> None:
@@ -50,4 +50,4 @@ def render_analysis_notes(analysis: Analysis) -> None:
             submitted = st.form_submit_button("Save", width="stretch")
 
         if submitted and notes_value != (analysis.notes or ""):
-            update_analysis(analysis, notes=notes_value)
+            analysis_service.save(analysis, notes=notes_value)

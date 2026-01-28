@@ -1,6 +1,6 @@
 import streamlit as st
 from src.ui.components.tables import render_history_table
-from src.workers.manager import list_all_analyses
+from src.workers.analysis_service import analysis_service
 
 
 def history() -> None:
@@ -13,7 +13,7 @@ def history() -> None:
 
     st.title("Your Results")
 
-    all_analyses = list_all_analyses(st.query_params.get("fl_id"))
+    all_analyses = analysis_service.list_all(st.query_params.get("fl_id"))
 
     if not all_analyses:
         st.info("No past analyses found for this Factor List.")

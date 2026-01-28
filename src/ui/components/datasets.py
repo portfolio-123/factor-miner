@@ -6,7 +6,7 @@ from src.ui.components.tables import show_factors_modal
 from src.core.constants import FREQUENCY_LABELS, SCALING_LABELS
 from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
 from src.core.types import DatasetConfig, ScalingMethod, ScopeType
-from src.services.dataset_service import get_dataset_metadata, get_dataset_review_data
+from src.services.dataset_service import dataset_service
 from src.ui.components.common import (
     render_info_item,
     render_big_info_item,
@@ -26,7 +26,7 @@ def load_active_dataset() -> DatasetConfig | None:
         return None
 
     try:
-        return get_dataset_metadata(fl_id)
+        return dataset_service(fl_id).get_metadata()
     except Exception:
         st.error("Failed to load dataset")
         return None
@@ -39,7 +39,6 @@ def _build_norm_items(normalization) -> list[str]:
         else "None"
     )
 
-    # Always shown
     items = [
         ("Scaling", scaling_label),
         ("Scope", normalization.scope.title() if normalization.scope else "None"),
@@ -97,14 +96,14 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 type="secondary",
             ):
                 fl_id = st.query_params.get("fl_id")
-                preview_df, stats = get_dataset_review_data(fl_id)
+                preview_df, stats = dataset_service(fl_id).get_review_data()
                 show_factors_modal(
                     pd.DataFrame(dataset_metadata.formulas),
                     stats,
                     preview_df,
                 )
 
-        c1, c2, c3 = st.columns([0.5, 0.5, 0.5, 1.5], vertical_alignment="top")
+        c1, c2, c3, _ = st.columns([0.5, 0.5, 0.5, 1.5], vertical_alignment="top")
 
         big_items = [
             (c1, "Universe", dataset_metadata.universeName),
