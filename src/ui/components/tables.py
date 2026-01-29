@@ -3,18 +3,23 @@ import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 from src.core.types import AnalysisSummary
-from src.core.utils import add_formula_column, format_date, format_timestamp
+from src.core.utils import add_formula_column, format_date, format_runtime, format_timestamp
 from src.services.dataset_service import dataset_service
 
 
 def show_factors_modal(
     formulas_df: pd.DataFrame,
-    stats: dict,
-    preview_df: pd.DataFrame,
+    stats: dict | None = None,
+    preview_df: pd.DataFrame | None = None,
 ) -> None:
     @st.dialog("Dataset Preview", width="large")
     def _render() -> None:
-        factors_tab, data_tab = st.tabs(["Factors", "Data"])
+        show_data_tab = stats is not None and preview_df is not None
+
+        if show_data_tab:
+            factors_tab, data_tab = st.tabs(["Factors", "Data"])
+        else:
+            factors_tab = st.container()
 
         with factors_tab:
             st.dataframe(
@@ -56,38 +61,39 @@ def show_factors_modal(
                     width="stretch",
                 )
 
-        with data_tab:
-            cols = st.columns(6, gap="small")
-            stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
-            stat_items = [
-                ("Rows", stats["num_rows"]),
-                ("Dates", stats["num_dates"]),
-                ("Columns", stats["num_columns"]),
-            ]
-            for col, (label, value) in zip(cols, stat_items):
-                with col:
-                    st.badge(label)
-                    st.html(f"<p style='{stat_style}'>{value}</p>")
+        if show_data_tab:
+            with data_tab:
+                cols = st.columns(6, gap="small")
+                stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
+                stat_items = [
+                    ("Rows", stats["num_rows"]),
+                    ("Dates", stats["num_dates"]),
+                    ("Columns", stats["num_columns"]),
+                ]
+                for col, (label, value) in zip(cols, stat_items):
+                    with col:
+                        st.badge(label)
+                        st.html(f"<p style='{stat_style}'>{value}</p>")
 
-            if len(preview_df) > 20:
-                first_10 = preview_df.head(10)
-                last_10 = preview_df.tail(10)
-                display_preview = pd.concat([first_10, last_10], ignore_index=False)
-            else:
-                display_preview = preview_df
+                if len(preview_df) > 20:
+                    first_10 = preview_df.head(10)
+                    last_10 = preview_df.tail(10)
+                    display_preview = pd.concat([first_10, last_10], ignore_index=False)
+                else:
+                    display_preview = preview_df
 
-            st.caption("Showing first and last 10 rows")
+                st.caption("Showing first and last 10 rows")
 
-            display_df = display_preview.reset_index()
-            display_df.rename(columns={"index": "Row"}, inplace=True)
+                display_df = display_preview.reset_index()
+                display_df.rename(columns={"index": "Row"}, inplace=True)
 
-            st.dataframe(
-                display_df,
-                height=500,
-                width="stretch",
-                hide_index=True,
-                column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
-            )
+                st.dataframe(
+                    display_df,
+                    height=500,
+                    width="stretch",
+                    hide_index=True,
+                    column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
+                )
 
     _render()
 
@@ -96,6 +102,8 @@ def render_results_table(
     metrics: pd.DataFrame,
     show_rank: bool = False,
     best_factors: list[str] | None = None,
+    key: str = "results",
+    show_caption: bool = True,
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
@@ -136,7 +144,8 @@ def render_results_table(
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
 
-    st.caption(f"{'Best' if show_rank else 'All'} factors sorted by absolute annualized alpha (highest first)")
+    if show_caption:
+        st.caption(f"{'Best' if show_rank else 'All'} factors sorted by absolute annualized alpha (highest first)")
 
     column_config = {
         "Factor": st.column_config.TextColumn("Factor", width="large"),
@@ -167,7 +176,7 @@ def render_results_table(
     download_df = add_formula_column(display, formulas_data)
 
     with col1:
-        if st.button(type="primary", label="Copy to Clipboard", width="stretch"):
+        if st.button(type="primary", label="Copy to Clipboard", width="stretch", key=f"{key}_copy"):
             copy_to_clipboard_unsecured(csv_to_copy)
             copy_to_clipboard(csv_to_copy)
             st.toast("Factors copied to clipboard")
@@ -181,6 +190,7 @@ def render_results_table(
             file_name=file_name,
             mime="text/csv",
             width="stretch",
+            key=f"{key}_download",
         )
 
 
@@ -196,6 +206,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
             {
                 "": f"/results?fl_id={a.fl_id}&id={a.id}",
                 "Analysis Date": format_date(a.created_at, "%b %d, %Y %H:%M"),
+                "Run Time": format_runtime(a.started_at, a.finished_at),
                 "Universe": dataset.universeName if dataset else "N/A",
                 "Factors": dataset.factorCount if dataset else "N/A",
                 "Avg Abs Alpha": (
@@ -210,11 +221,31 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 + (" 🟢" if dataset and dataset.active else ""),
                 "Status": a.status.display,
                 "Notes": a.notes or "",
+                "_dataset_version": a.dataset_version,
             }
         )
 
+    df = pd.DataFrame(data)
+
+    # alternate color mapping to differenciate between datasets
+    unique_versions = df["_dataset_version"].unique()
+    version_colors = {
+        v: "#f5f5f5" if i % 2 == 0 else "#ffffff"
+        for i, v in enumerate(unique_versions)
+    }
+
+    # map each row index to its color based on dataset
+    row_colors = df["_dataset_version"].map(version_colors)
+    display_df = df.drop(columns=["_dataset_version"])
+
+    def color_row(row: pd.Series) -> list[str]:
+        color = row_colors[row.name]
+        return [f"background-color: {color}"] * len(row)
+
+    styled_df = display_df.style.apply(color_row, axis=1)
+
     st.dataframe(
-        pd.DataFrame(data),
+        styled_df,
         height=400,
         width="stretch",
         hide_index=True,
@@ -223,6 +254,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
             "Analysis Date": st.column_config.TextColumn(
                 "Analysis Date", width="medium"
             ),
+            "Run Time": st.column_config.TextColumn("Run Time", width="small"),
             "Universe": st.column_config.TextColumn("Universe", width="medium"),
             "Factors": st.column_config.NumberColumn("Factors", width="small"),
             "Avg Abs Alpha": st.column_config.TextColumn(

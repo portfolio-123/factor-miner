@@ -33,7 +33,7 @@ def show_analysis_logs_modal(logs: list[str] | None) -> None:
 
 @st.fragment
 def render_analysis_notes(analysis: Analysis) -> None:
-    section_header("Notes")
+    section_header("Note")
 
     with st.form(key=f"notes_form_{analysis.id}", enter_to_submit=True, border=False):
         col_input, col_btn = st.columns([8, 1])

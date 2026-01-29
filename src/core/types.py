@@ -125,6 +125,8 @@ class AnalysisSummary(BaseModel):
     name: str | None = None
     status: AnalysisStatus
     created_at: str
+    started_at: str | None = None
+    finished_at: str | None = None
     dataset_version: str
     params: AnalysisParams
     notes: str | None = None

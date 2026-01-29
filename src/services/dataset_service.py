@@ -55,6 +55,7 @@ class DatasetService:
 
         metadata = reader.get_dataset_info()
         metadata.version = version
+        metadata.active = version == self.current_version
         return metadata
 
     def get_preview(self, num_rows: int = 10) -> pd.DataFrame:

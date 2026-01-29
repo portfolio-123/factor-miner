@@ -30,6 +30,33 @@ def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y a
         dt = datetime.fromtimestamp(ts)
         return dt.strftime(format_str)
     except (ValueError, TypeError):
+        pass
+    try:
+        dt = datetime.fromisoformat(str(timestamp))
+        return dt.strftime(format_str)
+    except (ValueError, TypeError):
+        return "N/A"
+
+
+def format_runtime(started_at: str | None, finished_at: str | None) -> str:
+    if not started_at or not finished_at:
+        return "N/A"
+    try:
+        start = datetime.fromisoformat(started_at)
+        end = datetime.fromisoformat(finished_at)
+        delta = end - start
+        total_seconds = int(delta.total_seconds())
+
+        if total_seconds < 60:
+            return f"{total_seconds}s"
+
+        minutes, seconds = divmod(total_seconds, 60)
+        if minutes < 60:
+            return f"{minutes}m {seconds}s"
+
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours}h {minutes}m"
+    except (ValueError, TypeError):
         return "N/A"
 
 

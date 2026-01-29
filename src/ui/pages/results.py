@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
 from src.core.types import AnalysisStatus
-from src.ui.components.common import render_info_item, section_header
+from src.ui.components.common import render_info_item
 from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal
-from src.core.utils import deserialize_dataframe
+from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
+from src.core.utils import deserialize_dataframe, format_runtime, format_timestamp
 from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
 from src.services.dataset_service import dataset_service
@@ -62,6 +63,14 @@ def results() -> None:
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
         return
+    created_on = format_timestamp(analysis.created_at)
+    runtime = format_runtime(analysis.started_at, analysis.finished_at)
+    st.html(
+        f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0; display: flex; justify-content: space-between; align-items: baseline;">'
+        f'<span>Analysis Results <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></span>'
+        f'<span style="font-size: 0.875rem; font-weight: 400; color: #666;">Run Time: {runtime}</span>'
+        f'</p>'
+    )
 
     render_dataset_card(dataset_metadata)
 
@@ -74,25 +83,28 @@ def results() -> None:
         _render_analysis_progress(fl_id, analysis_id)
         return
 
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        with st.container(border=True):
+            st.html('<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Best Factors</p>')
+            param_items = [
+                render_info_item("N Factors", f"{analysis.params.n_factors}"),
+                render_info_item("Min Alpha", f"{analysis.params.min_alpha}%"),
+                render_info_item("Max Correlation", f"{analysis.params.correlation_threshold}"),
+            ]
+            st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
+
+    with col_right:
+        with st.container(border=True):
+            st.html('<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Factor Portfolio</p>')
+            param_items = [
+                render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
+                render_info_item("Bottom X (Short)", f"{analysis.params.bottom_pct}%"),
+            ]
+            st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
+
     render_analysis_notes(analysis)
-
-    section_header("Analysis Results")
-
-    col1, col2 = st.columns([8, 1])
-
-    with col1:
-        param_items = [
-            render_info_item("Min Alpha", f"{analysis.params.min_alpha}"),
-            render_info_item("Top X", f"{analysis.params.top_pct}%"),
-            render_info_item("Bottom X", f"{analysis.params.bottom_pct}%"),
-            render_info_item("Corr. Threshold", f"{analysis.params.correlation_threshold}"),
-            render_info_item("N Factors", f"{analysis.params.n_factors}"),
-        ]
-        st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
-
-    with col2:
-        if st.button("Logs", type="primary", width="stretch"):
-            show_analysis_logs_modal(analysis.logs)
 
     best_factors_tab, all_factors_tab = st.tabs(["Best Factors", "All Factors"])
 
@@ -115,22 +127,60 @@ def results() -> None:
             a_min=analysis.params.min_alpha,
         )
 
-        render_results_table(best_metrics_df = ranked_metrics_df[ranked_metrics_df['column'].isin(best_feature_names)], show_rank=True)
+        header_left, header_right = st.columns([6, 1])
+        with header_left:
+            st.caption("Best factors sorted by absolute annualized alpha (highest first)")
+        with header_right:
+            if st.button("Logs", type="primary", use_container_width=True):
+                show_analysis_logs_modal(analysis.logs)
+
+        render_results_table(
+            ranked_metrics_df[ranked_metrics_df['column'].isin(best_feature_names)],
+            show_rank=True,
+            key="best_factors",
+            show_caption=False,
+        )
 
         if best_feature_names:
             st.divider()
             st.subheader("Correlation Matrix (Best Factors)")
             best_corr_matrix = corr_matrix_df.loc[best_feature_names, best_feature_names]
             st.dataframe(
-                best_corr_matrix.style.format("{:.2f}").background_gradient(
-                    cmap="RdYlGn_r", vmin=-1, vmax=1
-                ),
+                best_corr_matrix.round(4),
                 height=min(400, 50 + len(best_feature_names) * 35),
                 use_container_width=True,
             )
+
+            _, col1, col2 = st.columns([3, 1, 1])
+            corr_csv_copy = best_corr_matrix.round(4).to_csv(sep="\t")
+            corr_csv_download = best_corr_matrix.round(4).to_csv()
+
+            with col1:
+                if st.button(
+                    type="primary",
+                    label="Copy to Clipboard",
+                    width="stretch",
+                    key="corr_matrix_copy",
+                ):
+                    copy_to_clipboard_unsecured(corr_csv_copy)
+                    copy_to_clipboard(corr_csv_copy)
+                    st.toast("Correlation matrix copied to clipboard")
+
+            with col2:
+                file_name = f"{fl_id}_correlation_matrix.csv" if fl_id else "correlation_matrix.csv"
+                st.download_button(
+                    type="primary",
+                    label="Download CSV",
+                    data=corr_csv_download,
+                    file_name=file_name,
+                    mime="text/csv",
+                    width="stretch",
+                    key="corr_matrix_download",
+                )
 
     with all_factors_tab:
         render_results_table(
             deserialize_dataframe(analysis.results.all_metrics),
             best_factors=best_feature_names,
+            key="all_factors",
         )

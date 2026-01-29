@@ -98,32 +98,36 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 key=f"preview_dataset_{dataset_metadata.version}",
                 type="secondary",
             ):
-                fl_id = st.query_params.get("fl_id")
-                preview_df, stats = dataset_service(fl_id).get_review_data()
-                show_factors_modal(
-                    pd.DataFrame(dataset_metadata.formulas),
-                    stats,
-                    preview_df,
-                )
+                if dataset_metadata.active:
+                    fl_id = st.query_params.get("fl_id")
+                    preview_df, stats = dataset_service(fl_id).get_review_data()
+                    show_factors_modal(
+                        pd.DataFrame(dataset_metadata.formulas),
+                        stats,
+                        preview_df,
+                    )
+                else:
+                    show_factors_modal(pd.DataFrame(dataset_metadata.formulas))
         with header_status:
-            status_color = "#22c55e" if dataset_metadata.active else "#ef4444"
-            status_title = "Active version" if dataset_metadata.active else "Not active version"
+            is_active = dataset_metadata.active
+            status_color = "#22c55e" if is_active else "#ef4444"
+            status_title = "Active version" if is_active else "Not active version"
             st.html(
                 f'<div style="display: flex; justify-content: center;" title="{status_title}">'
                 f'<span style="width: 12px; height: 12px; border-radius: 50%; background-color: {status_color};"></span>'
                 f'</div>'
             )
 
-        c1, c2, c3, _ = st.columns([1, 0.5, 1, 1.5], vertical_alignment="top")
+        c1, c2, c3 = st.columns([1, 0.5, 2.5], vertical_alignment="top")
 
         big_items = [
-            (c1, "Universe", dataset_metadata.universeName),
             (c2, "Frequency", FREQUENCY_LABELS.get(dataset_metadata.frequency, "N/A")),
             (
-                c3,
+                c1,
                 "Period",
                 f"{format_date(dataset_metadata.startDt, '%Y/%m/%d') if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt, '%Y/%m/%d') if dataset_metadata.endDt else 'N/A'}",
             ),
+            (c3, "Universe", dataset_metadata.universeName)
         ]
         for col, label, value in big_items:
             with col:
@@ -136,9 +140,9 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         with col_left:
             items = [
                 ("Currency", dataset_metadata.currency),
-                ("Benchmark", dataset_metadata.benchmark),
                 ("Precision", dataset_metadata.precision),
                 ("Pit Method", dataset_metadata.pitMethod),
+                ("Benchmark", dataset_metadata.benchmark),
             ]
             st.html(
                 f'{get_section_label_html("Other Settings")}<div style="display: flex; gap: 24px;">{"".join(render_info_item(l, v) for l, v in items)}</div>'
@@ -148,4 +152,8 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             if dataset_metadata.normalization:
                 st.html(
                     f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
+                )
+            else:
+                st.html(
+                    f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;"><span style="font-size: 0.875rem; color: #666;">Raw</span></div>'
                 )

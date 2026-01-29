@@ -81,7 +81,10 @@ class AnalysisService:
         update_dict.update(updates)
 
         status = updates.get("status")
+        if status == AnalysisStatus.RUNNING and analysis.started_at is None:
+            update_dict["started_at"] = datetime.now().isoformat()
         if status in (AnalysisStatus.SUCCESS, AnalysisStatus.FAILED):
+            update_dict["finished_at"] = datetime.now().isoformat()
             update_dict["progress"] = None
 
         updated = analysis.model_copy(update=update_dict)
