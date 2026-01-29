@@ -10,7 +10,7 @@ Factor Miner is a Portfolio123 tool designed to run analyses over datasets and i
 determining alpha and beta, and selecting
 uncorrelated factors in your portfolio.
 
-You can start in the [New Analysis](?page=create&fl_id={st.query_params.get("fl_id")}) page to configure your analysis parameters, run the
+You can start in the [New Analysis](/create?fl_id={st.query_params.get("fl_id")}) page to configure your analysis parameters, run the
 factor evaluation against historical data, and review the results to identify
 which factors demonstrate consistent outperformance with statistical significance.
 """

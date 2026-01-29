@@ -179,6 +179,13 @@ def results() -> None:
                 )
 
     with all_factors_tab:
+        header_left, header_right = st.columns([6, 1])
+        with header_left:
+            st.caption("All factors sorted by absolute annualized alpha (highest first)")
+        with header_right:
+            if st.button("Logs", type="primary", width="stretch", key="all_factors_logs"):
+                show_analysis_logs_modal(analysis.logs)
+
         render_results_table(
             deserialize_dataframe(analysis.results.all_metrics),
             best_factors=best_feature_names,
