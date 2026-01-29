@@ -110,10 +110,16 @@ class AnalysisRunner:
             raise ValueError("No results from factor analysis")
 
         self.log("Calculating factor metrics...")
-        metrics_df = calculate_factor_metrics(results_df, raw_data)
+        metrics_df = calculate_factor_metrics(
+            results_df, raw_data, periods_per_year=dataset_info.frequency.periods_per_year
+        )
 
         self.log("Calculating correlation matrix...")
         corr_matrix = calculate_correlation_matrix(results_df)
+
+        # Round to 4 decimals for storage efficiency
+        metrics_df = metrics_df.round(4)
+        corr_matrix = corr_matrix.round(4)
 
         avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
         self.log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")

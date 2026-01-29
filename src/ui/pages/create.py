@@ -7,6 +7,8 @@ from src.core.constants import (
     DEFAULT_MIN_ALPHA,
     DEFAULT_TOP_PCT,
     DEFAULT_BOTTOM_PCT,
+    DEFAULT_CORRELATION_THRESHOLD,
+    DEFAULT_N_FACTORS,
 )
 from src.core.types import AnalysisParams
 from src.services.dataset_service import dataset_service
@@ -26,6 +28,8 @@ def _submit_analysis_creation() -> None:
             min_alpha=st.session_state.get("min_alpha"),
             top_pct=st.session_state.get("top_pct"),
             bottom_pct=st.session_state.get("bottom_pct"),
+            correlation_threshold=st.session_state.get("correlation_threshold"),
+            n_factors=st.session_state.get("n_factors"),
             access_token=st.session_state.get("access_token"),
         )
         analysis_service.start(fl_id, analysis_id, dataset_version, params)
@@ -96,6 +100,26 @@ def _render_settings() -> None:
             value=DEFAULT_BOTTOM_PCT,
             step=1.0,
             key="bottom_pct",
+        )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.slider(
+            "Correlation Threshold",
+            min_value=0.0,
+            max_value=1.0,
+            value=DEFAULT_CORRELATION_THRESHOLD,
+            step=0.05,
+            key="correlation_threshold",
+        )
+    with col2:
+        st.number_input(
+            "N Factors",
+            min_value=1,
+            max_value=100,
+            value=DEFAULT_N_FACTORS,
+            step=1,
+            key="n_factors",
         )
 
 

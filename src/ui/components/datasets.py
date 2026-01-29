@@ -83,8 +83,8 @@ def _build_norm_items(normalization) -> list[str]:
 
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
     with st.container(border=True):
-        header_left, _, header_right = st.columns(
-            [3, 1, 0.5], vertical_alignment="center"
+        header_left, _, header_right, header_status = st.columns(
+            [3, 1, 0.5, 0.15], vertical_alignment="center"
         )
         created_on = format_timestamp(dataset_metadata.version)
         with header_left:
@@ -105,6 +105,14 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     stats,
                     preview_df,
                 )
+        with header_status:
+            status_color = "#22c55e" if dataset_metadata.active else "#ef4444"
+            status_title = "Active version" if dataset_metadata.active else "Not active version"
+            st.html(
+                f'<div style="display: flex; justify-content: center;" title="{status_title}">'
+                f'<span style="width: 12px; height: 12px; border-radius: 50%; background-color: {status_color};"></span>'
+                f'</div>'
+            )
 
         c1, c2, c3, _ = st.columns([1, 0.5, 1, 1.5], vertical_alignment="top")
 

@@ -14,7 +14,7 @@ def show_factors_modal(
 ) -> None:
     @st.dialog("Dataset Preview", width="large")
     def _render() -> None:
-        factors_tab, preview_tab = st.tabs(["Factors", "Preview"])
+        factors_tab, data_tab = st.tabs(["Factors", "Data"])
 
         with factors_tab:
             st.dataframe(
@@ -56,7 +56,7 @@ def show_factors_modal(
                     width="stretch",
                 )
 
-        with preview_tab:
+        with data_tab:
             cols = st.columns(6, gap="small")
             stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
             stat_items = [
@@ -92,7 +92,11 @@ def show_factors_modal(
     _render()
 
 
-def render_results_table(metrics: pd.DataFrame) -> None:
+def render_results_table(
+    metrics: pd.DataFrame,
+    show_rank: bool = False,
+    best_factors: list[str] | None = None,
+) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
 
@@ -107,30 +111,51 @@ def render_results_table(metrics: pd.DataFrame) -> None:
             "annualized alpha %": "Ann. Alpha %",
             "T Statistic": "T-Statistic",
             "p-value": "P-Value",
+            "beta": "Beta",
         }
-    )[["Factor", "Ann. Alpha %", "T-Statistic", "P-Value"]]
+    )
+
+    if best_factors is not None:
+        display["Best"] = display["Factor"].isin(best_factors).map({True: "Yes", False: "No"})
+
+    if show_rank and "rank" in sorted_metrics.columns:
+        display = display.rename(columns={"rank": "Rank"})
+        display = display[["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
+    elif best_factors is not None:
+        display = display[["Factor", "Best", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
+    else:
+        display = display[["Factor", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
 
     # format numeric columns as strings
     formatters = {
         "Ann. Alpha %": lambda x: f"{x:.2f}%",
+        "Beta": lambda x: f"{x:.4f}",
         "T-Statistic": lambda x: f"{x:.4f}",
         "P-Value": lambda x: f"{x:.6f}",
     }
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
 
-    st.caption("All factors sorted by absolute annualized alpha (highest first)")
+    st.caption(f"{'Best' if show_rank else 'All'} factors sorted by absolute annualized alpha (highest first)")
+
+    column_config = {
+        "Factor": st.column_config.TextColumn("Factor", width="large"),
+        "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
+        "Beta": st.column_config.TextColumn("Beta", width="small"),
+        "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
+        "P-Value": st.column_config.TextColumn("P-Value", width="small"),
+    }
+    if show_rank:
+        column_config["Rank"] = st.column_config.NumberColumn("Rank", width="small")
+    if best_factors is not None:
+        column_config["Best"] = st.column_config.TextColumn("Best", width="small")
+
     st.dataframe(
         display,
         height=500,
         width="stretch",
         hide_index=True,
-        column_config={
-            "Factor": st.column_config.TextColumn("Factor", width="large"),
-            "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
-            "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
-            "P-Value": st.column_config.TextColumn("P-Value", width="small"),
-        },
+        column_config=column_config,
     )
 
     _, col1, col2 = st.columns([3, 1, 1])

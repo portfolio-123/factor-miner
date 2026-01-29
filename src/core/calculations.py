@@ -174,7 +174,8 @@ def _analyze_factor_by_date(
 
 def calculate_factor_metrics(
     results_df: pd.DataFrame,
-    raw_data: pd.DataFrame
+    raw_data: pd.DataFrame,
+    periods_per_year: int = 52,
 ) -> pd.DataFrame:
     """
     Calculate statistical metrics for each factor.
@@ -183,6 +184,7 @@ def calculate_factor_metrics(
     Args:
         results_df: DataFrame with factor returns (Date, factor, ret)
         raw_data: DataFrame with benchmark data from p123 api
+        periods_per_year: Number of periods per year for annualization (default: 52 for weekly)
 
     Returns:
         DataFrame with factor metrics
@@ -207,8 +209,8 @@ def calculate_factor_metrics(
         # Linear regression: return = alpha + beta * benchmark
         beta, alpha = np.polyfit(x, y, deg=1)
 
-        # annualized alpha with weekly data
-        ann_alpha = 100 * ((1 + alpha) ** 52 - 1)
+        # annualized alpha based on data frequency
+        ann_alpha = 100 * ((1 + alpha) ** periods_per_year - 1)
 
         # T-student test
         t_stat, p_value = stats.ttest_1samp(y, popmean=0)

@@ -9,6 +9,8 @@ DEFAULT_BENCHMARK: Final[str] = "SPY:USA"
 DEFAULT_MIN_ALPHA: Final[float] = 0.5
 DEFAULT_TOP_PCT: Final[float] = 20.0
 DEFAULT_BOTTOM_PCT: Final[float] = 20.0
+DEFAULT_CORRELATION_THRESHOLD: Final[float] = 0.5
+DEFAULT_N_FACTORS: Final[int] = 10
 AUTH_COOKIE_KEY: Final[str] = "p123_access_token"
 
 SCALING_LABELS: Final[dict[ScalingMethod, str]] = {

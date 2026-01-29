@@ -62,12 +62,27 @@ class Frequency(IntEnum):
     TWENTY_SIX_WEEKS = 9
     FIFTY_TWO_WEEKS = 10
 
+    @property
+    def periods_per_year(self) -> int:
+        mapping = {
+            Frequency.WEEKLY: 52,
+            Frequency.BIWEEKLY: 26,
+            Frequency.FOUR_WEEKS: 13,
+            Frequency.EIGHT_WEEKS: 6,
+            Frequency.THIRTEEN_WEEKS: 4,
+            Frequency.TWENTY_SIX_WEEKS: 2,
+            Frequency.FIFTY_TWO_WEEKS: 1,
+        }
+        return mapping[self]
+
 
 class SettingsForm(BaseModel):
     benchmark_ticker: str
     min_alpha: float
     top_pct: float
     bottom_pct: float
+    correlation_threshold: float
+    n_factors: int
 
 
 class AnalysisParams(SettingsForm):

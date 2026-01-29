@@ -6,6 +6,7 @@ from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal
 from src.core.utils import deserialize_dataframe
+from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
 from src.services.dataset_service import dataset_service
 
@@ -84,6 +85,8 @@ def results() -> None:
             render_info_item("Min Alpha", f"{analysis.params.min_alpha}"),
             render_info_item("Top X", f"{analysis.params.top_pct}%"),
             render_info_item("Bottom X", f"{analysis.params.bottom_pct}%"),
+            render_info_item("Corr. Threshold", f"{analysis.params.correlation_threshold}"),
+            render_info_item("N Factors", f"{analysis.params.n_factors}"),
         ]
         st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
 
@@ -91,4 +94,43 @@ def results() -> None:
         if st.button("Logs", type="primary", width="stretch"):
             show_analysis_logs_modal(analysis.logs)
 
-    render_results_table(deserialize_dataframe(analysis.results.all_metrics))
+    best_factors_tab, all_factors_tab = st.tabs(["Best Factors", "All Factors"])
+
+    with best_factors_tab:
+        all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
+        corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
+
+        ranked_metrics_df = all_metrics_df.sort_values(
+            by='annualized alpha %',
+            key=abs,
+            ascending=False
+        ).reset_index(drop=True)
+        ranked_metrics_df['rank'] = ranked_metrics_df.index + 1
+
+        best_feature_names = select_best_features(
+            metrics_df=all_metrics_df,
+            correlation_matrix=corr_matrix_df,
+            N=analysis.params.n_factors,
+            correlation_threshold=analysis.params.correlation_threshold,
+            a_min=analysis.params.min_alpha,
+        )
+
+        render_results_table(best_metrics_df = ranked_metrics_df[ranked_metrics_df['column'].isin(best_feature_names)], show_rank=True)
+
+        if best_feature_names:
+            st.divider()
+            st.subheader("Correlation Matrix (Best Factors)")
+            best_corr_matrix = corr_matrix_df.loc[best_feature_names, best_feature_names]
+            st.dataframe(
+                best_corr_matrix.style.format("{:.2f}").background_gradient(
+                    cmap="RdYlGn_r", vmin=-1, vmax=1
+                ),
+                height=min(400, 50 + len(best_feature_names) * 35),
+                use_container_width=True,
+            )
+
+    with all_factors_tab:
+        render_results_table(
+            deserialize_dataframe(analysis.results.all_metrics),
+            best_factors=best_feature_names,
+        )
