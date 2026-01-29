@@ -34,8 +34,8 @@ When configuring a new analysis, you can adjust the following parameters:
         """
 After running an analysis, you'll be able to access the following results:
 
-- **Best Factors** - The factors with the highest absolute annualized alpha.
-- **All Factors** - All factors with their respective metrics, despite alpha or correlation filters.
-- **Correlation Matrix** - The correlation matrix of the factors. Only shown for the best factors.
+- **Best Factors** - The factors with the highest absolute annualized alpha, after alpha and correlation filters.
+- **All Factors** - All factors ranked by abs. annual alpha, despite alpha or correlation filters.
+- **Correlation Matrix** - The correlation matrix for the best performing factors.
 """
     )
