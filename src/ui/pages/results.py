@@ -131,7 +131,7 @@ def results() -> None:
         with header_left:
             st.caption("Best factors sorted by absolute annualized alpha (highest first)")
         with header_right:
-            if st.button("Logs", type="primary", use_container_width=True):
+            if st.button("Logs", type="primary", width="stretch"):
                 show_analysis_logs_modal(analysis.logs)
 
         render_results_table(
@@ -148,7 +148,7 @@ def results() -> None:
             st.dataframe(
                 best_corr_matrix.round(4),
                 height=min(400, 50 + len(best_feature_names) * 35),
-                use_container_width=True,
+                width="stretch",
             )
 
             _, col1, col2 = st.columns([3, 1, 1])
