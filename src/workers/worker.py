@@ -104,7 +104,11 @@ class AnalysisRunner:
         raw_data = reader.read_columns(["Date"])
 
         self.log("Calculating benchmark returns...")
-        raw_data = calculate_benchmark_returns(raw_data, benchmark_data)
+        raw_data = calculate_benchmark_returns(
+            raw_data,
+            benchmark_data,
+            periods_per_year=dataset_info.frequency.periods_per_year,
+        )
 
         if results_df.empty:
             raise ValueError("No results from factor analysis")

@@ -2,6 +2,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -34,12 +35,16 @@ class AnalysisService:
         with open(path, "w") as f:
             json.dump(analysis.model_dump(), f, indent=2)
 
-    def get(self, fl_id: str, analysis_id: str) -> Analysis | None:
-        data = read_json_file(self._get_path(fl_id, analysis_id))
-        try:
-            return Analysis.model_validate(data)
-        except ValidationError:
-            return None
+    def get(self, fl_id: str, analysis_id: str, retries: int = 2) -> Analysis | None:
+        for attempt in range(retries + 1):
+            data = read_json_file(self._get_path(fl_id, analysis_id))
+            try:
+                return Analysis.model_validate(data)
+            except ValidationError:
+                if attempt < retries:
+                    time.sleep(0.1) # to avoid race conditions in the progress functions which triggers this every second
+                    continue
+                return None
 
     def create(
         self,

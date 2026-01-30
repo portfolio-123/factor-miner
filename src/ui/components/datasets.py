@@ -87,10 +87,17 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             [3, 1, 0.5, 0.15], vertical_alignment="center"
         )
         created_on = format_timestamp(dataset_metadata.version)
+        fl_id = st.query_params.get("fl_id")
+        fl_link = f"{P123_BASE_URL}/sv/factorList/{fl_id}" if fl_id else None
         with header_left:
-            st.html(
-                f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></p>'
-            )
+            if fl_link:
+                st.html(
+                    f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using Factor List <a href="{fl_link}" target="_blank" style="color: #666;">{fl_id}</a> at {created_on}</span></p>'
+                )
+            else:
+                st.html(
+                    f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></p>'
+                )
         with header_right:
             if st.button(
                 "Preview",

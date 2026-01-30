@@ -69,15 +69,16 @@ def deserialize_dataframe(*data: str) -> pd.DataFrame | tuple[pd.DataFrame, ...]
     return results[0] if len(results) == 1 else tuple(results)
 
 
-def add_formula_column(
+def add_formula_and_tag_columns(
     download_df: pd.DataFrame,
     formulas_df: pd.DataFrame,
     factor_col: str = "Factor",
 ) -> pd.DataFrame:
-    formula_map = formulas_df.drop_duplicates(subset=["name"]).set_index("name")[
-        "formula"
-    ]
+    deduped = formulas_df.drop_duplicates(subset=["name"]).set_index("name")
+    formula_map = deduped["formula"]
+    tag_map = deduped["tag"]
     result = download_df.copy()
     factor_idx = result.columns.get_loc(factor_col)
     result.insert(factor_idx + 1, "Formula", result[factor_col].map(formula_map))
+    result.insert(factor_idx + 2, "Tag", result[factor_col].map(tag_map))
     return result

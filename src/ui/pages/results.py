@@ -27,16 +27,11 @@ def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         return
 
     progress = analysis.progress
-    if not progress:
-        st.info("Starting...")
-        return
-
     with st.columns([1, 2, 1])[1]:
         st.space(100)
         st.subheader("Running Factor Analysis")
 
-        st.progress(
-            progress.completed / progress.total if progress.total > 0 else 0,
+        st.progress(            progress.completed / progress.total if progress.total > 0 else 0,
             text=f"{progress.completed} / {progress.total} factors analyzed",
         )
 
@@ -99,6 +94,7 @@ def results() -> None:
         with st.container(border=True):
             st.html('<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Factor Portfolio</p>')
             param_items = [
+                render_info_item("Benchmark", f"{analysis.params.benchmark_ticker}"),
                 render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
                 render_info_item("Bottom X (Short)", f"{analysis.params.bottom_pct}%"),
             ]
@@ -119,7 +115,7 @@ def results() -> None:
         ).reset_index(drop=True)
         ranked_metrics_df['rank'] = ranked_metrics_df.index + 1
 
-        best_feature_names = select_best_features(
+        best_feature_names, factor_classifications = select_best_features(
             metrics_df=all_metrics_df,
             correlation_matrix=corr_matrix_df,
             N=analysis.params.n_factors,
@@ -129,16 +125,14 @@ def results() -> None:
 
         header_left, header_right = st.columns([6, 1])
         with header_left:
-            st.caption("Best factors sorted by absolute annualized alpha (highest first)")
+            st.caption("Best factors ranked by absolute annualized alpha (highest first)")
         with header_right:
             if st.button("Logs", type="primary", width="stretch"):
                 show_analysis_logs_modal(analysis.logs)
 
         render_results_table(
             ranked_metrics_df[ranked_metrics_df['column'].isin(best_feature_names)],
-            show_rank=True,
             key="best_factors",
-            show_caption=False,
         )
 
         if best_feature_names:
@@ -181,13 +175,13 @@ def results() -> None:
     with all_factors_tab:
         header_left, header_right = st.columns([6, 1])
         with header_left:
-            st.caption("All factors sorted by absolute annualized alpha (highest first)")
+            st.caption("All factors ranked by absolute annualized alpha (highest first)")
         with header_right:
             if st.button("Logs", type="primary", width="stretch", key="all_factors_logs"):
                 show_analysis_logs_modal(analysis.logs)
 
         render_results_table(
-            deserialize_dataframe(analysis.results.all_metrics),
-            best_factors=best_feature_names,
+            all_metrics_df,
+            factor_classifications=factor_classifications,
             key="all_factors",
         )

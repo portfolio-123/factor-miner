@@ -97,7 +97,7 @@ class NormalizationConfig(BaseModel):
     trimPct: float
     outliers: str
     outlierLimit: float
-    mlTrainingEnd: str
+    mlTrainingEnd: str | None = None
     naFill: str
 
 

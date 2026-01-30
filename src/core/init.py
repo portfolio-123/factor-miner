@@ -27,6 +27,10 @@ def init() -> None:
         padding-top: 0.5rem;
         padding-bottom: 0.5rem;
     }
+
+    [data-testid="stDataFrame"] [data-testid="stElementToolbar"] {
+        display: none !important;
+    }
     </style>
     """
     )

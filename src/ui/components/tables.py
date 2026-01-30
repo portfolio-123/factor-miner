@@ -3,7 +3,7 @@ import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 from src.core.types import AnalysisSummary
-from src.core.utils import add_formula_column, format_date, format_runtime, format_timestamp
+from src.core.utils import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
 from src.services.dataset_service import dataset_service
 
 
@@ -100,18 +100,20 @@ def show_factors_modal(
 
 def render_results_table(
     metrics: pd.DataFrame,
-    show_rank: bool = False,
-    best_factors: list[str] | None = None,
+    factor_classifications: dict[str, str] | None = None,
     key: str = "results",
-    show_caption: bool = True,
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
 
-    # sort all factors by absolute alpha
     sorted_metrics = metrics.sort_values(
         by="annualized alpha %", key=abs, ascending=False
-    )
+    ).reset_index(drop=True)
+
+    sorted_metrics = sorted_metrics.copy()
+
+    if 'rank' not in sorted_metrics.columns:
+        sorted_metrics['rank'] = range(1, len(sorted_metrics) + 1)
 
     display = sorted_metrics.rename(
         columns={
@@ -120,19 +122,13 @@ def render_results_table(
             "T Statistic": "T-Statistic",
             "p-value": "P-Value",
             "beta": "Beta",
+            "rank": "Rank",
         }
     )
 
-    if best_factors is not None:
-        display["Best"] = display["Factor"].isin(best_factors).map({True: "Yes", False: "No"})
+    display = display[["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
 
-    if show_rank and "rank" in sorted_metrics.columns:
-        display = display.rename(columns={"rank": "Rank"})
-        display = display[["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
-    elif best_factors is not None:
-        display = display[["Factor", "Best", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
-    else:
-        display = display[["Factor", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
+    factor_names = display["Factor"].tolist()
 
     # format numeric columns as strings
     formatters = {
@@ -144,36 +140,55 @@ def render_results_table(
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
 
-    if show_caption:
-        st.caption(f"{'Best' if show_rank else 'All'} factors sorted by absolute annualized alpha (highest first)")
-
     column_config = {
+        "Rank": st.column_config.NumberColumn("Rank", width="small"),
         "Factor": st.column_config.TextColumn("Factor", width="large"),
         "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
         "Beta": st.column_config.TextColumn("Beta", width="small"),
         "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
         "P-Value": st.column_config.TextColumn("P-Value", width="small"),
     }
-    if show_rank:
-        column_config["Rank"] = st.column_config.NumberColumn("Rank", width="small")
-    if best_factors is not None:
-        column_config["Best"] = st.column_config.TextColumn("Best", width="small")
 
-    st.dataframe(
-        display,
-        height=500,
-        width="stretch",
-        hide_index=True,
-        column_config=column_config,
-    )
+    if factor_classifications is not None:
+        color_map = {
+            "best": "#e8f5e9",  # Light green
+            "correlation_conflict": "#ffebee",  # Light red
+            "n_limit": "#f5f5f5",  # Light gray
+            "below_alpha": "#fff3e0",  # Light orange
+        }
+
+        def color_row(row: pd.Series) -> list[str]:
+            factor = factor_names[row.name]
+            classification = factor_classifications.get(factor, "")
+            color = color_map.get(classification, "")
+            if color:
+                return [f"background-color: {color}"] * len(row)
+            return [""] * len(row)
+
+        styled_display = display.style.apply(color_row, axis=1)
+        st.dataframe(
+            styled_display,
+            height=500,
+            width="stretch",
+            hide_index=True,
+            column_config=column_config,
+        )
+    else:
+        st.dataframe(
+            display,
+            height=500,
+            width="stretch",
+            hide_index=True,
+            column_config=column_config,
+        )
 
     _, col1, col2 = st.columns([3, 1, 1])
 
-    # tab delimited for copy to clipboard (without Formula)
-    csv_to_copy = display.to_csv(index=False, sep="\t")
+    # Add formula and tag columns for both copy and download operations
+    enriched_df = add_formula_and_tag_columns(display, formulas_data)
 
-    # comma delimited for file download (with Formula in second position)
-    download_df = add_formula_column(display, formulas_data)
+    # tab delimited for copy to clipboard (with Formula and Tag)
+    csv_to_copy = enriched_df.to_csv(index=False, sep="\t")
 
     with col1:
         if st.button(type="primary", label="Copy to Clipboard", width="stretch", key=f"{key}_copy"):
@@ -186,7 +201,7 @@ def render_results_table(
         st.download_button(
             type="primary",
             label="Download CSV",
-            data=download_df.to_csv(index=False),
+            data=enriched_df.to_csv(index=False),
             file_name=file_name,
             mime="text/csv",
             width="stretch",

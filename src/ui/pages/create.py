@@ -12,6 +12,7 @@ from src.core.constants import (
 )
 from src.core.types import AnalysisParams
 from src.services.dataset_service import dataset_service
+from src.ui.components.common import section_header
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
 from src.workers.analysis_service import analysis_service
 
@@ -65,7 +66,8 @@ def create_form() -> None:
 
 
 def _render_settings() -> None:
-    col1, col2 = st.columns(2)
+    section_header("Portfolio Settings")
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.text_input(
             "Benchmark Ticker",
@@ -74,27 +76,16 @@ def _render_settings() -> None:
         )
     with col2:
         st.number_input(
-            "Min Absolute Alpha (%)",
-            min_value=0.0,
-            max_value=100.0,
-            value=DEFAULT_MIN_ALPHA,
-            step=0.1,
-            key="min_alpha",
-        )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.number_input(
-            "Top X (%)",
+            "Top X (Long) %",
             min_value=1.0,
             max_value=100.0,
             value=DEFAULT_TOP_PCT,
             step=1.0,
             key="top_pct",
         )
-    with col2:
+    with col3:
         st.number_input(
-            "Bottom X (%)",
+            "Bottom X (Short) %",
             min_value=1.0,
             max_value=100.0,
             value=DEFAULT_BOTTOM_PCT,
@@ -102,8 +93,18 @@ def _render_settings() -> None:
             key="bottom_pct",
         )
 
-    col1, col2 = st.columns(2)
+    section_header("Analysis Filters")
+    col1, col2, col3 = st.columns(3)
     with col1:
+        st.number_input(
+            "Min. Absolute Annual Alpha (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=DEFAULT_MIN_ALPHA,
+            step=0.1,
+            key="min_alpha",
+        )
+    with col2:
         st.slider(
             "Correlation Threshold",
             min_value=0.0,
@@ -112,9 +113,9 @@ def _render_settings() -> None:
             step=0.05,
             key="correlation_threshold",
         )
-    with col2:
+    with col3:
         st.number_input(
-            "N Factors",
+            "Max. Factors",
             min_value=1,
             max_value=100,
             value=DEFAULT_N_FACTORS,

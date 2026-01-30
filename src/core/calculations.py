@@ -7,14 +7,16 @@ from src.services.readers import ParquetDataReader
 
 def calculate_benchmark_returns(
     raw_data: pd.DataFrame,
-    benchmark_data: pd.DataFrame
-) -> Tuple[pd.DataFrame, str]:
+    benchmark_data: pd.DataFrame,
+    periods_per_year: int = 52,
+) -> pd.DataFrame:
     """
-    Calculate weekly benchmark returns for each date in the dataset. Go back 7 days from the date to get the previous week's price.
+    Calculate benchmark returns for each date in the dataset based on data frequency.
 
     Args:
         raw_data: Dataset with 'Date' column
         benchmark_data: Benchmark price data with 'dt' and 'close' columns
+        periods_per_year: Number of periods per year (e.g., 52 for weekly, 12 for monthly)
 
     Returns:
         DataFrame with 'benchmark' column added
@@ -27,16 +29,19 @@ def calculate_benchmark_returns(
 
     benchmark_df = benchmark_df.sort_values('dt').dropna(subset=['dt', 'close'])
 
+    days_per_period = 365 // periods_per_year
+    tolerance_days = max(1, days_per_period // 2)
+
     unique_dates = pd.DataFrame({'Date': df['Date'].unique()}).sort_values('Date')
-    unique_dates['Prev_Date'] = unique_dates["Date"] - pd.Timedelta(days=7)
+    unique_dates['Prev_Date'] = unique_dates["Date"] - pd.Timedelta(days=days_per_period)
 
-    current_prices = pd.merge_asof(unique_dates, benchmark_df[['dt', 'close']], left_on="Date", right_on="dt", direction="backward", tolerance=pd.Timedelta(days=4)).rename(columns={"close": "curr_price"})
+    current_prices = pd.merge_asof(unique_dates, benchmark_df[['dt', 'close']], left_on="Date", right_on="dt", direction="backward", tolerance=pd.Timedelta(days=tolerance_days)).rename(columns={"close": "curr_price"})
 
-    last_week_prices = pd.merge_asof(current_prices, benchmark_df[['dt', 'close']], left_on="Prev_Date", right_on="dt", direction="backward", tolerance= pd.Timedelta(days=4)).rename(columns={"close": "prev_price"})
+    last_period_prices = pd.merge_asof(current_prices, benchmark_df[['dt', 'close']], left_on="Prev_Date", right_on="dt", direction="backward", tolerance=pd.Timedelta(days=tolerance_days)).rename(columns={"close": "prev_price"})
 
-    last_week_prices["benchmark"] = (last_week_prices["curr_price"] - last_week_prices["prev_price"]) / last_week_prices["prev_price"]
+    last_period_prices["benchmark"] = (last_period_prices["curr_price"] - last_period_prices["prev_price"]) / last_period_prices["prev_price"]
 
-    result_df = df.merge(last_week_prices[['Date', 'benchmark']], on="Date", how="left")
+    result_df = df.merge(last_period_prices[['Date', 'benchmark']], on="Date", how="left")
     return result_df
 
 def calculate_future_performance(
@@ -44,8 +49,9 @@ def calculate_future_performance(
     price_column: str,
 ) -> pd.DataFrame:
     """
-    Add a column "future performance" to the dataframe, which is the return of the next week for that same stock.
+    Add a column "future performance" to the dataframe, which is the return of the next period for that same stock.
     (e.g. 0.07, or 7%)
+
     Args:
         raw_data: DataFrame with Date, Ticker, price columns
         price_column: Name of the price column
@@ -61,7 +67,7 @@ def calculate_future_performance(
     # sort by Ticker and Date
     df = df.sort_values(['Ticker', 'Date']).reset_index(drop=True)
 
-    # shift to get next week's values for each ticker
+    # shift to get next period's values for each ticker
     df['Next_Date'] = df.groupby('Ticker')['Date'].shift(-1)
     df['Next_Price'] = df.groupby('Ticker')[price_column].shift(-1)
 
@@ -249,9 +255,10 @@ def select_best_features(
     N: int = 20,
     correlation_threshold: float = 0.5,
     a_min: float = 0.5
-) -> list:
+) -> tuple[list, dict[str, str]]:
     """
     Select N best features based on alpha and low correlation.
+    Also classifies all factors into categories.
 
     Args:
         metrics_df: DataFrame with feature metrics
@@ -261,26 +268,32 @@ def select_best_features(
         a_min: Minimum absolute annualized alpha %
 
     Returns:
-        List of selected feature names
+        Tuple of (selected feature names, classifications dict)
+        Classifications: "best", "below_alpha", "correlation_conflict", or "n_limit"
     """
-    # Filter features by alpha threshold (absolute alpha >= a_min)
-    filtered_alpha = metrics_df[metrics_df['annualized alpha %'].abs() >= a_min]
-
-    # Sort features by absolute alpha in descending order
-    sorted_alpha = filtered_alpha.sort_values(by='annualized alpha %', key=abs, ascending=False)
+    classifications = {}
     selected_features = []
 
-    for feature in sorted_alpha['column']:
-        # Check correlation with already selected features
+    sorted_metrics = metrics_df.sort_values(by='annualized alpha %', key=abs, ascending=False)
+
+    for feature, alpha in zip(sorted_metrics['column'], sorted_metrics['annualized alpha %']):
+        if abs(alpha) < a_min:
+            classifications[feature] = "below_alpha"
+            continue
+
+        if len(selected_features) >= N:
+            classifications[feature] = "n_limit"
+            continue
+
         if all(
             abs(correlation_matrix.loc[feature, selected]) < correlation_threshold
             for selected in selected_features
         ):
             selected_features.append(feature)
+            classifications[feature] = "best"
+        else:
+            classifications[feature] = "correlation_conflict"
 
-        if len(selected_features) >= N:
-            break
-
-    return selected_features
+    return selected_features, classifications
 
 
