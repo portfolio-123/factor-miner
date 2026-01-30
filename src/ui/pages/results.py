@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.core.types import AnalysisStatus
+from src.core.types import AnalysisProgress, AnalysisStatus
 from src.ui.components.common import render_info_item
 from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
@@ -15,27 +15,34 @@ from src.services.dataset_service import dataset_service
 @st.fragment(run_every="0.5s")
 def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
     analysis = analysis_service.get(fl_id, analysis_id)
-    if not analysis:
-        st.error("Analysis not found")
-        return
 
-    if analysis.status == AnalysisStatus.SUCCESS:
+    if analysis and analysis.status == AnalysisStatus.SUCCESS:
         st.rerun(scope="app")
 
-    if analysis.status == AnalysisStatus.FAILED:
+    if analysis and analysis.status == AnalysisStatus.FAILED:
         st.error((analysis.error or "Analysis failed").split("\n")[0])
         return
 
-    progress = analysis.progress
+    progress = (
+        analysis.progress
+        if analysis
+        else AnalysisProgress(completed=0, total=0, current_factor="-")
+    )
     with st.columns([1, 2, 1])[1]:
         st.space(100)
         st.subheader("Running Factor Analysis")
 
-        st.progress(            progress.completed / progress.total if progress.total > 0 else 0,
-            text=f"{progress.completed} / {progress.total} factors analyzed",
+        progress_value = (
+            (progress.completed / progress.total)
+            if (progress and progress.total > 0)
+            else 0
+        )
+        st.progress(
+            progress_value,
+            text=f"{progress.completed if progress else '-'} / {progress.total if progress else '-'} factors analyzed",
         )
 
-        if progress.current_factor:
+        if progress:
             st.info(f"Analyzing: **{progress.current_factor}**")
         else:
             st.info("Starting...")
@@ -64,7 +71,7 @@ def results() -> None:
         f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0; display: flex; justify-content: space-between; align-items: baseline;">'
         f'<span>Analysis Results <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></span>'
         f'<span style="font-size: 0.875rem; font-weight: 400; color: #666;">Run Time: {runtime}</span>'
-        f'</p>'
+        f"</p>"
     )
 
     render_dataset_card(dataset_metadata)
@@ -82,23 +89,33 @@ def results() -> None:
 
     with col_left:
         with st.container(border=True):
-            st.html('<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Best Factors</p>')
+            st.html(
+                '<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Best Factors</p>'
+            )
             param_items = [
                 render_info_item("N Factors", f"{analysis.params.n_factors}"),
                 render_info_item("Min Alpha", f"{analysis.params.min_alpha}%"),
-                render_info_item("Max Correlation", f"{analysis.params.correlation_threshold}"),
+                render_info_item(
+                    "Max Correlation", f"{analysis.params.correlation_threshold}"
+                ),
             ]
-            st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
+            st.html(
+                f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>'
+            )
 
     with col_right:
         with st.container(border=True):
-            st.html('<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Factor Portfolio</p>')
+            st.html(
+                '<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Factor Portfolio</p>'
+            )
             param_items = [
                 render_info_item("Benchmark", f"{analysis.params.benchmark_ticker}"),
                 render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
                 render_info_item("Bottom X (Short)", f"{analysis.params.bottom_pct}%"),
             ]
-            st.html(f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>')
+            st.html(
+                f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>'
+            )
 
     render_analysis_notes(analysis)
 
@@ -109,11 +126,9 @@ def results() -> None:
         corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 
         ranked_metrics_df = all_metrics_df.sort_values(
-            by='annualized alpha %',
-            key=abs,
-            ascending=False
+            by="annualized alpha %", key=abs, ascending=False
         ).reset_index(drop=True)
-        ranked_metrics_df['rank'] = ranked_metrics_df.index + 1
+        ranked_metrics_df["rank"] = ranked_metrics_df.index + 1
 
         best_feature_names, factor_classifications = select_best_features(
             metrics_df=all_metrics_df,
@@ -125,20 +140,24 @@ def results() -> None:
 
         header_left, header_right = st.columns([6, 1])
         with header_left:
-            st.caption("Best factors ranked by absolute annualized alpha (highest first)")
+            st.caption(
+                "Best factors ranked by absolute annualized alpha (highest first)"
+            )
         with header_right:
             if st.button("Logs", type="primary", width="stretch"):
                 show_analysis_logs_modal(analysis.logs)
 
         render_results_table(
-            ranked_metrics_df[ranked_metrics_df['column'].isin(best_feature_names)],
+            ranked_metrics_df[ranked_metrics_df["column"].isin(best_feature_names)],
             key="best_factors",
         )
 
         if best_feature_names:
             st.divider()
             st.subheader("Correlation Matrix (Best Factors)")
-            best_corr_matrix = corr_matrix_df.loc[best_feature_names, best_feature_names]
+            best_corr_matrix = corr_matrix_df.loc[
+                best_feature_names, best_feature_names
+            ]
             st.dataframe(
                 best_corr_matrix.round(4),
                 height=min(400, 50 + len(best_feature_names) * 35),
@@ -161,7 +180,11 @@ def results() -> None:
                     st.toast("Correlation matrix copied to clipboard")
 
             with col2:
-                file_name = f"{fl_id}_correlation_matrix.csv" if fl_id else "correlation_matrix.csv"
+                file_name = (
+                    f"{fl_id}_correlation_matrix.csv"
+                    if fl_id
+                    else "correlation_matrix.csv"
+                )
                 st.download_button(
                     type="primary",
                     label="Download CSV",
@@ -175,9 +198,13 @@ def results() -> None:
     with all_factors_tab:
         header_left, header_right = st.columns([6, 1])
         with header_left:
-            st.caption("All factors ranked by absolute annualized alpha (highest first)")
+            st.caption(
+                "All factors ranked by absolute annualized alpha (highest first)"
+            )
         with header_right:
-            if st.button("Logs", type="primary", width="stretch", key="all_factors_logs"):
+            if st.button(
+                "Logs", type="primary", width="stretch", key="all_factors_logs"
+            ):
                 show_analysis_logs_modal(analysis.logs)
 
         render_results_table(

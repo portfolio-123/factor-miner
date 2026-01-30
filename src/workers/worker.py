@@ -9,7 +9,13 @@ load_dotenv()
 
 from src.core.constants import PRICE_COLUMN, REQUIRED_COLUMNS
 from src.core.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
-from src.core.types import Analysis, AnalysisStatus, AnalysisProgress, AnalysisResults, DatasetType
+from src.core.types import (
+    Analysis,
+    AnalysisStatus,
+    AnalysisProgress,
+    AnalysisResults,
+    DatasetType,
+)
 from src.core.utils import serialize_dataframe
 from src.workers.analysis_service import AnalysisService
 from src.services.readers import ParquetDataReader
@@ -84,7 +90,8 @@ class AnalysisRunner:
             )
 
         factor_columns = [
-            col for col in reader.column_names
+            col
+            for col in reader.column_names
             if col not in REQUIRED_COLUMNS + ["benchmark", "Future Perf"]
         ]
 
@@ -97,7 +104,6 @@ class AnalysisRunner:
 
         perf_core = reader.read_columns(["Date", "Ticker", PRICE_COLUMN])
         future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
-
         self.log("Analyzing factors...")
         results_df = analyze_factors(
             future_perf_df,
@@ -108,21 +114,27 @@ class AnalysisRunner:
             progress_fn=on_progress,
         )
         raw_data = reader.read_columns(["Date"])
-
+        self.log("RESULTS_DF: " + str(results_df))
         self.log("Calculating benchmark returns...")
         raw_data = calculate_benchmark_returns(
             raw_data,
             benchmark_data,
-            periods_per_year=dataset_info.frequency.periods_per_year,
         )
-
+        self.log(
+            f"RAW_DATA benchmark column:                             {raw_data['benchmark'].isna().sum()} NaN out of {len(raw_data)}"
+        )
+        self.log(f"RAW_DATA sample:\n{raw_data.head()}")
         if results_df.empty:
             raise ValueError("No results from factor analysis")
 
         self.log("Calculating factor metrics...")
         metrics_df = calculate_factor_metrics(
-            results_df, raw_data, periods_per_year=dataset_info.frequency.periods_per_year
+            results_df,
+            raw_data,
+            periods_per_year=dataset_info.frequency.periods_per_year,
+            log_fn=self.log,
         )
+        self.log("METRICS_DF: " + str(metrics_df))
 
         self.log("Calculating correlation matrix...")
         corr_matrix = calculate_correlation_matrix(results_df)
