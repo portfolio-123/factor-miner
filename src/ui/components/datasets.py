@@ -3,9 +3,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from src.ui.components.tables import show_factors_modal
-from src.core.constants import FREQUENCY_LABELS, SCALING_LABELS
+from src.core.constants import FREQUENCY_LABELS, PIT_METHOD_LABELS, SCALING_LABELS
 from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
-from src.core.types import DatasetConfig, ScalingMethod, ScopeType
+from src.core.types import DatasetConfig, DatasetType, ScalingMethod, ScopeType
 from src.services.dataset_service import dataset_service
 from src.ui.components.common import (
     render_info_item,
@@ -58,20 +58,14 @@ def _build_norm_items(normalization) -> list[str]:
             ),
         )
 
-        outlier_label = (
-            "Outliers" if normalization.scaling == ScalingMethod.MINMAX else "Outlier"
-        )
-        items.insert(
-            3,
-            (
-                outlier_label,
-                (
-                    str(normalization.outlierLimit)
-                    if normalization.outlierLimit is not None
-                    else "None"
-                ),
-            ),
-        )
+        if normalization.scaling == ScalingMethod.MINMAX:
+            outlier_label = "Outliers"
+            outlier_value = normalization.outliers.title() if normalization.outliers else "None"
+        else:
+            outlier_label = "Outlier Limit"
+            outlier_value = str(normalization.outlierLimit) if normalization.outlierLimit is not None else "None"
+
+        items.insert(3, (outlier_label, outlier_value))
 
     if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
         items.append(
@@ -127,13 +121,16 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
         c1, c2, c3 = st.columns([1, 0.5, 2.5], vertical_alignment="top")
 
+        if dataset_metadata.type == DatasetType.DATE:
+            date_label = "Date"
+            date_value = format_date(dataset_metadata.asOfDt, '%Y/%m/%d') if dataset_metadata.asOfDt else 'N/A'
+        else:
+            date_label = "Period"
+            date_value = f"{format_date(dataset_metadata.startDt, '%Y/%m/%d') if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt, '%Y/%m/%d') if dataset_metadata.endDt else 'N/A'}"
+
         big_items = [
             (c2, "Frequency", FREQUENCY_LABELS.get(dataset_metadata.frequency, "N/A")),
-            (
-                c1,
-                "Period",
-                f"{format_date(dataset_metadata.startDt, '%Y/%m/%d') if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt, '%Y/%m/%d') if dataset_metadata.endDt else 'N/A'}",
-            ),
+            (c1, date_label, date_value),
             (c3, "Universe", dataset_metadata.universeName)
         ]
         for col, label, value in big_items:
@@ -148,7 +145,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             items = [
                 ("Currency", dataset_metadata.currency),
                 ("Precision", dataset_metadata.precision),
-                ("Pit Method", dataset_metadata.pitMethod),
+                ("Pit Method", PIT_METHOD_LABELS.get(dataset_metadata.pitMethod, dataset_metadata.pitMethod)),
                 ("Benchmark", dataset_metadata.benchmark),
             ]
             st.html(
@@ -156,11 +153,5 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             )
 
         with col_right:
-            if dataset_metadata.normalization:
-                st.html(
-                    f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{"".join(_build_norm_items(dataset_metadata.normalization))}</div>'
-                )
-            else:
-                st.html(
-                    f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;"><span style="font-size: 0.875rem; color: #666;">Raw</span></div>'
-                )
+            norm_content = "".join(_build_norm_items(dataset_metadata.normalization)) if dataset_metadata.normalization else '<span style="font-size: 0.875rem; color: #666;">Raw</span>'
+            st.html(f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{norm_content}</div>')

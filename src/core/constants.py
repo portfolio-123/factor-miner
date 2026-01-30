@@ -1,6 +1,6 @@
 from typing import Final
 
-from src.core.types import Frequency, ScalingMethod
+from src.core.types import DatasetType, Frequency, ScalingMethod
 
 
 PRICE_COLUMN: Final[str] = "Last Close"
@@ -27,4 +27,14 @@ FREQUENCY_LABELS: Final[dict[Frequency, str]] = {
     Frequency.THIRTEEN_WEEKS: "13 weeks",
     Frequency.TWENTY_SIX_WEEKS: "26 weeks",
     Frequency.FIFTY_TWO_WEEKS: "52 weeks",
+}
+
+PIT_METHOD_LABELS: Final[dict[int, str]] = {
+    1: "Included Prelims",
+    2: "Excluded Prelims",
+}
+
+DATASET_TYPE_LABELS: Final[dict[DatasetType, str]] = {
+    DatasetType.PERIOD: "Period",
+    DatasetType.DATE: "Date",
 }

@@ -52,6 +52,7 @@ def create_form() -> None:
     if not (active_dataset_metadata := load_active_dataset()):
         return
 
+    st.title("Create Analysis")
     render_dataset_card(active_dataset_metadata)
 
     _render_settings()

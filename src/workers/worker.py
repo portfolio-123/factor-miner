@@ -9,7 +9,7 @@ load_dotenv()
 
 from src.core.constants import PRICE_COLUMN, REQUIRED_COLUMNS
 from src.core.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
-from src.core.types import Analysis, AnalysisStatus, AnalysisProgress, AnalysisResults
+from src.core.types import Analysis, AnalysisStatus, AnalysisProgress, AnalysisResults, DatasetType
 from src.core.utils import serialize_dataframe
 from src.workers.analysis_service import AnalysisService
 from src.services.readers import ParquetDataReader
@@ -51,7 +51,13 @@ class AnalysisRunner:
         reader = ParquetDataReader(dataset_path)
 
         dataset_info = reader.get_dataset_info()
-        start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
+
+        if dataset_info.type == DatasetType.DATE:
+            start_dt = pd.to_datetime(dataset_info.asOfDt) - pd.Timedelta(days=7)
+            end_dt = dataset_info.asOfDt
+        else:
+            start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
+            end_dt = dataset_info.endDt
 
         self.log(f"Fetching benchmark data for {params.benchmark_ticker}...")
         try:
@@ -59,7 +65,7 @@ class AnalysisRunner:
                 benchmark_ticker=params.benchmark_ticker,
                 access_token=params.access_token,
                 start_date=start_dt.strftime("%Y-%m-%d"),
-                end_date=dataset_info.endDt,
+                end_date=end_dt,
             )
         finally:
             self.analysis = self.service.clear_credentials(self.analysis)

@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
-from src.core.types import AnalysisSummary
+from src.core.types import AnalysisSummary, DatasetType
 from src.core.utils import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
 from src.services.dataset_service import dataset_service
 
@@ -217,6 +217,14 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
     for a in analyses:
         dataset = datasets.get(a.dataset_version)
 
+        if dataset:
+            if dataset.type == DatasetType.DATE:
+                period_value = format_date(dataset.asOfDt, '%Y/%m/%d') if dataset.asOfDt else "N/A"
+            else:
+                period_value = f"{format_date(dataset.startDt, '%Y/%m/%d')} - {format_date(dataset.endDt, '%Y/%m/%d')}"
+        else:
+            period_value = "N/A"
+
         data.append(
             {
                 "": f"/results?fl_id={a.fl_id}&id={a.id}",
@@ -227,11 +235,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 "Avg Abs Alpha": (
                     f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
                 ),
-                "Period": (
-                    f"{format_date(dataset.startDt, '%Y/%m/%d')} - {format_date(dataset.endDt, '%Y/%m/%d')}"
-                    if dataset
-                    else "N/A"
-                ),
+                "Period": period_value,
                 "Dataset Created": format_timestamp(a.dataset_version)
                 + (" 🟢" if dataset and dataset.active else ""),
                 "Status": a.status.display,

@@ -53,6 +53,11 @@ class ScopeType(StrEnum):
     DATE = "date"
 
 
+class DatasetType(StrEnum):
+    PERIOD = "period"
+    DATE = "date"
+
+
 class Frequency(IntEnum):
     WEEKLY = 1
     BIWEEKLY = 7
@@ -108,8 +113,10 @@ class DatasetConfig(BaseModel):
     universeName: str
     frequency: Frequency
     currency: str
-    startDt: str
-    endDt: str
+    type: DatasetType = DatasetType.PERIOD
+    startDt: str | None = None
+    endDt: str | None = None
+    asOfDt: str | None = None
     benchmark: str = Field(alias="benchName")
     precision: int
     normalization: NormalizationConfig | None = None
