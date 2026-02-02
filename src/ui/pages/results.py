@@ -72,11 +72,16 @@ def results() -> None:
         st.error(f"Failed to load dataset metadata: {e}")
         return
     created_on = format_timestamp(analysis.created_at)
-    runtime = format_runtime(analysis.started_at, analysis.finished_at)
+    is_complete = analysis.status == AnalysisStatus.SUCCESS
+    runtime_html = ""
+    if is_complete:
+        runtime = format_runtime(analysis.started_at, analysis.finished_at)
+        runtime_html = f'<span style="font-size: 0.875rem; font-weight: 400; color: #666;">Run Time: {runtime}</span>'
+
     st.html(
         f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0; display: flex; justify-content: space-between; align-items: baseline;">'
         f'<span>Analysis Results <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></span>'
-        f'<span style="font-size: 0.875rem; font-weight: 400; color: #666;">Run Time: {runtime}</span>'
+        f'{runtime_html}'
         f"</p>"
     )
 
