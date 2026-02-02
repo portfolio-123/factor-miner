@@ -1,53 +1,14 @@
 import streamlit as st
 import pandas as pd
-from src.core.types.models import AnalysisProgress, AnalysisStatus
+from src.core.types.models import AnalysisStatus
 from src.ui.components.common import render_info_item, get_card_header_html
-from src.ui.components.tables import render_results_table
+from src.ui.components.tables import render_results_table, render_correlation_matrix
 from src.ui.components.datasets import render_dataset_card
-from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal
-from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
+from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal, render_analysis_progress
 from src.core.utils.common import deserialize_dataframe, format_runtime, format_timestamp
 from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
 from src.services.dataset_service import dataset_service
-
-
-@st.fragment(run_every="0.5s")
-def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
-    analysis = analysis_service.get(fl_id, analysis_id)
-
-    if analysis and analysis.status == AnalysisStatus.SUCCESS:
-        st.rerun(scope="app")
-
-    if analysis and analysis.status == AnalysisStatus.FAILED:
-        st.error((analysis.error or "Analysis failed").split("\n")[0])
-        return
-
-    progress = (
-        analysis.progress
-        if analysis
-        else AnalysisProgress(completed=0, total=0, current_factor="-")
-    )
-    with st.columns([1, 2, 1])[1]:
-        st.space(100)
-        st.subheader("Running Factor Analysis")
-
-        progress_value = (
-            (progress.completed / progress.total)
-            if (progress and progress.total > 0)
-            else 0
-        )
-        progress_text = (
-            f"{progress.completed} / {progress.total} factors analyzed"
-            if (progress and progress.total > 0)
-            else "Preparing analysis..."
-        )
-        st.progress(progress_value, text=progress_text)
-
-        if progress:
-            st.info(f"Analyzing: **{progress.current_factor}**")
-        else:
-            st.info("Starting...")
 
 
 def results() -> None:
@@ -89,7 +50,7 @@ def results() -> None:
         return
 
     if analysis.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
-        _render_analysis_progress(fl_id, analysis_id)
+        render_analysis_progress(fl_id, analysis_id)
         return
 
     col_left, col_right = st.columns(2)
@@ -152,46 +113,14 @@ def results() -> None:
 
         if best_feature_names:
             st.divider()
-            st.subheader("Correlation Matrix (Best Factors)")
             best_corr_matrix = corr_matrix_df.loc[
                 best_feature_names, best_feature_names
             ]
-            st.dataframe(
-                best_corr_matrix.round(4),
-                height=min(400, 50 + len(best_feature_names) * 35),
-                width="stretch",
+            render_correlation_matrix(
+                corr_matrix_df=best_corr_matrix,
+                title="Correlation Matrix (Best Factors)",
+                file_prefix=fl_id,
             )
-
-            _, col1, col2 = st.columns([3, 1, 1])
-            corr_csv_copy = best_corr_matrix.round(4).to_csv(sep="\t")
-            corr_csv_download = best_corr_matrix.round(4).to_csv()
-
-            with col1:
-                if st.button(
-                    type="primary",
-                    label="Copy to Clipboard",
-                    width="stretch",
-                    key="corr_matrix_copy",
-                ):
-                    copy_to_clipboard_unsecured(corr_csv_copy)
-                    copy_to_clipboard(corr_csv_copy)
-                    st.toast("Correlation matrix copied to clipboard")
-
-            with col2:
-                file_name = (
-                    f"{fl_id}_correlation_matrix.csv"
-                    if fl_id
-                    else "correlation_matrix.csv"
-                )
-                st.download_button(
-                    type="primary",
-                    label="Download CSV",
-                    data=corr_csv_download,
-                    file_name=file_name,
-                    mime="text/csv",
-                    width="stretch",
-                    key="corr_matrix_download",
-                )
 
     with all_factors_tab:
         header_left, header_right = st.columns([6, 1])

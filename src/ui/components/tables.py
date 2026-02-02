@@ -7,6 +7,51 @@ from src.core.utils.common import add_formula_and_tag_columns, format_date, form
 from src.services.dataset_service import dataset_service
 
 
+def render_correlation_matrix(
+    corr_matrix_df: pd.DataFrame,
+    title: str,
+    file_prefix: str | None = None,
+    key_suffix: str = "",
+) -> None:
+    st.subheader(title)
+    st.dataframe(
+        corr_matrix_df.round(4),
+        height=min(400, 50 + len(corr_matrix_df) * 35),
+        width="stretch",
+    )
+
+    _, col1, col2 = st.columns([3, 1, 1])
+    corr_csv_copy = corr_matrix_df.round(4).to_csv(sep="\t")
+    corr_csv_download = corr_matrix_df.round(4).to_csv()
+
+    with col1:
+        if st.button(
+            type="primary",
+            label="Copy to Clipboard",
+            width="stretch",
+            key=f"corr_matrix_copy{key_suffix}",
+        ):
+            copy_to_clipboard_unsecured(corr_csv_copy)
+            copy_to_clipboard(corr_csv_copy)
+            st.toast("Correlation matrix copied to clipboard")
+
+    with col2:
+        file_name = (
+            f"{file_prefix}_correlation_matrix.csv"
+            if file_prefix
+            else "correlation_matrix.csv"
+        )
+        st.download_button(
+            type="primary",
+            label="Download CSV",
+            data=corr_csv_download,
+            file_name=file_name,
+            mime="text/csv",
+            width="stretch",
+            key=f"corr_matrix_download{key_suffix}",
+        )
+
+
 def show_factors_modal(
     formulas_df: pd.DataFrame,
     stats: dict | None = None,

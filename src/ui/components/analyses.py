@@ -1,7 +1,7 @@
 import re
 import streamlit as st
 
-from src.core.types.models import Analysis
+from src.core.types.models import Analysis, AnalysisProgress, AnalysisStatus
 from src.ui.components.common import section_header
 from src.workers.analysis_service import analysis_service
 
@@ -51,3 +51,41 @@ def render_analysis_notes(analysis: Analysis) -> None:
 
         if submitted and notes_value != (analysis.notes or ""):
             analysis_service.save(analysis, notes=notes_value)
+
+
+@st.fragment(run_every="0.5s")
+def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
+    analysis = analysis_service.get(fl_id, analysis_id)
+
+    if analysis and analysis.status == AnalysisStatus.SUCCESS:
+        st.rerun(scope="app")
+
+    if analysis and analysis.status == AnalysisStatus.FAILED:
+        st.error((analysis.error or "Analysis failed").split("\n")[0])
+        return
+
+    progress = (
+        analysis.progress
+        if analysis
+        else AnalysisProgress(completed=0, total=0, current_factor="-")
+    )
+    with st.columns([1, 2, 1])[1]:
+        st.space(100)
+        st.subheader("Running Factor Analysis")
+
+        progress_value = (
+            (progress.completed / progress.total)
+            if (progress and progress.total > 0)
+            else 0
+        )
+        progress_text = (
+            f"{progress.completed} / {progress.total} factors analyzed"
+            if (progress and progress.total > 0)
+            else "Preparing analysis..."
+        )
+        st.progress(progress_value, text=progress_text)
+
+        if progress:
+            st.info(f"Analyzing: **{progress.current_factor}**")
+        else:
+            st.info("Starting...")
