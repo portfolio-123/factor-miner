@@ -15,6 +15,12 @@ def init() -> None:
     st.html(
         """
     <style>
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+
     .stMainBlockContainer,
     .block-container,
     [data-testid="stMainBlockContainer"] {

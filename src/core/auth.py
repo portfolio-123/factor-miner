@@ -1,9 +1,9 @@
 import streamlit as st
 
-from src.core.constants import AUTH_COOKIE_KEY
-from src.core.types import TokenPayload
-from src.core.cookie_utils import get_cookie, set_cookie
-from src.core.jwt_utils import decrypt_token
+from src.core.config.constants import AUTH_COOKIE_KEY
+from src.core.types.models import TokenPayload
+from src.core.utils.cookie_utils import get_cookie, set_cookie
+from src.core.utils.jwt_utils import decrypt_token
 from src.services.p123_client import (
     authenticate as get_access_token,
     verify_factor_list_access,
@@ -49,7 +49,7 @@ def login():
 
     if token:
         login_container.empty()
-        set_cookie(AUTH_COOKIE_KEY, token, days=1)
+        _authenticate(token)
         return
 
     st.stop()
@@ -76,13 +76,9 @@ def _render_auth_form() -> str | None:
 
             if submitted:
                 try:
-                    token = get_access_token(
+                    return get_access_token(
                         TokenPayload(apiId=int(api_id), apiKey=api_key)
                     )
-                    fl_info = verify_factor_list_access(st.query_params.get("fl_id"), token)
-                    st.session_state.access_token = token
-                    st.session_state.fl_name = fl_info.get("name")
-                    return token
                 except PermissionError as e:
                     st.error(str(e))
 

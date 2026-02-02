@@ -6,8 +6,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.core.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
-from src.core.types import DatasetConfig
+from src.core.config.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
+from src.core.types.models import DatasetConfig
 from src.services.readers import ParquetDataReader
 
 

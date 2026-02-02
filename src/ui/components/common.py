@@ -31,5 +31,9 @@ def get_section_label_html(title: str) -> str:
     return f'<div style="font-size: 14px; font-weight: 600; color: #212529; letter-spacing: 0.5px; margin-bottom: 4px;">{title}</div>'
 
 
+def get_card_header_html(title: str) -> str:
+    return f'<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">{title}</p>'
+
+
 def spacer(height: int = 16) -> None:
     st.html(f'<div style="height: {height}px;"></div>')

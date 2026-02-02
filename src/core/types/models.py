@@ -120,7 +120,6 @@ class DatasetConfig(BaseModel):
     benchmark: str = Field(alias="benchName")
     precision: int
     normalization: NormalizationConfig | None = None
-    factorCount: int | None = None
     formulas: list | None = None
     pitMethod: int
     active: bool = False
@@ -129,7 +128,6 @@ class DatasetConfig(BaseModel):
 class AnalysisSummary(BaseModel):
     id: str
     fl_id: str
-    name: str | None = None
     status: AnalysisStatus
     created_at: str
     started_at: str | None = None

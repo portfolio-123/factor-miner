@@ -1,8 +1,8 @@
 import pandas as pd
 import requests
 
-from src.core.environment import API_BASE_URL
-from src.core.types import TokenPayload
+from src.core.config.environment import API_BASE_URL
+from src.core.types.models import TokenPayload
 
 
 def _request(

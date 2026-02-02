@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 import pyarrow.parquet as pq
 
-from src.core.types import DatasetConfig
+from src.core.types.models import DatasetConfig
 
 
 class ParquetDataReader:
@@ -71,9 +71,6 @@ class ParquetDataReader:
         dataset_info = json.loads(raw)
 
         dataset_info["version"] = str(dataset_info["version"])
-
-        if "formulas" in dataset_info:
-            dataset_info["factorCount"] = len(dataset_info["formulas"])
 
         if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
             dataset_info["normalization"] = dataset_info["preprocessor"]

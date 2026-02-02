@@ -2,7 +2,7 @@ import uuid
 
 import streamlit as st
 
-from src.core.constants import (
+from src.core.config.constants import (
     DEFAULT_BENCHMARK,
     DEFAULT_MIN_ALPHA,
     DEFAULT_TOP_PCT,
@@ -10,7 +10,7 @@ from src.core.constants import (
     DEFAULT_CORRELATION_THRESHOLD,
     DEFAULT_N_FACTORS,
 )
-from src.core.types import AnalysisParams
+from src.core.types.models import AnalysisParams
 from src.services.dataset_service import dataset_service
 from src.ui.components.common import section_header
 from src.ui.components.datasets import load_active_dataset, render_dataset_card

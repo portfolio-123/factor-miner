@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional
 from src.services.readers import ParquetDataReader
 
 
@@ -274,7 +274,7 @@ def calculate_correlation_matrix(results_df: pd.DataFrame) -> pd.DataFrame:
 def select_best_features(
     metrics_df: pd.DataFrame,
     correlation_matrix: pd.DataFrame,
-    N: int = 20,
+    N: int = 10,
     correlation_threshold: float = 0.5,
     a_min: float = 0.5,
 ) -> tuple[list, dict[str, str]]:

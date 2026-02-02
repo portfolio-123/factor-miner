@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
-from src.core.types import AnalysisSummary, DatasetType
-from src.core.utils import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
+from src.core.types.models import AnalysisSummary, DatasetType
+from src.core.utils.common import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
 from src.services.dataset_service import dataset_service
 
 
@@ -231,7 +231,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 "Analysis Date": format_date(a.created_at, "%b %d, %Y %H:%M"),
                 "Run Time": format_runtime(a.started_at, a.finished_at),
                 "Universe": dataset.universeName if dataset else "N/A",
-                "Factors": dataset.factorCount if dataset else "N/A",
+                "Factors": len(dataset.formulas) if dataset and dataset.formulas else "N/A",
                 "Avg Abs Alpha": (
                     f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
                 ),

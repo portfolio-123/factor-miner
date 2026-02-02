@@ -1,6 +1,6 @@
 from typing import Final
 
-from src.core.types import DatasetType, Frequency, ScalingMethod
+from src.core.types.models import DatasetType, Frequency, ScalingMethod
 
 
 PRICE_COLUMN: Final[str] = "Last Close"

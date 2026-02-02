@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.core.environment import P123_BASE_URL
+from src.core.config.environment import P123_BASE_URL
 
 
 def about() -> None:
@@ -30,7 +30,7 @@ When configuring a new analysis, you can adjust the following parameters:
 | **Top X (%)** | 20.0 | Percentage of top-ranked stocks to include in the long portfolio |
 | **Bottom X (%)** | 20.0 | Percentage of bottom-ranked stocks to include in the short portfolio |
 | **Correlation Threshold** | 0.5 | Maximum allowed correlation between selected factors to ensure diversification |
-| **N Factors** | 10 | Maximum number of factors to select in the final result set |
+| **Max. Factors** | 10 | Maximum number of factors to select in the final result set |
 """
     )
 

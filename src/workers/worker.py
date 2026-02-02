@@ -7,16 +7,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.core.constants import PRICE_COLUMN, REQUIRED_COLUMNS
-from src.core.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
-from src.core.types import (
+from src.core.config.constants import PRICE_COLUMN, REQUIRED_COLUMNS
+from src.core.config.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
+from src.core.types.models import (
     Analysis,
     AnalysisStatus,
     AnalysisProgress,
     AnalysisResults,
     DatasetType,
 )
-from src.core.utils import serialize_dataframe
+from src.core.utils.common import serialize_dataframe
 from src.workers.analysis_service import AnalysisService
 from src.services.readers import ParquetDataReader
 from src.services.p123_client import fetch_benchmark_data
@@ -114,16 +114,11 @@ class AnalysisRunner:
             progress_fn=on_progress,
         )
         raw_data = reader.read_columns(["Date"])
-        self.log("RESULTS_DF: " + str(results_df))
         self.log("Calculating benchmark returns...")
         raw_data = calculate_benchmark_returns(
             raw_data,
             benchmark_data,
         )
-        self.log(
-            f"RAW_DATA benchmark column:                             {raw_data['benchmark'].isna().sum()} NaN out of {len(raw_data)}"
-        )
-        self.log(f"RAW_DATA sample:\n{raw_data.head()}")
         if results_df.empty:
             raise ValueError("No results from factor analysis")
 
@@ -134,12 +129,10 @@ class AnalysisRunner:
             periods_per_year=dataset_info.frequency.periods_per_year,
             log_fn=self.log,
         )
-        self.log("METRICS_DF: " + str(metrics_df))
 
         self.log("Calculating correlation matrix...")
         corr_matrix = calculate_correlation_matrix(results_df)
 
-        # Round to 4 decimals for storage efficiency
         metrics_df = metrics_df.round(4)
         corr_matrix = corr_matrix.round(4)
 

@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
-from src.core.types import AnalysisProgress, AnalysisStatus
-from src.ui.components.common import render_info_item
+from src.core.types.models import AnalysisProgress, AnalysisStatus
+from src.ui.components.common import render_info_item, get_card_header_html
 from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
-from src.core.utils import deserialize_dataframe, format_runtime, format_timestamp
+from src.core.utils.common import deserialize_dataframe, format_runtime, format_timestamp
 from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
 from src.services.dataset_service import dataset_service
@@ -37,10 +37,12 @@ def _render_analysis_progress(fl_id: str, analysis_id: str) -> None:
             if (progress and progress.total > 0)
             else 0
         )
-        st.progress(
-            progress_value,
-            text=f"{progress.completed if progress else '-'} / {progress.total if progress else '-'} factors analyzed",
+        progress_text = (
+            f"{progress.completed} / {progress.total} factors analyzed"
+            if (progress and progress.total > 0)
+            else "Preparing analysis..."
         )
+        st.progress(progress_value, text=progress_text)
 
         if progress:
             st.info(f"Analyzing: **{progress.current_factor}**")
@@ -89,12 +91,10 @@ def results() -> None:
 
     with col_left:
         with st.container(border=True):
-            st.html(
-                '<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Best Factors</p>'
-            )
+            st.html(get_card_header_html("Best Factors"))
             param_items = [
-                render_info_item("N Factors", f"{analysis.params.n_factors}"),
-                render_info_item("Min Alpha", f"{analysis.params.min_alpha}%"),
+                render_info_item("Max. Factors", f"{analysis.params.n_factors}"),
+                render_info_item("Min Annual. Alpha", f"{analysis.params.min_alpha}%"),
                 render_info_item(
                     "Max Correlation", f"{analysis.params.correlation_threshold}"
                 ),
@@ -105,9 +105,7 @@ def results() -> None:
 
     with col_right:
         with st.container(border=True):
-            st.html(
-                '<p style="font-size: 1rem; font-weight: 600; margin: 0 0 12px 0;">Factor Portfolio</p>'
-            )
+            st.html(get_card_header_html("Factor Portfolio"))
             param_items = [
                 render_info_item("Benchmark", f"{analysis.params.benchmark_ticker}"),
                 render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
@@ -124,11 +122,6 @@ def results() -> None:
     with best_factors_tab:
         all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
         corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
-
-        ranked_metrics_df = all_metrics_df.sort_values(
-            by="annualized alpha %", key=abs, ascending=False
-        ).reset_index(drop=True)
-        ranked_metrics_df["rank"] = ranked_metrics_df.index + 1
 
         best_feature_names, factor_classifications = select_best_features(
             metrics_df=all_metrics_df,
@@ -148,7 +141,7 @@ def results() -> None:
                 show_analysis_logs_modal(analysis.logs)
 
         render_results_table(
-            ranked_metrics_df[ranked_metrics_df["column"].isin(best_feature_names)],
+            all_metrics_df[all_metrics_df["column"].isin(best_feature_names)],
             key="best_factors",
         )
 

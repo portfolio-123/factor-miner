@@ -3,9 +3,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from src.ui.components.tables import show_factors_modal
-from src.core.constants import FREQUENCY_LABELS, PIT_METHOD_LABELS, SCALING_LABELS
-from src.core.environment import P123_BASE_URL, FACTOR_LIST_DIR
-from src.core.types import DatasetConfig, DatasetType, ScalingMethod, ScopeType
+from src.core.config.constants import FREQUENCY_LABELS, PIT_METHOD_LABELS, SCALING_LABELS
+from src.core.config.environment import P123_BASE_URL, FACTOR_LIST_DIR
+from src.core.types.models import DatasetConfig, DatasetType, ScalingMethod, ScopeType
 from src.services.dataset_service import dataset_service
 from src.ui.components.common import (
     render_info_item,
@@ -13,7 +13,7 @@ from src.ui.components.common import (
     get_section_label_html,
     spacer,
 )
-from src.core.utils import format_date, format_timestamp
+from src.core.utils.common import format_date, format_timestamp
 
 
 def load_active_dataset() -> DatasetConfig | None:
@@ -139,7 +139,12 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
         spacer(6)
 
-        col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
+        has_normalization = dataset_metadata.normalization is not None
+
+        if has_normalization:
+            col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
+        else:
+            col_left = st.container()
 
         with col_left:
             items = [
@@ -148,10 +153,13 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 ("Pit Method", PIT_METHOD_LABELS.get(dataset_metadata.pitMethod, dataset_metadata.pitMethod)),
                 ("Benchmark", dataset_metadata.benchmark),
             ]
+            if not has_normalization:
+                items.append(("Normalization", "Raw"))
             st.html(
                 f'{get_section_label_html("Other Settings")}<div style="display: flex; gap: 24px;">{"".join(render_info_item(l, v) for l, v in items)}</div>'
             )
 
-        with col_right:
-            norm_content = "".join(_build_norm_items(dataset_metadata.normalization)) if dataset_metadata.normalization else '<span style="font-size: 0.875rem; color: #666;">Raw</span>'
-            st.html(f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{norm_content}</div>')
+        if has_normalization:
+            with col_right:
+                norm_content = "".join(_build_norm_items(dataset_metadata.normalization))
+                st.html(f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{norm_content}</div>')

@@ -1,7 +1,7 @@
 import re
 import streamlit as st
 
-from src.core.types import Analysis
+from src.core.types.models import Analysis
 from src.ui.components.common import section_header
 from src.workers.analysis_service import analysis_service
 
