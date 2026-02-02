@@ -1,38 +1,20 @@
-## How to Run
+## Factor Miner
 
-### Prerequisites
-- Python 3
-
-#### 1. Create a Virtual Environment
 ```bash
 python -m venv venv
-```
-
-#### 2. Activate the Virtual Environment
-
-**Linux/macOS:**
-```bash
-source venv/bin/activate
-```
-
-**Windows (PowerShell):**
-```powershell
-venv\Scripts\Activate.ps1
-```
-
-#### 3. Install Dependencies
-```bash
+source venv/bin/activate      # Linux/macOS
+venv\Scripts\Activate.ps1     # Windows
 pip install -r requirements.txt
 ```
 
-#### 4. Configure Environment (Optional)
-Create a `.env` file in the project root:
+Create a `.env` file:
 ```env
-INTERNAL_APP=false
+FACTOR_LIST_DIR=/path/to/factor/list
+JWT_SECRET=your_jwt_secret
+P123_BASE_URL=https://your-p123-url
+API_BASE_URL=https://your-api-url
 ```
 
-#### 5. Run the Application
-
+```bash
 streamlit run app.py
-
-The app will open in http://localhost:8501/
+```
