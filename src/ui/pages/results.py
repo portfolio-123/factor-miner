@@ -60,7 +60,7 @@ def results() -> None:
             st.html(get_card_header_html("Best Factors"))
             param_items = [
                 render_info_item("Max. Factors", f"{analysis.params.n_factors}"),
-                render_info_item("Min Annual. Alpha", f"{analysis.params.min_alpha}%"),
+                render_info_item("Min. Annual Alpha", f"{analysis.params.min_alpha}%"),
                 render_info_item(
                     "Max Correlation", f"{analysis.params.correlation_threshold}"
                 ),
