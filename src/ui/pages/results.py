@@ -6,7 +6,11 @@ from src.ui.components.tables import render_results_table
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
-from src.core.utils.common import deserialize_dataframe, format_runtime, format_timestamp
+from src.core.utils.common import (
+    deserialize_dataframe,
+    format_runtime,
+    format_timestamp,
+)
 from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
 from src.services.dataset_service import dataset_service
@@ -94,7 +98,7 @@ def results() -> None:
             st.html(get_card_header_html("Best Factors"))
             param_items = [
                 render_info_item("Max. Factors", f"{analysis.params.n_factors}"),
-                render_info_item("Min Annual. Alpha", f"{analysis.params.min_alpha}%"),
+                render_info_item("Min. Annual Alpha", f"{analysis.params.min_alpha}%"),
                 render_info_item(
                     "Max Correlation", f"{analysis.params.correlation_threshold}"
                 ),

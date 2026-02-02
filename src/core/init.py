@@ -24,7 +24,7 @@ def init() -> None:
     .stMainBlockContainer,
     .block-container,
     [data-testid="stMainBlockContainer"] {
-        max-width: 1250px !important;
+        max-width: 1350px !important;
         margin: 0 auto !important;
         padding: 0.5rem 2rem 2rem 2rem !important;
     }
