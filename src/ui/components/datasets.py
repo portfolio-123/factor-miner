@@ -3,7 +3,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from src.ui.components.tables import show_factors_modal
-from src.core.config.constants import FREQUENCY_LABELS, PIT_METHOD_LABELS, SCALING_LABELS
+from src.core.config.constants import (
+    FREQUENCY_LABELS,
+    PIT_METHOD_LABELS,
+    SCALING_LABELS,
+)
 from src.core.config.environment import P123_BASE_URL, FACTOR_LIST_DIR
 from src.core.types.models import DatasetConfig, DatasetType, ScalingMethod, ScopeType
 from src.services.dataset_service import dataset_service
@@ -60,10 +64,16 @@ def _build_norm_items(normalization) -> list[str]:
 
         if normalization.scaling == ScalingMethod.MINMAX:
             outlier_label = "Outliers"
-            outlier_value = normalization.outliers.title() if normalization.outliers else "None"
+            outlier_value = (
+                normalization.outliers.title() if normalization.outliers else "None"
+            )
         else:
             outlier_label = "Outlier Limit"
-            outlier_value = str(normalization.outlierLimit) if normalization.outlierLimit is not None else "None"
+            outlier_value = (
+                str(normalization.outlierLimit)
+                if normalization.outlierLimit is not None
+                else "None"
+            )
 
         items.insert(3, (outlier_label, outlier_value))
 
@@ -86,7 +96,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         with header_left:
             if fl_link:
                 st.html(
-                    f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using Factor List <a href="{fl_link}" target="_blank" style="color: #666;">{fl_id}</a> at {created_on}</span></p>'
+                    f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using <a href="{fl_link}" target="_blank" style="color: #666;">Factor List  {fl_id}</a> at {created_on}</span></p>'
                 )
             else:
                 st.html(
@@ -116,14 +126,18 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             st.html(
                 f'<div style="display: flex; justify-content: center;" title="{status_title}">'
                 f'<span style="width: 12px; height: 12px; border-radius: 50%; background-color: {status_color};"></span>'
-                f'</div>'
+                f"</div>"
             )
 
         c1, c2, c3 = st.columns([1, 0.5, 2.5], vertical_alignment="top")
 
         if dataset_metadata.type == DatasetType.DATE:
             date_label = "Date"
-            date_value = format_date(dataset_metadata.asOfDt, '%Y/%m/%d') if dataset_metadata.asOfDt else 'N/A'
+            date_value = (
+                format_date(dataset_metadata.asOfDt, "%Y/%m/%d")
+                if dataset_metadata.asOfDt
+                else "N/A"
+            )
         else:
             date_label = "Period"
             date_value = f"{format_date(dataset_metadata.startDt, '%Y/%m/%d') if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt, '%Y/%m/%d') if dataset_metadata.endDt else 'N/A'}"
@@ -131,7 +145,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         big_items = [
             (c2, "Frequency", FREQUENCY_LABELS.get(dataset_metadata.frequency, "N/A")),
             (c1, date_label, date_value),
-            (c3, "Universe", dataset_metadata.universeName)
+            (c3, "Universe", dataset_metadata.universeName),
         ]
         for col, label, value in big_items:
             with col:
@@ -150,7 +164,12 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             items = [
                 ("Currency", dataset_metadata.currency),
                 ("Precision", dataset_metadata.precision),
-                ("Pit Method", PIT_METHOD_LABELS.get(dataset_metadata.pitMethod, dataset_metadata.pitMethod)),
+                (
+                    "Pit Method",
+                    PIT_METHOD_LABELS.get(
+                        dataset_metadata.pitMethod, dataset_metadata.pitMethod
+                    ),
+                ),
                 ("Benchmark", dataset_metadata.benchmark),
             ]
             if not has_normalization:
@@ -161,5 +180,9 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
         if has_normalization:
             with col_right:
-                norm_content = "".join(_build_norm_items(dataset_metadata.normalization))
-                st.html(f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{norm_content}</div>')
+                norm_content = "".join(
+                    _build_norm_items(dataset_metadata.normalization)
+                )
+                st.html(
+                    f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{norm_content}</div>'
+                )

@@ -4,8 +4,16 @@ from src.core.types.models import AnalysisStatus
 from src.ui.components.common import render_info_item, get_card_header_html
 from src.ui.components.tables import render_results_table, render_correlation_matrix
 from src.ui.components.datasets import render_dataset_card
-from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal, render_analysis_progress
-from src.core.utils.common import deserialize_dataframe, format_runtime, format_timestamp
+from src.ui.components.analyses import (
+    render_analysis_notes,
+    show_analysis_logs_modal,
+    render_analysis_progress,
+)
+from src.core.utils.common import (
+    deserialize_dataframe,
+    format_runtime,
+    format_timestamp,
+)
 from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
 from src.services.dataset_service import dataset_service
@@ -38,7 +46,7 @@ def results() -> None:
     st.html(
         f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0; display: flex; justify-content: space-between; align-items: baseline;">'
         f'<span>Analysis Results <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></span>'
-        f'{runtime_html}'
+        f"{runtime_html}"
         f"</p>"
     )
 
@@ -88,6 +96,12 @@ def results() -> None:
     with best_factors_tab:
         all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
         corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
+
+        # add rank column before selecting best features
+        all_metrics_df = all_metrics_df.sort_values(
+            by="annualized alpha %", key=abs, ascending=False
+        ).reset_index(drop=True)
+        all_metrics_df["rank"] = range(1, len(all_metrics_df) + 1)
 
         best_feature_names, factor_classifications = select_best_features(
             metrics_df=all_metrics_df,

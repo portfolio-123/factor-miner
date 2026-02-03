@@ -213,9 +213,6 @@ def calculate_factor_metrics(
     results_df_copy["Date"] = pd.to_datetime(results_df_copy["Date"])
 
     merged_data = results_df_copy.merge(benchmark, on="Date", how="inner")
-    if log_fn:
-        log_fn(f"MERGED_DATA: {len(merged_data)} rows")
-        log_fn(f"MERGED_DATA sample:\n{merged_data.head()}")
 
     metrics = []
     unique_factors = results_df["factor"].unique()
