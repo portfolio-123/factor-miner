@@ -163,7 +163,6 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         with col_left:
             items = [
                 ("Currency", dataset_metadata.currency),
-                ("Precision", dataset_metadata.precision),
                 (
                     "Pit Method",
                     PIT_METHOD_LABELS.get(

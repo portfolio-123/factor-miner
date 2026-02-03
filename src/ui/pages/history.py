@@ -16,7 +16,11 @@ def history() -> None:
     all_analyses = analysis_service.list_all(st.query_params.get("fl_id"))
 
     if not all_analyses:
-        st.info("No past analyses found for this Factor List.")
+        fl_id = st.query_params.get("fl_id")
+        st.info(
+            f"No past analyses found for this Factor List. "
+            f"[Create an analysis here](/create?fl_id={fl_id})"
+        )
         return
 
     render_history_table(all_analyses)

@@ -1,4 +1,4 @@
-## Factor Miner
+## FactorMiner
 
 ```bash
 python -m venv venv

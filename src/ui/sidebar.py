@@ -28,7 +28,7 @@ def sidebar() -> st.navigation:
     with st.sidebar:
         fl_name = st.session_state.get("fl_name", "Factor List")
         st.markdown(
-            "<h1 style='padding: 0; margin: 0;'>Factor Miner</h1>",
+            "<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>",
             unsafe_allow_html=True,
         )
         st.markdown(

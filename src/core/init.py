@@ -3,7 +3,7 @@ import streamlit as st
 
 def init() -> None:
     st.set_page_config(
-        page_title="Factor Miner - Portfolio123",
+        page_title="FactorMiner - Portfolio123",
         page_icon="assets/favicon.png",
         layout="wide",
     )
