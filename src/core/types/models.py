@@ -100,7 +100,7 @@ class NormalizationConfig(BaseModel):
     scaling: str
     scope: str
     trimPct: float
-    outliers: str
+    outliers: str | None = None
     outlierLimit: float
     mlTrainingEnd: str | None = None
     naFill: str
