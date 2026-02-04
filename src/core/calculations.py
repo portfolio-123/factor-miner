@@ -22,7 +22,6 @@ def calculate_benchmark_returns(
     df = raw_data.copy()
     benchmark_df = benchmark_data.copy()
 
-    df["Date"] = pd.to_datetime(df["Date"])
     benchmark_df["dt"] = pd.to_datetime(benchmark_df["dt"])
 
     benchmark_df = benchmark_df.sort_values("dt").dropna(subset=["dt", "close"])
@@ -75,9 +74,6 @@ def calculate_future_performance(
     """
     df = raw_data[["Date", "Ticker", price_column]].copy()
 
-    df["Date"] = pd.to_datetime(df["Date"])
-    df[price_column] = pd.to_numeric(df[price_column], errors="coerce")
-
     # sort by Ticker and Date
     df = df.sort_values(["Ticker", "Date"]).reset_index(drop=True)
 
@@ -108,10 +104,11 @@ def analyze_factors(
     top_pct: float = 30.0,
     bottom_pct: float = 30.0,
     progress_fn: Optional[Callable[[int, int, str], None]] = None,
+    batch_size: int = 50,
 ) -> pd.DataFrame:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
-    Reads factors one by one from Parquet to reduce memory usage.
+    Reads factors in batches from Parquet.
 
     Args:
         future_perf_df: Pre-calculated future performance (Date, Ticker, Future Perf)
@@ -120,33 +117,31 @@ def analyze_factors(
         top_pct: Percentage of top stocks to include (default: 30.0)
         bottom_pct: Percentage of bottom stocks to include (default: 30.0)
         progress_fn: Optional callback (completed, total, current_factor) for progress updates
+        batch_size: Number of factors to read per batch (default: 50)
 
     Returns:
         DataFrame with factor analysis results (Date, factor, ret)
     """
-
-    future_perf_df = future_perf_df.copy()
-    future_perf_df["Date"] = pd.to_datetime(future_perf_df["Date"])
-    future_perf_df["Future Perf"] = pd.to_numeric(
-        future_perf_df["Future Perf"], errors="coerce"
-    )
-
     total_factors = len(factor_columns)
     results: List[dict] = []
 
-    for idx, col in enumerate(factor_columns, 1):
-        # TODO: always reading date and ticker again, find a way to read them once and merge with the factor col individually?
-        factor_df = reader.read_columns(["Date", "Ticker", col])
-        factor_df["Date"] = pd.to_datetime(factor_df["Date"])
-        factor_df[col] = pd.to_numeric(factor_df[col], errors="coerce")
+    for batch_start in range(0, total_factors, batch_size):
+        batch_cols = factor_columns[batch_start : batch_start + batch_size]
 
-        merged = factor_df.merge(future_perf_df, on=["Date", "Ticker"], how="inner")
+        batch_df = reader.read_columns(["Date", "Ticker"] + batch_cols)
 
-        factor_results = _analyze_factor_by_date(merged, col, top_pct, bottom_pct)
-        results.extend(factor_results)
+        for idx, col in enumerate(batch_cols, batch_start + 1):
+            merged = batch_df[["Date", "Ticker", col]].merge(
+                future_perf_df, on=["Date", "Ticker"], how="inner"
+            )
 
-        if progress_fn:
-            progress_fn(idx, total_factors, col)
+            factor_results = _analyze_factor_by_date(merged, col, top_pct, bottom_pct)
+            results.extend(factor_results)
+
+            if progress_fn:
+                progress_fn(idx, total_factors, col)
+
+        del batch_df
 
     return pd.DataFrame(results)
 
@@ -198,7 +193,6 @@ def calculate_factor_metrics(
     results_df: pd.DataFrame,
     raw_data: pd.DataFrame,
     periods_per_year: int = 52,
-    log_fn: Optional[Callable[[str], None]] = None,
 ) -> pd.DataFrame:
     """
     Calculate statistical metrics for each factor.
@@ -213,12 +207,7 @@ def calculate_factor_metrics(
         DataFrame with factor metrics
     """
     benchmark = raw_data[["Date", "benchmark"]].drop_duplicates()
-    benchmark["Date"] = pd.to_datetime(benchmark["Date"])
-
-    results_df_copy = results_df.copy()
-    results_df_copy["Date"] = pd.to_datetime(results_df_copy["Date"])
-
-    merged_data = results_df_copy.merge(benchmark, on="Date", how="inner")
+    merged_data = results_df.merge(benchmark, on="Date", how="inner")
 
     metrics = []
     unique_factors = results_df["factor"].unique()

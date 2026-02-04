@@ -79,7 +79,10 @@ class AnalysisRunner:
         self.log("Benchmark data fetched successfully")
 
         def on_progress(completed: int, total: int, current_factor: str = "") -> None:
-            self.log(f"Progress: {completed}/{total} factors - {current_factor}")
+            percent = (completed * 100) // total
+            prev_percent = ((completed - 1) * 100) // total if completed > 1 else -1
+            if percent // 10 > prev_percent // 10 or completed == total:
+                self.log(f"Progress: {percent}% ({completed}/{total} factors)")
             self.update(
                 status=AnalysisStatus.RUNNING,
                 progress=AnalysisProgress(
@@ -127,7 +130,6 @@ class AnalysisRunner:
             results_df,
             raw_data,
             periods_per_year=dataset_info.frequency.periods_per_year,
-            log_fn=self.log,
         )
 
         self.log("Calculating correlation matrix...")

@@ -30,7 +30,10 @@ class ParquetDataReader:
         return raw.decode("utf-8")
 
     def read_columns(self, columns: list) -> pd.DataFrame:
-        return self._parquet_file.read(columns=columns).to_pandas()
+        df = self._parquet_file.read(columns=columns).to_pandas()
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(df["Date"])
+        return df
 
     def read_preview(self, num_rows: int = 10) -> pd.DataFrame:
         pf = self._parquet_file
@@ -58,9 +61,7 @@ class ParquetDataReader:
     def get_review_metadata(self) -> dict[str, Any]:
         return {
             "num_rows": self._parquet_file.metadata.num_rows,
-            "unique_dates": pd.to_datetime(
-                self.read_columns(["Date"])["Date"]
-            ).nunique(),
+            "unique_dates": self.read_columns(["Date"])["Date"].nunique(),
         }
 
     def get_dataset_info(self) -> DatasetConfig:
