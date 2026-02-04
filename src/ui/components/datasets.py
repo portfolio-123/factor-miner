@@ -31,8 +31,8 @@ def load_active_dataset() -> DatasetConfig | None:
 
     try:
         return dataset_service(fl_id).get_metadata()
-    except Exception:
-        st.error("Failed to load dataset")
+    except Exception as e:
+        st.error(f"Failed to load dataset: {e}")
         return None
 
 
