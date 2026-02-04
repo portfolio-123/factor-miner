@@ -154,37 +154,43 @@ def analyze_factors(
 def _analyze_factor_by_date(
     merged_df: pd.DataFrame, factor_col: str, top_pct: float, bottom_pct: float
 ) -> List[dict]:
-    def calc_return(group: pd.DataFrame) -> float:
-        # discard rows with missing values
-        valid = group[[factor_col, "Future Perf"]].dropna()
-        n = len(valid)
-        # calculate top and bottom n
-        top_n = int(n * (top_pct / 100.0))
-        bottom_n = int(n * (bottom_pct / 100.0))
+    # TODO: determine how to handle missing values, or stocks exiting/entering the universe
+    valid = merged_df[[factor_col, "Future Perf", "Date"]].dropna()
 
-        if top_n == 0 or bottom_n == 0:
-            return np.nan
+    # sort once per date and factor, grab first X as topx, last X as bottomx
+    valid = valid.sort_values(["Date", factor_col]).reset_index(drop=True)
 
-        values = valid[factor_col].values
-        perf = valid["Future Perf"].values
+    # count how many stocks in each date, per factor
+    valid["group_size"] = valid.groupby("Date")[factor_col].transform("size")
+    # give auto-increment rank to each stock. lowest are towards bottomx, highest to topx
+    valid["rank_in_group"] = valid.groupby("Date").cumcount()
 
-        # grab top n indices
-        top_idx = np.argpartition(values, -top_n)[-top_n:]
-        # grab bottom n indices
-        bottom_idx = np.argpartition(values, bottom_n)[:bottom_n]
+    # how many stocks to include in topx and bottomx
+    valid["top_n"] = (valid["group_size"] * (top_pct / 100.0)).astype(int)
+    valid["bottom_n"] = (valid["group_size"] * (bottom_pct / 100.0)).astype(int)
 
-        # calculate return
-        return (perf[top_idx].sum() - perf[bottom_idx].sum()) / (top_n + bottom_n)
+    valid["is_bottom"] = valid["rank_in_group"] < valid["bottom_n"]
+    valid["is_top"] = valid["rank_in_group"] >= (valid["group_size"] - valid["top_n"])
 
-    # group by date to compare
-    results = merged_df.groupby("Date", sort=False).apply(
-        calc_return, include_groups=False
+    # grab topx rows per date, sum future perf % returns, and average it on "top_n"
+    top_df = valid[valid["is_top"]].groupby("Date").agg(
+        top_sum=("Future Perf", "sum"),
+        top_n=("top_n", "first")
+    )
+    bottom_df = valid[valid["is_bottom"]].groupby("Date").agg(
+        bottom_sum=("Future Perf", "sum"),
+        bottom_n=("bottom_n", "first")
     )
 
-    valid_results = results.dropna()
+    # combine topx and bottomx rows per date, and calculate the return metric
+    combined = top_df.join(bottom_df, how="inner")
+    combined["ret"] = (combined["top_sum"] - combined["bottom_sum"]) / (
+        combined["top_n"] + combined["bottom_n"]
+    )
+
     return [
-        {"Date": date, "factor": factor_col, "ret": val}
-        for date, val in valid_results.items()
+        {"Date": date, "factor": factor_col, "ret": row["ret"]}
+        for date, row in combined.iterrows()
     ]
 
 
