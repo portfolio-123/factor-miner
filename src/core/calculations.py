@@ -161,32 +161,33 @@ def _analyze_factor_by_date(
     valid["rank_in_group"] = valid.groupby("Date").cumcount()
 
     # how many stocks to include in topx and bottomx
-    valid["top_n"] = (valid["group_size"] * (top_pct / 100.0)).astype(int)
-    valid["bottom_n"] = (valid["group_size"] * (bottom_pct / 100.0)).astype(int)
+    top_n = (valid["group_size"] * (top_pct / 100.0)).astype(int)
+    bottom_n = (valid["group_size"] * (bottom_pct / 100.0)).astype(int)
 
-    valid["is_bottom"] = valid["rank_in_group"] < valid["bottom_n"]
-    valid["is_top"] = valid["rank_in_group"] >= (valid["group_size"] - valid["top_n"])
+    is_bottom = valid["rank_in_group"] < bottom_n
+    is_top = valid["rank_in_group"] >= (valid["group_size"] - top_n)
 
-    # grab topx rows per date, sum future perf % returns, and average it on "top_n"
-    top_df = valid[valid["is_top"]].groupby("Date").agg(
-        top_sum=("Future Perf", "sum"),
-        top_n=("top_n", "first")
+    # mark non-top and non-bottom stocks as 0
+    perf = valid["Future Perf"].values
+    valid["top_perf"] = np.where(is_top, perf, 0.0)
+    valid["bottom_perf"] = np.where(is_bottom, perf, 0.0)
+    valid["top_n"] = top_n
+    valid["bottom_n"] = bottom_n
+
+    # grab topx and bottomx rows per date, sum future perf % returns
+    agg = valid.groupby("Date", sort=False).agg(
+        top_sum=("top_perf", "sum"),
+        bottom_sum=("bottom_perf", "sum"),
+        top_n=("top_n", "first"),
+        bottom_n=("bottom_n", "first"),
     )
-    bottom_df = valid[valid["is_bottom"]].groupby("Date").agg(
-        bottom_sum=("Future Perf", "sum"),
-        bottom_n=("bottom_n", "first")
-    )
 
-    # combine topx and bottomx rows per date, and calculate the return metric
-    combined = top_df.join(bottom_df, how="inner")
-    combined["ret"] = (combined["top_sum"] - combined["bottom_sum"]) / (
-        combined["top_n"] + combined["bottom_n"]
-    )
+    # combine topx and bottomx per date, and calculate the return metric
+    agg["ret"] = (agg["top_sum"] - agg["bottom_sum"]) / (agg["top_n"] + agg["bottom_n"])
+    agg["factor"] = factor_col
 
-    return [
-        {"Date": date, "factor": factor_col, "ret": row["ret"]}
-        for date, row in combined.iterrows()
-    ]
+    # convert the dataframe to a list of dictionaries
+    return agg[["factor", "ret"]].reset_index().to_dict("records")
 
 
 def calculate_factor_metrics(
