@@ -49,8 +49,12 @@ def login():
 
     if token:
         login_container.empty()
-        _authenticate(token)
-        return
+        try:
+            _authenticate(token)
+            return
+        except PermissionError as e:
+            st.error(str(e))
+            st.stop()
 
     st.stop()
 
