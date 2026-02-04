@@ -38,7 +38,7 @@ class AnalysisRunner:
 
     def log(self, message: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted = f"[{timestamp}] [WORKER] {message}"
+        formatted = f"[{timestamp}] {message}"
 
         if self.analysis:
             self.analysis = self.service.append_log(self.analysis, formatted)
