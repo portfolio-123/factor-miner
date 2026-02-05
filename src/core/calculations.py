@@ -3,11 +3,13 @@ import numpy as np
 import scipy.stats as stats
 from typing import Callable, List, Optional
 from src.services.readers import ParquetDataReader
+from src.core.types.models import Frequency
 
 
 def calculate_benchmark_returns(
     raw_data: pd.DataFrame,
     benchmark_data: pd.DataFrame,
+    frequency: Frequency,
 ) -> pd.DataFrame:
     """
     Calculate benchmark returns for each date in the dataset based on data frequency.
@@ -15,6 +17,7 @@ def calculate_benchmark_returns(
     Args:
         raw_data: Dataset with 'Date' column
         benchmark_data: Benchmark price data with 'dt' and 'close' columns
+        frequency: Dataset frequency to determine the lookback period
 
     Returns:
         DataFrame with 'benchmark' column added
@@ -26,8 +29,9 @@ def calculate_benchmark_returns(
 
     benchmark_df = benchmark_df.sort_values("dt").dropna(subset=["dt", "close"])
 
+    lookback_days = frequency.weeks * 7
     unique_dates = pd.DataFrame({"Date": df["Date"].unique()}).sort_values("Date")
-    unique_dates["Prev_Date"] = unique_dates["Date"] - pd.Timedelta(days=7)
+    unique_dates["Prev_Date"] = unique_dates["Date"] - pd.Timedelta(days=lookback_days)
 
     current_prices = pd.merge_asof(
         unique_dates,
@@ -57,49 +61,11 @@ def calculate_benchmark_returns(
     return result_df
 
 
-def calculate_future_performance(
-    raw_data: pd.DataFrame,
-    price_column: str,
-) -> pd.DataFrame:
-    """
-    Add a column "future performance" to the dataframe, which is the return of the next period for that same stock.
-    (e.g. 0.07, or 7%)
-
-    Args:
-        raw_data: DataFrame with Date, Ticker, price columns
-        price_column: Name of the price column
-
-    Returns:
-        DataFrame with Date, Ticker, and 'Future Perf' columns
-    """
-    df = raw_data[["Date", "Ticker", price_column]].copy()
-
-    # sort by Ticker and Date
-    df = df.sort_values(["Ticker", "Date"]).reset_index(drop=True)
-
-    # shift to get next period's values for each ticker
-    df["Next_Date"] = df.groupby("Ticker")["Date"].shift(-1)
-    df["Next_Price"] = df.groupby("Ticker")[price_column].shift(-1)
-
-    # calculate return only where there is a price and next price
-    valid_mask = (df[price_column].notna()) & (df["Next_Price"].notna())
-
-    # only add future perf column for valid rows
-    df["Future Perf"] = float("nan")
-    df.loc[valid_mask, "Future Perf"] = (
-        df.loc[valid_mask, "Next_Price"] - df.loc[valid_mask, price_column]
-    ) / df.loc[valid_mask, price_column]
-
-    # drop temporary columns
-    df = df.drop(columns=["Next_Date", "Next_Price", price_column])
-
-    return df
-
-
 def analyze_factors(
     future_perf_df: pd.DataFrame,
     reader: ParquetDataReader,
     *,
+    future_perf_column: str,
     factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
     bottom_pct: float = 30.0,
@@ -111,8 +77,9 @@ def analyze_factors(
     Reads factors in batches from Parquet.
 
     Args:
-        future_perf_df: Pre-calculated future performance (Date, Ticker, Future Perf)
+        future_perf_df: Pre-calculated future performance DataFrame
         reader: ParquetDataReader for streaming factor data
+        future_perf_column: Name of the future performance column
         factor_columns: List of factor columns to analyze (auto-detected if None)
         top_pct: Percentage of top stocks to include (default: 30.0)
         bottom_pct: Percentage of bottom stocks to include (default: 30.0)
@@ -135,7 +102,7 @@ def analyze_factors(
                 future_perf_df, on=["Date", "Ticker"], how="inner"
             )
 
-            factor_results = _analyze_factor_by_date(merged, col, top_pct, bottom_pct)
+            factor_results = _analyze_factor_by_date(merged, col, future_perf_column, top_pct, bottom_pct)
             results.extend(factor_results)
 
             if progress_fn:
@@ -147,10 +114,10 @@ def analyze_factors(
 
 
 def _analyze_factor_by_date(
-    merged_df: pd.DataFrame, factor_col: str, top_pct: float, bottom_pct: float
+    merged_df: pd.DataFrame, factor_col: str, future_perf_column: str, top_pct: float, bottom_pct: float
 ) -> List[dict]:
     # TODO: determine how to handle missing values, or stocks exiting/entering the universe
-    valid = merged_df[[factor_col, "Future Perf", "Date"]].dropna()
+    valid = merged_df[[factor_col, future_perf_column, "Date"]].dropna()
 
     # sort once per date and factor, grab first X as topx, last X as bottomx
     valid = valid.sort_values(["Date", factor_col]).reset_index(drop=True)
@@ -168,7 +135,7 @@ def _analyze_factor_by_date(
     is_top = valid["rank_in_group"] >= (valid["group_size"] - top_n)
 
     # mark non-top and non-bottom stocks as 0
-    perf = valid["Future Perf"].values
+    perf = valid[future_perf_column].values
     valid["top_perf"] = np.where(is_top, perf, 0.0)
     valid["bottom_perf"] = np.where(is_bottom, perf, 0.0)
     valid["top_n"] = top_n

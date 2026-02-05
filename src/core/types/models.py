@@ -68,17 +68,25 @@ class Frequency(IntEnum):
     FIFTY_TWO_WEEKS = 10
 
     @property
-    def periods_per_year(self) -> int:
+    def weeks(self) -> int:
         mapping = {
-            Frequency.WEEKLY: 52,
-            Frequency.BIWEEKLY: 26,
-            Frequency.FOUR_WEEKS: 13,
-            Frequency.EIGHT_WEEKS: 6,
-            Frequency.THIRTEEN_WEEKS: 4,
-            Frequency.TWENTY_SIX_WEEKS: 2,
-            Frequency.FIFTY_TWO_WEEKS: 1,
+            Frequency.WEEKLY: 1,
+            Frequency.BIWEEKLY: 2,
+            Frequency.FOUR_WEEKS: 4,
+            Frequency.EIGHT_WEEKS: 8,
+            Frequency.THIRTEEN_WEEKS: 13,
+            Frequency.TWENTY_SIX_WEEKS: 26,
+            Frequency.FIFTY_TWO_WEEKS: 52,
         }
         return mapping[self]
+
+    @property
+    def trading_days(self) -> int:
+        return self.weeks * 5
+
+    @property
+    def periods_per_year(self) -> int:
+        return 52 // self.weeks
 
 
 class SettingsForm(BaseModel):
