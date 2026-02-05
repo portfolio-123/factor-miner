@@ -68,7 +68,6 @@ def _render_auth_form() -> str | None:
             api_id = st.text_input("API ID", placeholder="Enter your API ID")
             api_key = st.text_input(
                 "API Key",
-                type="password",
                 placeholder="Enter your API Key",
             )
 
