@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.core.config.constants import PRICE_COLUMN, REQUIRED_COLUMNS
-from src.core.config.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
 from src.core.types.models import (
     Analysis,
     AnalysisStatus,
@@ -18,7 +17,7 @@ from src.core.types.models import (
 )
 from src.core.utils.common import serialize_dataframe
 from src.workers.analysis_service import AnalysisService
-from src.services.readers import ParquetDataReader
+from src.services.dataset_service import DatasetService
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import (
     calculate_benchmark_returns,
@@ -33,7 +32,7 @@ class AnalysisRunner:
     def __init__(self, fl_id: str, analysis_id: str):
         self.fl_id = fl_id
         self.analysis_id = analysis_id
-        self.service = AnalysisService(FACTORMINER_DIR)
+        self.service = AnalysisService()
         self.analysis: Analysis | None = None
 
     def log(self, message: str) -> None:
@@ -51,103 +50,99 @@ class AnalysisRunner:
         self.log("Starting analysis...")
 
         params = self.analysis.params
-        dataset_path = str(FACTOR_LIST_DIR / self.fl_id)
-        self.log(f"Processing dataset: {dataset_path}")
+        self.log(f"Processing dataset: {self.fl_id}")
 
-        reader = ParquetDataReader(dataset_path)
+        with DatasetService(self.fl_id) as dataset_svc:
+            dataset_info = dataset_svc.get_metadata()
 
-        dataset_info = reader.get_dataset_info()
+            is_date_type = dataset_info.type == DatasetType.DATE
+            base_dt = dataset_info.asOfDt if is_date_type else dataset_info.startDt
+            end_dt = dataset_info.asOfDt if is_date_type else dataset_info.endDt
+            start_dt = pd.to_datetime(base_dt) - pd.Timedelta(days=7)
 
-        if dataset_info.type == DatasetType.DATE:
-            start_dt = pd.to_datetime(dataset_info.asOfDt) - pd.Timedelta(days=7)
-            end_dt = dataset_info.asOfDt
-        else:
-            start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
-            end_dt = dataset_info.endDt
+            self.log(f"Fetching benchmark data for {params.benchmark_ticker}...")
+            try:
+                benchmark_data = fetch_benchmark_data(
+                    benchmark_ticker=params.benchmark_ticker,
+                    access_token=params.access_token,
+                    start_date=start_dt.strftime("%Y-%m-%d"),
+                    end_date=end_dt,
+                )
+            finally:
+                self.analysis = self.service.clear_credentials(self.analysis)
 
-        self.log(f"Fetching benchmark data for {params.benchmark_ticker}...")
-        try:
-            benchmark_data = fetch_benchmark_data(
-                benchmark_ticker=params.benchmark_ticker,
-                access_token=params.access_token,
-                start_date=start_dt.strftime("%Y-%m-%d"),
-                end_date=end_dt,
-            )
-        finally:
-            self.analysis = self.service.clear_credentials(self.analysis)
+            self.log("Benchmark data fetched successfully")
 
-        self.log("Benchmark data fetched successfully")
+            def on_progress(completed: int, total: int, current_factor: str = "") -> None:
+                percent = (completed * 100) // total
+                prev_percent = ((completed - 1) * 100) // total if completed > 1 else -1
+                if percent // 10 > prev_percent // 10 or completed == total:
+                    self.log(f"Progress: {percent}% ({completed}/{total} factors)")
+                self.update(
+                    status=AnalysisStatus.RUNNING,
+                    progress=AnalysisProgress(
+                        completed=completed,
+                        total=total,
+                        current_factor=current_factor,
+                    ),
+                )
 
-        def on_progress(completed: int, total: int, current_factor: str = "") -> None:
-            percent = (completed * 100) // total
-            prev_percent = ((completed - 1) * 100) // total if completed > 1 else -1
-            if percent // 10 > prev_percent // 10 or completed == total:
-                self.log(f"Progress: {percent}% ({completed}/{total} factors)")
+            factor_columns = [
+                col
+                for col in dataset_svc.column_names
+                if col not in REQUIRED_COLUMNS + ["benchmark", "Future Perf"]
+            ]
+
             self.update(
                 status=AnalysisStatus.RUNNING,
-                progress=AnalysisProgress(
-                    completed=completed,
-                    total=total,
-                    current_factor=current_factor,
-                ),
+                progress=AnalysisProgress(completed=0, total=len(factor_columns)),
             )
 
-        factor_columns = [
-            col
-            for col in reader.column_names
-            if col not in REQUIRED_COLUMNS + ["benchmark", "Future Perf"]
-        ]
+            self.log("Calculating future performance...")
 
-        self.update(
-            status=AnalysisStatus.RUNNING,
-            progress=AnalysisProgress(completed=0, total=len(factor_columns)),
-        )
+            perf_core = dataset_svc.read_columns(["Date", "Ticker", PRICE_COLUMN])
+            future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
+            self.log("Analyzing factors...")
+            results_df = analyze_factors(
+                future_perf_df,
+                dataset_svc,
+                factor_columns=factor_columns,
+                top_pct=params.top_pct,
+                bottom_pct=params.bottom_pct,
+                progress_fn=on_progress,
+            )
+            raw_data = dataset_svc.read_columns(["Date"])
+            self.log("Calculating benchmark returns...")
+            raw_data = calculate_benchmark_returns(
+                raw_data,
+                benchmark_data,
+            )
+            if results_df.empty:
+                raise ValueError("No results from factor analysis")
 
-        self.log("Calculating future performance...")
+            self.log("Calculating factor metrics...")
+            metrics_df = calculate_factor_metrics(
+                results_df,
+                raw_data,
+                periods_per_year=dataset_info.frequency.periods_per_year,
+            )
 
-        perf_core = reader.read_columns(["Date", "Ticker", PRICE_COLUMN])
-        future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
-        self.log("Analyzing factors...")
-        results_df = analyze_factors(
-            future_perf_df,
-            reader,
-            factor_columns=factor_columns,
-            top_pct=params.top_pct,
-            bottom_pct=params.bottom_pct,
-            progress_fn=on_progress,
-        )
-        raw_data = reader.read_columns(["Date"])
-        self.log("Calculating benchmark returns...")
-        raw_data = calculate_benchmark_returns(
-            raw_data,
-            benchmark_data,
-        )
-        if results_df.empty:
-            raise ValueError("No results from factor analysis")
+            self.log("Calculating correlation matrix...")
+            corr_matrix = calculate_correlation_matrix(results_df)
 
-        self.log("Calculating factor metrics...")
-        metrics_df = calculate_factor_metrics(
-            results_df,
-            raw_data,
-            periods_per_year=dataset_info.frequency.periods_per_year,
-        )
+            metrics_df = metrics_df.round(4)
+            corr_matrix = corr_matrix.round(4)
 
-        self.log("Calculating correlation matrix...")
-        corr_matrix = calculate_correlation_matrix(results_df)
+            avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
+            self.log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")
 
-        metrics_df = metrics_df.round(4)
-        corr_matrix = corr_matrix.round(4)
+            self.log("Analysis complete!")
 
-        avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
-        self.log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")
-
-        self.log("Analysis complete!")
-
-        return {
-            "all_metrics": serialize_dataframe(metrics_df),
-            "all_corr_matrix": serialize_dataframe(corr_matrix),
-            "avg_abs_alpha": avg_abs_alpha,
-        }
+            return {
+                "all_metrics": serialize_dataframe(metrics_df),
+                "all_corr_matrix": serialize_dataframe(corr_matrix),
+                "avg_abs_alpha": avg_abs_alpha,
+            }
 
     def execute(self) -> None:
         self.log(f"Worker started for analysis: {self.fl_id}/{self.analysis_id}")

@@ -85,6 +85,8 @@ class BackupDatasetService:
         with ParquetDataReader(self.get_backup_path(version)) as reader:
             metadata = reader.get_dataset_info()
         metadata.version = version
+        current = DatasetService(self.fl_id).current_version
+        metadata.active = current is not None and version == current
         return metadata
 
     def load_all_versions(self) -> dict[str, DatasetConfig]:
