@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.core.config.constants import get_future_perf_column, PRICE_COLUMN, REQUIRED_COLUMNS
+from src.core.config.constants import PRICE_COLUMN, REQUIRED_COLUMNS
 from src.core.types.models import (
     Analysis,
     AnalysisStatus,
@@ -21,6 +21,7 @@ from src.services.dataset_service import DatasetService
 from src.services.p123_client import fetch_benchmark_data
 from src.core.calculations import (
     calculate_benchmark_returns,
+    calculate_future_performance,
     analyze_factors,
     calculate_factor_metrics,
     calculate_correlation_matrix,
@@ -86,11 +87,10 @@ class AnalysisRunner:
                     ),
                 )
 
-            future_perf_column = get_future_perf_column(dataset_info.frequency)
             factor_columns = [
                 col
                 for col in dataset_svc.column_names
-                if col not in REQUIRED_COLUMNS + ["benchmark", future_perf_column]
+                if col not in REQUIRED_COLUMNS
             ]
 
             self.update(
@@ -98,14 +98,13 @@ class AnalysisRunner:
                 progress=AnalysisProgress(completed=0, total=len(factor_columns)),
             )
 
-            self.log("Reading future performance data...")
-            future_perf_df = dataset_svc.read_columns(["Date", "Ticker", future_perf_column])
-            future_perf_df[future_perf_column] = future_perf_df[future_perf_column] / 100
+            self.log("Calculating future performance...")
+            perf_core = dataset_svc.read_columns(["Date", "Ticker", PRICE_COLUMN])
+            future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
             self.log("Analyzing factors...")
             results_df = analyze_factors(
                 future_perf_df,
                 dataset_svc,
-                future_perf_column=future_perf_column,
                 factor_columns=factor_columns,
                 top_pct=params.top_pct,
                 bottom_pct=params.bottom_pct,

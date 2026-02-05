@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, List, Optional
 from src.services.readers import ParquetDataReader
 from src.core.types.models import Frequency
+from src.core.config.constants import INTERNAL_FUTURE_PERF_COL, INTERNAL_BENCHMARK_COL
 
 
 def calculate_benchmark_returns(
@@ -52,21 +53,59 @@ def calculate_benchmark_returns(
         tolerance=pd.Timedelta(days=4),
     ).rename(columns={"close": "prev_price"})
 
-    last_period_prices["benchmark"] = (
+    last_period_prices[INTERNAL_BENCHMARK_COL] = (
         last_period_prices["curr_price"] - last_period_prices["prev_price"]
     ) / last_period_prices["prev_price"]
 
     result_df = df.merge(
-        last_period_prices[["Date", "benchmark"]], on="Date", how="left"
+        last_period_prices[["Date", INTERNAL_BENCHMARK_COL]], on="Date", how="left"
     )
     return result_df
+
+
+def calculate_future_performance(
+    raw_data: pd.DataFrame,
+    price_column: str,
+) -> pd.DataFrame:
+    """
+    Add a column for future performance to the dataframe, which is the return of the next period for that same stock.
+    (e.g. 0.07, or 7%)
+
+    Args:
+        raw_data: DataFrame with Date, Ticker, price columns
+        price_column: Name of the price column
+
+    Returns:
+        DataFrame with Date, Ticker, and internal future perf column
+    """
+    df = raw_data[["Date", "Ticker", price_column]].copy()
+
+    # sort by Ticker and Date
+    df = df.sort_values(["Ticker", "Date"]).reset_index(drop=True)
+
+    # shift to get next period's values for each ticker
+    df["Next_Date"] = df.groupby("Ticker")["Date"].shift(-1)
+    df["Next_Price"] = df.groupby("Ticker")[price_column].shift(-1)
+
+    # calculate return only where there is a price and next price
+    valid_mask = (df[price_column].notna()) & (df["Next_Price"].notna())
+
+    # only add future perf column for valid rows
+    df[INTERNAL_FUTURE_PERF_COL] = float("nan")
+    df.loc[valid_mask, INTERNAL_FUTURE_PERF_COL] = (
+        df.loc[valid_mask, "Next_Price"] - df.loc[valid_mask, price_column]
+    ) / df.loc[valid_mask, price_column]
+
+    # drop temporary columns
+    df = df.drop(columns=["Next_Date", "Next_Price", price_column])
+
+    return df
 
 
 def analyze_factors(
     future_perf_df: pd.DataFrame,
     reader: ParquetDataReader,
     *,
-    future_perf_column: str,
     factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
     bottom_pct: float = 30.0,
@@ -78,9 +117,8 @@ def analyze_factors(
     Reads factors in batches from Parquet.
 
     Args:
-        future_perf_df: Pre-calculated future performance DataFrame
+        future_perf_df: Pre-calculated future performance (Date, Ticker, internal future perf column)
         reader: ParquetDataReader for streaming factor data
-        future_perf_column: Name of the future performance column
         factor_columns: List of factor columns to analyze (auto-detected if None)
         top_pct: Percentage of top stocks to include (default: 30.0)
         bottom_pct: Percentage of bottom stocks to include (default: 30.0)
@@ -101,7 +139,7 @@ def analyze_factors(
     merged_base = base_df.merge(future_perf_df, on=["Date", "Ticker"], how="inner")
     valid_indices = merged_base["_row_idx"].to_numpy()
     dates_arr = merged_base["Date"].to_numpy()
-    perf_arr = merged_base[future_perf_column].to_numpy()
+    perf_arr = merged_base[INTERNAL_FUTURE_PERF_COL].to_numpy()
 
     del base_df, merged_base
     # multi threading function to process a single factor
@@ -202,7 +240,7 @@ def calculate_factor_metrics(
     Returns:
         DataFrame with factor metrics
     """
-    benchmark = raw_data[["Date", "benchmark"]].drop_duplicates()
+    benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
     merged_data = results_df.merge(benchmark, on="Date", how="inner")
 
     metrics = []
@@ -212,12 +250,12 @@ def calculate_factor_metrics(
         subset = merged_data[merged_data["factor"] == col]
 
         valid_subset = subset[
-            np.isfinite(subset["ret"]) & np.isfinite(subset["benchmark"])
+            np.isfinite(subset["ret"]) & np.isfinite(subset[INTERNAL_BENCHMARK_COL])
         ]
 
         if len(valid_subset) < 2:
             continue  # Need at least 2 points for regression
-        x = valid_subset["benchmark"]
+        x = valid_subset[INTERNAL_BENCHMARK_COL]
         y = valid_subset["ret"]
 
         # Linear regression: return = alpha + beta * benchmark

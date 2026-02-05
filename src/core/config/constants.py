@@ -6,9 +6,9 @@ from src.core.types.models import DatasetType, Frequency, ScalingMethod
 PRICE_COLUMN: Final[str] = "Last Close"
 REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID", PRICE_COLUMN]
 
+INTERNAL_FUTURE_PERF_COL: Final[str] = "__future_perf__"
+INTERNAL_BENCHMARK_COL: Final[str] = "__benchmark__"
 
-def get_future_perf_column(frequency: Frequency) -> str:
-    return f"Future {frequency.trading_days}D Change"
 DEFAULT_BENCHMARK: Final[str] = "SPY:USA"
 DEFAULT_MIN_ALPHA: Final[float] = 0.5
 DEFAULT_TOP_PCT: Final[float] = 20.0
