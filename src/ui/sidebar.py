@@ -1,5 +1,6 @@
 import streamlit as st
 
+from src.core.config.environment import P123_BASE_URL
 from src.ui.pages.about import about
 from src.ui.pages.history import history
 from src.ui.pages.create import create_form
@@ -27,12 +28,13 @@ def sidebar() -> st.navigation:
 
     with st.sidebar:
         fl_name = st.session_state.get("fl_name", "Factor List")
+        fl_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}"
         st.markdown(
             "<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<h4 style='padding: 0; margin: 0;'>{fl_name} ({fl_id})</h4>",
+            f"<a href='{fl_url}' target='_blank' style='text-decoration: underline;'>{fl_name}</a>",
             unsafe_allow_html=True,
         )
 
