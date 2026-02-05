@@ -11,13 +11,13 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+COPY ./requirements.txt /app/
+RUN pip3 install -r requirements.txt
+
 COPY ./src /app/src
 COPY ./app.py /app/
-COPY ./requirements.txt /app/
 COPY ./.streamlit /app/.streamlit
 COPY ./assets /app/assets
-
-RUN pip3 install -r requirements.txt
 
 EXPOSE 8501
 
