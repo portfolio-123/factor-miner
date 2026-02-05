@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, List, Optional
 from src.services.readers import ParquetDataReader
 from src.core.types.models import Frequency
@@ -103,6 +104,12 @@ def analyze_factors(
     perf_arr = merged_base[future_perf_column].to_numpy()
 
     del base_df, merged_base
+    # multi threading function to process a single factor
+    def process_factor(col: str) -> List[dict]:
+        factor_arr = batch_df[col].to_numpy()[valid_indices]
+        return _analyze_factor_by_date(
+            dates_arr, factor_arr, perf_arr, col, top_pct, bottom_pct
+        )
 
     for batch_start in range(0, total_factors, batch_size):
         batch_cols = factor_columns[batch_start : batch_start + batch_size]
@@ -110,17 +117,16 @@ def analyze_factors(
         # read factor columns in batches
         batch_df = reader.read_columns(batch_cols)
 
-        for idx, col in enumerate(batch_cols, batch_start + 1):
-            # extract factor values at valid indices
-            factor_arr = batch_df[col].to_numpy()[valid_indices]
+        # process factors in parallel
+        with ThreadPoolExecutor() as executor:
+            batch_results = list(executor.map(process_factor, batch_cols))
 
-            factor_results = _analyze_factor_by_date(
-                dates_arr, factor_arr, perf_arr, col, top_pct, bottom_pct
-            )
+        for factor_results in batch_results:
             results.extend(factor_results)
 
-            if progress_fn:
-                progress_fn(idx, total_factors, col)
+        completed = batch_start + len(batch_cols)
+        if progress_fn:
+            progress_fn(completed, total_factors, batch_cols[-1])
 
         del batch_df
 
