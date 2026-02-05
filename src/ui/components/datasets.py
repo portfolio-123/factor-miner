@@ -10,7 +10,7 @@ from src.core.config.constants import (
 )
 from src.core.config.environment import P123_BASE_URL, FACTOR_LIST_DIR
 from src.core.types.models import DatasetConfig, DatasetType, ScalingMethod, ScopeType
-from src.services.dataset_service import dataset_service
+from src.services.dataset_service import DatasetService
 from src.ui.components.common import (
     render_info_item,
     render_big_info_item,
@@ -30,7 +30,8 @@ def load_active_dataset() -> DatasetConfig | None:
         return None
 
     try:
-        return dataset_service(fl_id).get_metadata()
+        with DatasetService(fl_id) as svc:
+            return svc.get_metadata()
     except Exception as e:
         st.error(f"Failed to load dataset: {e}")
         return None
@@ -111,7 +112,8 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             ):
                 if dataset_metadata.active:
                     fl_id = st.query_params.get("fl_id")
-                    preview_df, stats = dataset_service(fl_id).get_review_data()
+                    with DatasetService(fl_id) as svc:
+                        preview_df, stats = svc.get_review_data()
                     show_factors_modal(
                         pd.DataFrame(dataset_metadata.formulas),
                         stats,

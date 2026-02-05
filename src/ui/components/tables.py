@@ -4,7 +4,7 @@ from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 from src.core.types.models import AnalysisSummary, DatasetType
 from src.core.utils.common import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
-from src.services.dataset_service import dataset_service
+from src.services.dataset_service import BackupDatasetService
 
 
 def render_correlation_matrix(
@@ -256,7 +256,7 @@ def render_results_table(
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
-    datasets = dataset_service(fl_id).load_all_versions()
+    datasets = BackupDatasetService(fl_id).load_all_versions()
 
     data = []
     for a in analyses:

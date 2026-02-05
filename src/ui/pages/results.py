@@ -16,7 +16,7 @@ from src.core.utils.common import (
 )
 from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
-from src.services.dataset_service import dataset_service
+from src.services.dataset_service import BackupDatasetService
 
 
 def results() -> None:
@@ -31,7 +31,7 @@ def results() -> None:
         return
 
     try:
-        dataset_metadata = dataset_service(fl_id).get_metadata(analysis.dataset_version)
+        dataset_metadata = BackupDatasetService(fl_id).get_metadata(analysis.dataset_version)
         st.session_state.formulas_data = pd.DataFrame(dataset_metadata.formulas)
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")

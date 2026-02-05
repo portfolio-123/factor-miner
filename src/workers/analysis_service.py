@@ -17,14 +17,14 @@ from src.core.types.models import (
     AnalysisStatus,
 )
 from src.core.utils.common import read_json_file
-from src.services.dataset_service import dataset_service
+from src.services.dataset_service import BackupDatasetService, DatasetService
 
 logger = logging.getLogger(__name__)
 
 
 class AnalysisService:
-    def __init__(self, base_dir):
-        self.base_dir = base_dir
+    def __init__(self):
+        self.base_dir = FACTORMINER_DIR
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_path(self, fl_id: str, analysis_id: str) -> Path:
@@ -68,10 +68,10 @@ class AnalysisService:
         fl_dir.mkdir(parents=True, exist_ok=True)
 
         # Create backup of dataset metadata if it doesn't exist
-        dataset_svc = dataset_service(fl_id)
-        dest_path = dataset_svc.get_backup_path(dataset_version)
+        dest_path = BackupDatasetService(fl_id).get_backup_path(dataset_version)
         if not dest_path.exists():
-            dataset_svc.backup_metadata(dest_path)
+            with DatasetService(fl_id) as dataset_svc:
+                dataset_svc.backup_metadata(dest_path)
 
         try:
             self._write(analysis)
@@ -141,4 +141,4 @@ class AnalysisService:
         return analysis
 
 
-analysis_service = AnalysisService(FACTORMINER_DIR)
+analysis_service = AnalysisService()

@@ -11,7 +11,7 @@ from src.core.config.constants import (
     DEFAULT_N_FACTORS,
 )
 from src.core.types.models import AnalysisParams
-from src.services.dataset_service import dataset_service
+from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
 from src.workers.analysis_service import analysis_service
@@ -20,7 +20,7 @@ from src.workers.analysis_service import analysis_service
 def _submit_analysis_creation() -> None:
     fl_id = st.query_params.get("fl_id")
 
-    dataset_version = dataset_service(fl_id).current_version
+    dataset_version = DatasetService(fl_id).current_version
     analysis_id = uuid.uuid4().hex[:8]
 
     try:

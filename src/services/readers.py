@@ -1,5 +1,5 @@
-from functools import cached_property
 import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -9,12 +9,18 @@ from src.core.types.models import DatasetConfig
 
 
 class ParquetDataReader:
-    def __init__(self, file_path: str):
-        self.file_path = file_path
+    def __init__(self, file_path: Path | str):
+        self._parquet_file = pq.ParquetFile(str(file_path))
 
-    @cached_property
-    def _parquet_file(self) -> pq.ParquetFile:
-        return pq.ParquetFile(self.file_path)
+    def close(self) -> None:
+        self._parquet_file.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     @property
     def column_names(self) -> list[str]:
@@ -80,3 +86,6 @@ class ParquetDataReader:
         dataset_info.pop("preprocessor", None)
 
         return DatasetConfig(**dataset_info)
+
+    def get_schema_metadata(self) -> dict[bytes, bytes] | None:
+        return self._parquet_file.schema_arrow.metadata
