@@ -92,17 +92,31 @@ def analyze_factors(
     total_factors = len(factor_columns)
     results: List[dict] = []
 
+    # read date/ticker once and track row indices
+    base_df = reader.read_columns(["Date", "Ticker"])
+    base_df["_row_idx"] = np.arange(len(base_df))
+
+    # add future performance column to base dataframe. TODO: determine how to handle missing values, or stocks exiting/entering the universe
+    merged_base = base_df.merge(future_perf_df, on=["Date", "Ticker"], how="inner")
+    valid_indices = merged_base["_row_idx"].to_numpy()
+    dates_arr = merged_base["Date"].to_numpy()
+    perf_arr = merged_base[future_perf_column].to_numpy()
+
+    del base_df, merged_base
+
     for batch_start in range(0, total_factors, batch_size):
         batch_cols = factor_columns[batch_start : batch_start + batch_size]
 
-        batch_df = reader.read_columns(["Date", "Ticker"] + batch_cols)
+        # read factor columns in batches
+        batch_df = reader.read_columns(batch_cols)
 
         for idx, col in enumerate(batch_cols, batch_start + 1):
-            merged = batch_df[["Date", "Ticker", col]].merge(
-                future_perf_df, on=["Date", "Ticker"], how="inner"
-            )
+            # extract factor values at valid indices
+            factor_arr = batch_df[col].to_numpy()[valid_indices]
 
-            factor_results = _analyze_factor_by_date(merged, col, future_perf_column, top_pct, bottom_pct)
+            factor_results = _analyze_factor_by_date(
+                dates_arr, factor_arr, perf_arr, col, top_pct, bottom_pct
+            )
             results.extend(factor_results)
 
             if progress_fn:
@@ -114,16 +128,24 @@ def analyze_factors(
 
 
 def _analyze_factor_by_date(
-    merged_df: pd.DataFrame, factor_col: str, future_perf_column: str, top_pct: float, bottom_pct: float
+    dates_arr: np.ndarray,
+    factor_arr: np.ndarray,
+    perf_arr: np.ndarray,
+    factor_col: str,
+    top_pct: float,
+    bottom_pct: float,
 ) -> List[dict]:
-    # TODO: determine how to handle missing values, or stocks exiting/entering the universe
-    valid = merged_df[[factor_col, future_perf_column, "Date"]].dropna()
+    valid = pd.DataFrame({
+        "Date": dates_arr,
+        "factor_val": factor_arr,
+        "perf": perf_arr,
+    }).dropna()
 
     # sort once per date and factor, grab first X as topx, last X as bottomx
-    valid = valid.sort_values(["Date", factor_col]).reset_index(drop=True)
+    valid = valid.sort_values(["Date", "factor_val"]).reset_index(drop=True)
 
     # count how many stocks in each date, per factor
-    valid["group_size"] = valid.groupby("Date")[factor_col].transform("size")
+    valid["group_size"] = valid.groupby("Date")["factor_val"].transform("size")
     # give auto-increment rank to each stock. lowest are towards bottomx, highest to topx
     valid["rank_in_group"] = valid.groupby("Date").cumcount()
 
@@ -135,7 +157,7 @@ def _analyze_factor_by_date(
     is_top = valid["rank_in_group"] >= (valid["group_size"] - top_n)
 
     # mark non-top and non-bottom stocks as 0
-    perf = valid[future_perf_column].values
+    perf = valid["perf"].values
     valid["top_perf"] = np.where(is_top, perf, 0.0)
     valid["bottom_perf"] = np.where(is_bottom, perf, 0.0)
     valid["top_n"] = top_n

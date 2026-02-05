@@ -100,6 +100,7 @@ class AnalysisRunner:
 
             self.log("Reading future performance data...")
             future_perf_df = dataset_svc.read_columns(["Date", "Ticker", future_perf_column])
+            future_perf_df[future_perf_column] = future_perf_df[future_perf_column] / 100
             self.log("Analyzing factors...")
             results_df = analyze_factors(
                 future_perf_df,
