@@ -12,3 +12,9 @@ def set_cookie(name: str, value: str, days: int = 1):
     components.html(f"""<script>
         document.cookie = "{name}={value}; path=/; max-age={days * 86400}";
     </script>""", height=0)
+
+
+def clear_cookie(name: str):
+    components.html(f"""<script>
+        document.cookie = "{name}=; path=/; max-age=0";
+    </script>""", height=0)
