@@ -40,7 +40,7 @@ def calculate_benchmark_returns(
         benchmark_df[["dt", "close"]],
         left_on="Date",
         right_on="dt",
-        direction="backward",
+        direction="forward",
         tolerance=pd.Timedelta(days=4),
     ).rename(columns={"close": "curr_price"})
 
@@ -49,7 +49,7 @@ def calculate_benchmark_returns(
         benchmark_df[["dt", "close"]],
         left_on="Prev_Date",
         right_on="dt",
-        direction="backward",
+        direction="forward",
         tolerance=pd.Timedelta(days=4),
     ).rename(columns={"close": "prev_price"})
 
