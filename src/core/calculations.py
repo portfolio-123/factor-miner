@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np
 import scipy.stats as stats
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, List, Optional
-from src.services.readers import ParquetDataReader
+from typing import Callable, List, Optional, Tuple
+from src.services.dataset_service import DatasetService
 from src.core.types.models import Frequency
 from src.core.config.constants import INTERNAL_FUTURE_PERF_COL, INTERNAL_BENCHMARK_COL
 
@@ -104,7 +104,7 @@ def calculate_future_performance(
 
 def analyze_factors(
     future_perf_df: pd.DataFrame,
-    reader: ParquetDataReader,
+    dataset_svc: DatasetService,
     *,
     factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
@@ -118,10 +118,10 @@ def analyze_factors(
 
     Args:
         future_perf_df: Pre-calculated future performance (Date, Ticker, internal future perf column)
-        reader: ParquetDataReader for streaming factor data
+        dataset_svc: DatasetService for reading factor data
         factor_columns: List of factor columns to analyze (auto-detected if None)
-        top_pct: Percentage of top stocks to include (default: 30.0)
-        bottom_pct: Percentage of bottom stocks to include (default: 30.0)
+        top_pct: Percentage of top stocks to include (default: 20.0)
+        bottom_pct: Percentage of bottom stocks to include (default: 20.0)
         progress_fn: Optional callback (completed, total, current_factor) for progress updates
         batch_size: Number of factors to read per batch (default: 50)
 
@@ -129,38 +129,113 @@ def analyze_factors(
         DataFrame with factor analysis results (Date, factor, ret)
     """
     total_factors = len(factor_columns)
-    results: List[dict] = []
+
+    all_dates: List[np.ndarray] = []
+    all_factors: List[np.ndarray] = []
+    all_rets: List[np.ndarray] = []
 
     # read date/ticker once and track row indices
-    base_df = reader.read_columns(["Date", "Ticker"])
+    base_df = dataset_svc.read_columns(["Date", "Ticker"])
+
     base_df["_row_idx"] = np.arange(len(base_df))
 
     # add future performance column to base dataframe. TODO: determine how to handle missing values, or stocks exiting/entering the universe
     merged_base = base_df.merge(future_perf_df, on=["Date", "Ticker"], how="inner")
     valid_indices = merged_base["_row_idx"].to_numpy()
-    dates_arr = merged_base["Date"].to_numpy()
     perf_arr = merged_base[INTERNAL_FUTURE_PERF_COL].to_numpy()
 
+    # the inverse checks the row and maps it to an index. all the rows with the first date of the period will be index 0, and so on.
+    unique_dates, date_inverse = np.unique(merged_base["Date"], return_inverse=True)
+    perf_valid = ~np.isnan(perf_arr)
+
+    n_dates = len(unique_dates)
     del base_df, merged_base
-    # multi threading function to process a single factor
-    def process_factor(col: str) -> List[dict]:
+
+    def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Process a single factor and return arrays of (dates, factors, returns)."""
         factor_arr = batch_df[col].to_numpy()[valid_indices]
-        return _analyze_factor_by_date(
-            dates_arr, factor_arr, perf_arr, col, top_pct, bottom_pct
+
+        valid_mask = perf_valid & ~np.isnan(factor_arr)
+
+        # filter to valid rows only
+        inverse_f = date_inverse[valid_mask]
+        factor_f = factor_arr[valid_mask]
+        perf_f = perf_arr[valid_mask]
+
+        # group by date and then within each date, sort by factor value
+        sort_keys = np.lexsort((factor_f, inverse_f))
+        inverse_sorted = inverse_f[sort_keys]
+        perf_sorted = perf_f[sort_keys]
+
+        # count how many stocks are per date. each row within a date, is +1 stock.
+        counts = np.bincount(inverse_sorted, minlength=n_dates)
+
+        # considering how many stocks per date (counts), calculate what topx% and bottomx% translate to.
+        top_n = (counts * (top_pct / 100.0)).astype(np.int64)
+        bottom_n = (counts * (bottom_pct / 100.0)).astype(np.int64)
+
+        # create empty array with zeros, but with length as the amount of dates
+        group_starts = np.zeros(n_dates + 1, dtype=np.int64)
+        # fill array with cumulative sum of counts. except for the first one, the rest are the index of the first stock of each date in order.
+        group_starts[1:] = np.cumsum(counts)
+        # get position of each stock (row) within its date. lower rank meaning lower factor value.
+        rank_in_group = np.arange(len(inverse_sorted)) - group_starts[inverse_sorted]
+
+        # array which contains an integer per row. each integer represents the amount of stocks in the date it belongs to.
+        group_sizes = counts[inverse_sorted]
+        # same but instead of total stocks per date group, indicates amount of topx and bottomx stocks per date.
+        top_n_expanded = top_n[inverse_sorted]
+        bottom_n_expanded = bottom_n[inverse_sorted]
+
+        # genereates array of bools. True if stock is in bottom x%, false if not.
+        is_bottom = rank_in_group < bottom_n_expanded
+        is_top = rank_in_group >= (group_sizes - top_n_expanded)
+
+        # np.where so we only keep returns from top/bottom stocks. else add 0. np.bincount to sum values per date.
+        top_sums = np.bincount(
+            inverse_sorted, weights=np.where(is_top, perf_sorted, 0.0), minlength=n_dates
+        )
+        bottom_sums = np.bincount(
+            inverse_sorted, weights=np.where(is_bottom, perf_sorted, 0.0), minlength=n_dates
+        )
+
+        # total number of stocks used for the calculation per date.
+        divisor = top_n + bottom_n
+        # only grab dates where there are top and bottom stocks.
+        valid_date_mask = divisor > 0
+        # create array with nans, but with length as the amount of dates.
+        ret = np.full(n_dates, np.nan)
+        # calculate values only for valid dates. remains as nan if invalid.
+        ret[valid_date_mask] = (
+            (top_sums[valid_date_mask] - bottom_sums[valid_date_mask]) / divisor[valid_date_mask]
+        )
+
+        # build results as arrays instead of dicts
+        valid_results = valid_date_mask & ~np.isnan(ret)
+        valid_indices_arr = np.where(valid_results)[0]
+
+        return (
+            unique_dates[valid_indices_arr],
+            np.full(len(valid_indices_arr), col, dtype=object),
+            ret[valid_indices_arr],
         )
 
     for batch_start in range(0, total_factors, batch_size):
         batch_cols = factor_columns[batch_start : batch_start + batch_size]
 
         # read factor columns in batches
-        batch_df = reader.read_columns(batch_cols)
+        batch_df = dataset_svc.read_columns(batch_cols)
 
         # process factors in parallel
         with ThreadPoolExecutor() as executor:
             batch_results = list(executor.map(process_factor, batch_cols))
 
-        for factor_results in batch_results:
-            results.extend(factor_results)
+        # collect arrays from batch results
+        for dates_arr, factors_arr, rets_arr in batch_results:
+            if len(dates_arr) > 0:
+                all_dates.append(dates_arr)
+                all_factors.append(factors_arr)
+                all_rets.append(rets_arr)
 
         completed = batch_start + len(batch_cols)
         if progress_fn:
@@ -168,59 +243,15 @@ def analyze_factors(
 
         del batch_df
 
-    return pd.DataFrame(results)
-
-
-def _analyze_factor_by_date(
-    dates_arr: np.ndarray,
-    factor_arr: np.ndarray,
-    perf_arr: np.ndarray,
-    factor_col: str,
-    top_pct: float,
-    bottom_pct: float,
-) -> List[dict]:
-    valid = pd.DataFrame({
-        "Date": dates_arr,
-        "factor_val": factor_arr,
-        "perf": perf_arr,
-    }).dropna()
-
-    # sort once per date and factor, grab first X as topx, last X as bottomx
-    valid = valid.sort_values(["Date", "factor_val"]).reset_index(drop=True)
-
-    # count how many stocks in each date, per factor
-    valid["group_size"] = valid.groupby("Date")["factor_val"].transform("size")
-    # give auto-increment rank to each stock. lowest are towards bottomx, highest to topx
-    valid["rank_in_group"] = valid.groupby("Date").cumcount()
-
-    # how many stocks to include in topx and bottomx
-    top_n = (valid["group_size"] * (top_pct / 100.0)).astype(int)
-    bottom_n = (valid["group_size"] * (bottom_pct / 100.0)).astype(int)
-
-    is_bottom = valid["rank_in_group"] < bottom_n
-    is_top = valid["rank_in_group"] >= (valid["group_size"] - top_n)
-
-    # mark non-top and non-bottom stocks as 0
-    perf = valid["perf"].values
-    valid["top_perf"] = np.where(is_top, perf, 0.0)
-    valid["bottom_perf"] = np.where(is_bottom, perf, 0.0)
-    valid["top_n"] = top_n
-    valid["bottom_n"] = bottom_n
-
-    # grab topx and bottomx rows per date, sum future perf % returns
-    agg = valid.groupby("Date", sort=False).agg(
-        top_sum=("top_perf", "sum"),
-        bottom_sum=("bottom_perf", "sum"),
-        top_n=("top_n", "first"),
-        bottom_n=("bottom_n", "first"),
-    )
-
-    # combine topx and bottomx per date, and calculate the return metric
-    agg["ret"] = (agg["top_sum"] - agg["bottom_sum"]) / (agg["top_n"] + agg["bottom_n"])
-    agg["factor"] = factor_col
-
-    # convert the dataframe to a list of dictionaries
-    return agg[["factor", "ret"]].reset_index().to_dict("records")
+    # concatenate all arrays and build DataFrame once
+    if all_dates:
+        return pd.DataFrame({
+            "Date": np.concatenate(all_dates),
+            "factor": np.concatenate(all_factors),
+            "ret": np.concatenate(all_rets),
+        })
+    else:
+        return pd.DataFrame(columns=["Date", "factor", "ret"])
 
 
 def calculate_factor_metrics(
@@ -229,7 +260,7 @@ def calculate_factor_metrics(
     periods_per_year: int = 52,
 ) -> pd.DataFrame:
     """
-    Calculate statistical metrics for each factor.
+    Calculate statistical metrics for each factor using vectorized operations.
     Computes alpha, beta, t-statistic, and p-value.
 
     Args:
@@ -240,45 +271,75 @@ def calculate_factor_metrics(
     Returns:
         DataFrame with factor metrics
     """
+    # get unique benchmark values per date
     benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
+
+    # merge benchmark with factor returns
     merged_data = results_df.merge(benchmark, on="Date", how="inner")
 
-    metrics = []
-    unique_factors = results_df["factor"].unique()
+    # filter invalid values upfront
+    valid_mask = np.isfinite(merged_data["ret"]) & np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])
+    merged_data = merged_data[valid_mask]
 
-    for col in unique_factors:
-        subset = merged_data[merged_data["factor"] == col]
+    # pivot to get factors as columns: (n_dates, n_factors)
+    pivot = merged_data.pivot_table(index="Date", columns="factor", values="ret", aggfunc="first")
+    factor_names = pivot.columns.tolist()
+    y = pivot.values  # (n_dates, n_factors)
 
-        valid_subset = subset[
-            np.isfinite(subset["ret"]) & np.isfinite(subset[INTERNAL_BENCHMARK_COL])
-        ]
+    # get benchmark values aligned with pivot index
+    bench_aligned = benchmark.set_index("Date").reindex(pivot.index)[INTERNAL_BENCHMARK_COL]
+    x = bench_aligned.values[:, np.newaxis]  # (n_dates, 1)
 
-        if len(valid_subset) < 2:
-            continue  # Need at least 2 points for regression
-        x = valid_subset[INTERNAL_BENCHMARK_COL]
-        y = valid_subset["ret"]
+    valid = ~np.isnan(y)
+    n_valid = valid.sum(axis=0)  # count per factor
 
-        # Linear regression: return = alpha + beta * benchmark
-        beta, alpha = np.polyfit(x, y, deg=1)
+    # mask out NaN values for calculations (replace with 0)
+    y_masked = np.where(valid, y, 0.0)
+    x_masked = np.where(valid, x, 0.0)
 
-        # annualized alpha based on data frequency
-        ann_alpha = 100 * ((1 + alpha) ** periods_per_year - 1)
+    # mean/average calculation (sum / count)
+    y_sum = y_masked.sum(axis=0)
+    x_sum = x_masked.sum(axis=0)
+    y_mean = y_sum / n_valid
+    x_mean = x_sum / n_valid
 
-        # T-student test
-        t_stat, p_value = stats.ttest_1samp(y, popmean=0)
+    # centered values for regression. how much is the difference relative to the mean, to calculate beta.
+    y_centered = np.where(valid, y - y_mean, 0.0)
+    x_centered = np.where(valid, x - x_mean, 0.0)
 
-        metrics.append(
-            {
-                "column": col,
-                "T Statistic": t_stat,
-                "p-value": p_value,
-                "beta": beta,
-                "alpha": alpha,
-                "annualized alpha %": ann_alpha,
-            }
-        )
+    # beta = cov(x, y) / var(x). how much does x change when y changes.
+    numerator = (x_centered * y_centered).sum(axis=0)
+    denominator = (x_centered * x_centered).sum(axis=0)
+    beta = numerator / denominator
 
-    return pd.DataFrame(metrics)
+    # alpha = how off is the return from the benchmark in absolute terms.
+    alpha = y_mean - beta * x_mean
+
+    # annualized alpha
+    ann_alpha = 100 * ((1 + alpha) ** periods_per_year - 1)
+
+    # t-statistic
+    y_var = (y_centered ** 2).sum(axis=0) / (n_valid - 1)
+    y_std = np.sqrt(y_var)
+    y_stderr = y_std / np.sqrt(n_valid)
+    t_stat = y_mean / y_stderr
+
+    # p-value
+    p_value = 2 * (1 - stats.t.cdf(np.abs(t_stat), df=n_valid - 1))
+
+    # filter factors with insufficient data
+    valid_factors = n_valid >= 2
+
+    result = pd.DataFrame({
+        "column": np.array(factor_names)[valid_factors],
+        "T Statistic": t_stat[valid_factors],
+        "p-value": p_value[valid_factors],
+        "beta": beta[valid_factors],
+        "alpha": alpha[valid_factors],
+        "annualized alpha %": ann_alpha[valid_factors],
+    })
+
+    return result
 
 
 def calculate_correlation_matrix(results_df: pd.DataFrame) -> pd.DataFrame:
@@ -321,6 +382,10 @@ def select_best_features(
     """
     classifications = {}
     selected_features = []
+    selected_indices = []
+
+    corr_arr = correlation_matrix.values
+    col_to_idx = {c: i for i, c in enumerate(correlation_matrix.columns)}
 
     sorted_metrics = metrics_df.sort_values(
         by="annualized alpha %", key=abs, ascending=False
@@ -337,11 +402,13 @@ def select_best_features(
             classifications[feature] = "n_limit"
             continue
 
-        if all(
-            abs(correlation_matrix.loc[feature, selected]) < correlation_threshold
-            for selected in selected_features
+        feat_idx = col_to_idx.get(feature)
+        if feat_idx is not None and all(
+            abs(corr_arr[feat_idx, sel_idx]) < correlation_threshold
+            for sel_idx in selected_indices
         ):
             selected_features.append(feature)
+            selected_indices.append(feat_idx)
             classifications[feature] = "best"
         else:
             classifications[feature] = "correlation_conflict"
