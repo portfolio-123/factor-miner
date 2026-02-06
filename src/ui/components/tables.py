@@ -202,6 +202,32 @@ def render_results_table(
             "below_alpha": "#fff3e0",  # Light orange
         }
 
+        legend_items = [
+            ("best", "#e8f5e9", "Best Factor"),
+            ("below_alpha", "#fff3e0", "Below Min Alpha"),
+            ("correlation_conflict", "#ffebee", "Correlation Conflict"),
+            ("n_limit", "#f5f5f5", "N Limit Reached"),
+        ]
+        legend_html = """
+        <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
+        """
+        for _, color, label in legend_items:
+            legend_html += f"""
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="
+                    display: inline-block;
+                    width: 16px;
+                    height: 16px;
+                    background-color: {color};
+                    border: 1px solid #ccc;
+                    border-radius: 3px;
+                "></span>
+                <span style="font-size: 13px; color: #555;">{label}</span>
+            </div>
+            """
+        legend_html += "</div>"
+        st.html(legend_html)
+
         def color_row(row: pd.Series) -> list[str]:
             factor = factor_names[row.name]
             classification = factor_classifications.get(factor, "")

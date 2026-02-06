@@ -50,8 +50,6 @@ def results() -> None:
         f"</p>"
     )
 
-    render_dataset_card(dataset_metadata)
-
     if analysis.status == AnalysisStatus.FAILED:
         st.subheader("Analysis Failed")
         st.error((analysis.error or "Analysis failed").split("\n")[0])
@@ -61,56 +59,70 @@ def results() -> None:
         render_analysis_progress(fl_id, analysis_id)
         return
 
-    col_left, col_right = st.columns(2)
+    all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
+    corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 
-    with col_left:
-        with st.container(border=True):
-            st.html(get_card_header_html("Best Factors"))
-            param_items = [
-                render_info_item("Max. Factors", f"{analysis.params.n_factors}"),
-                render_info_item("Min. Annual Alpha", f"{analysis.params.min_alpha}%"),
-                render_info_item(
-                    "Max Correlation", f"{analysis.params.correlation_threshold}"
-                ),
-            ]
-            st.html(
-                f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>'
-            )
+    # add rank column
+    all_metrics_df = all_metrics_df.sort_values(
+        by="annualized alpha %", key=abs, ascending=False
+    ).reset_index(drop=True)
+    all_metrics_df["rank"] = range(1, len(all_metrics_df) + 1)
 
-    with col_right:
-        with st.container(border=True):
-            st.html(get_card_header_html("Factor Portfolio"))
-            param_items = [
-                render_info_item("Benchmark", f"{analysis.params.benchmark_ticker}"),
-                render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
-                render_info_item("Bottom X (Short)", f"{analysis.params.bottom_pct}%"),
-            ]
-            st.html(
-                f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>'
-            )
+    best_feature_names, factor_classifications = select_best_features(
+        metrics_df=all_metrics_df,
+        correlation_matrix=corr_matrix_df,
+        N=analysis.params.n_factors,
+        correlation_threshold=analysis.params.correlation_threshold,
+        a_min=analysis.params.min_alpha,
+    )
 
-    render_analysis_notes(analysis)
+    settings_tab, best_factors_tab, all_factors_tab = st.tabs(
+        ["Settings", "Best Factors", "All Factors"]
+    )
 
-    best_factors_tab, all_factors_tab = st.tabs(["Best Factors", "All Factors"])
+    with settings_tab:
+        render_dataset_card(dataset_metadata)
+        
+        st.markdown("#### Analysis Settings", unsafe_allow_html=True)
+
+        col_left, col_right = st.columns(2)
+
+        
+        with col_left:
+            with st.container(border=True):
+                st.html(get_card_header_html("Best Factors"))
+                param_items = [
+                    render_info_item("Max. Factors", f"{analysis.params.n_factors}"),
+                    render_info_item(
+                        "Min. Annual Alpha", f"{analysis.params.min_alpha}%"
+                    ),
+                    render_info_item(
+                        "Max Correlation", f"{analysis.params.correlation_threshold}"
+                    ),
+                ]
+                st.html(
+                    f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>'
+                )
+
+        with col_right:
+            with st.container(border=True):
+                st.html(get_card_header_html("Factor Portfolio"))
+                param_items = [
+                    render_info_item(
+                        "Benchmark", f"{analysis.params.benchmark_ticker}"
+                    ),
+                    render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
+                    render_info_item(
+                        "Bottom X (Short)", f"{analysis.params.bottom_pct}%"
+                    ),
+                ]
+                st.html(
+                    f'<div style="display: flex; gap: 24px;">{"".join(param_items)}</div>'
+                )
+
+        render_analysis_notes(analysis)
 
     with best_factors_tab:
-        all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
-        corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
-
-        # add rank column before selecting best features
-        all_metrics_df = all_metrics_df.sort_values(
-            by="annualized alpha %", key=abs, ascending=False
-        ).reset_index(drop=True)
-        all_metrics_df["rank"] = range(1, len(all_metrics_df) + 1)
-
-        best_feature_names, factor_classifications = select_best_features(
-            metrics_df=all_metrics_df,
-            correlation_matrix=corr_matrix_df,
-            N=analysis.params.n_factors,
-            correlation_threshold=analysis.params.correlation_threshold,
-            a_min=analysis.params.min_alpha,
-        )
-
         header_left, header_right = st.columns([6, 1])
         with header_left:
             st.caption(
