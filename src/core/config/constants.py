@@ -3,8 +3,8 @@ from typing import Final
 from src.core.types.models import DatasetType, Frequency, ScalingMethod
 
 
-PRICE_COLUMN: Final[str] = "Last Close"
-REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID", PRICE_COLUMN]
+PRICE_FORMULA: Final[str] = "Close(-1)"
+BASE_REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID"]
 
 INTERNAL_FUTURE_PERF_COL: Final[str] = "__future_perf__"
 INTERNAL_BENCHMARK_COL: Final[str] = "__benchmark__"

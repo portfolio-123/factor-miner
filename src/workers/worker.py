@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.core.config.constants import PRICE_COLUMN, REQUIRED_COLUMNS
+from src.core.config.constants import PRICE_FORMULA, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
     Analysis,
     AnalysisStatus,
@@ -15,7 +15,7 @@ from src.core.types.models import (
     AnalysisResults,
     DatasetType,
 )
-from src.core.utils.common import serialize_dataframe
+from src.core.utils.common import serialize_dataframe, find_column_by_formula
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
 from src.services.p123_client import fetch_benchmark_data
@@ -55,6 +55,9 @@ class AnalysisRunner:
         with DatasetService(self.fl_id) as dataset_svc:
             dataset_info = dataset_svc.get_metadata()
 
+            price_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
+            required_columns = BASE_REQUIRED_COLUMNS + [price_column]
+
             is_date_type = dataset_info.type == DatasetType.DATE
             base_dt = dataset_info.asOfDt if is_date_type else dataset_info.startDt
             end_dt = dataset_info.asOfDt if is_date_type else dataset_info.endDt
@@ -90,7 +93,7 @@ class AnalysisRunner:
             factor_columns = [
                 col
                 for col in dataset_svc.column_names
-                if col not in REQUIRED_COLUMNS
+                if col not in required_columns
             ]
 
             self.update(
@@ -99,8 +102,8 @@ class AnalysisRunner:
             )
 
             self.log("Calculating future performance...")
-            perf_core = dataset_svc.read_columns(["Date", "Ticker", PRICE_COLUMN])
-            future_perf_df = calculate_future_performance(perf_core, PRICE_COLUMN)
+            perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column])
+            future_perf_df = calculate_future_performance(perf_core, price_column)
             self.log("Analyzing factors...")
             results_df = analyze_factors(
                 future_perf_df,

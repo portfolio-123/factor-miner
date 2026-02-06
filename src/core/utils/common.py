@@ -69,6 +69,15 @@ def deserialize_dataframe(*data: str) -> pd.DataFrame | tuple[pd.DataFrame, ...]
     return results[0] if len(results) == 1 else tuple(results)
 
 
+def find_column_by_formula(formulas: list[dict], formula_pattern: str) -> str:
+    # stop immediately when it finds a match
+    match = next((f["name"] for f in formulas if f["formula"] == formula_pattern), None)
+    
+    if match:
+        return match
+    
+    raise ValueError(f"No column found with formula: {formula_pattern}")
+
 def add_formula_and_tag_columns(
     download_df: pd.DataFrame,
     formulas_df: pd.DataFrame,
