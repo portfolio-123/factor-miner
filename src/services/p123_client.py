@@ -51,5 +51,8 @@ def fetch_benchmark_data(
             benchmark_df = benchmark_df.rename(columns={"date": "dt"})
 
         return benchmark_df
-    except Exception:
-        raise PermissionError(f"Failed to fetch benchmark data")
+    except Exception as e:
+        # if 4xx, token is probably expired
+        if isinstance(e, requests.HTTPError) and e.response is not None and 400 <= e.response.status_code < 500:
+            raise PermissionError("Invalid token. Please refresh and try again")
+        raise PermissionError("Failed to fetch benchmark data")
