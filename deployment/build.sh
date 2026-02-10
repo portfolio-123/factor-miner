@@ -1,8 +1,16 @@
-docker build -t factor-eval -f deploy.Dockerfile ../
+#!/usr/bin/env bash
+set -e
 
-IMAGE=factor-eval
-TAG=latest
+IMAGE=factorminer
 REGISTRY=quay300.portfolio123.com/misc
 
-docker image tag $IMAGE:$TAG $REGISTRY/$IMAGE:$TAG
-docker image push $REGISTRY/$IMAGE:$TAG
+if [[ -z "$1" ]]; then
+  echo "Usage: $0 <tag>"
+  exit 1
+fi
+
+TAG="$1"
+
+docker build -t "$IMAGE:$TAG" -f deploy.Dockerfile ../
+docker image tag "$IMAGE:$TAG" "$REGISTRY/$IMAGE:$TAG"
+docker image push "$REGISTRY/$IMAGE:$TAG"
