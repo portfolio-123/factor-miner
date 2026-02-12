@@ -18,14 +18,14 @@ def calculate_benchmark_returns(
 
     Args:
         raw_data: Dataset with 'Date' column
-        benchmark_data: Benchmark price data with 'date' and 'close' columns
+        benchmark_data: Benchmark price data with 'dt' and 'close' columns
         frequency: Dataset frequency to determine the lookback period
 
     Returns:
         DataFrame with 'benchmark' column added
     """
-    benchmark_data["date"] = pd.to_datetime(benchmark_data["date"])
-    benchmark_df = benchmark_data.dropna(subset=["date", "close"])
+    benchmark_data["dt"] = pd.to_datetime(benchmark_data["dt"])
+    benchmark_df = benchmark_data.dropna(subset=["dt", "close"])
 
     # benchmark_df only contains trading days
     close_prices = benchmark_df["close"].values
@@ -37,7 +37,7 @@ def calculate_benchmark_returns(
     unique_date_values = raw_data["Date"].unique()
 
     # for each date, find the next trading day (get monday, but if holiday get tuesday)
-    date_positions = np.searchsorted(benchmark_df["date"].values, unique_date_values, side="left")
+    date_positions = np.searchsorted(benchmark_df["dt"].values, unique_date_values, side="left")
 
     prev_positions = date_positions - lookback_trading_days
 

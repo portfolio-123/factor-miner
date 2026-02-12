@@ -46,9 +46,9 @@ def fetch_benchmark_data(
         )
         data = response.json()
 
-        return pd.DataFrame(data["prices"])[["date", "close"]]
+        return pd.DataFrame(data["prices"])[["dt", "close"]]
     except Exception as e:
         # if 4xx, token is probably expired
         if isinstance(e, requests.HTTPError) and e.response is not None and 400 <= e.response.status_code < 500:
             raise PermissionError("Invalid token. Please refresh and try again")
-        raise PermissionError("Failed to fetch benchmark data")
+        raise PermissionError("Failed to fetch benchmark data: " + str(e))
