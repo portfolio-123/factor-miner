@@ -68,9 +68,9 @@ def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         if "No column found with formula:" in error_msg:
             factors_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/factors"
             generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
-            st.markdown(
-                f"[Add the missing formula in your Factor List]({factors_url}). "
-                f"If you have already added it, make sure to [generate a new dataset]({generate_url})."
+            st.error(
+                f"Click on [Add Missing]({factors_url}) to add the required formulas. "
+                f"If you have already added them, make sure to [generate a new dataset]({generate_url})."
             )
         return
 
