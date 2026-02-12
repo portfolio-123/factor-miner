@@ -18,49 +18,40 @@ def calculate_benchmark_returns(
 
     Args:
         raw_data: Dataset with 'Date' column
-        benchmark_data: Benchmark price data with 'dt' and 'close' columns
+        benchmark_data: Benchmark price data with 'date' and 'close' columns
         frequency: Dataset frequency to determine the lookback period
 
     Returns:
         DataFrame with 'benchmark' column added
     """
-    df = raw_data.copy()
-    benchmark_df = benchmark_data.copy()
+    benchmark_data["date"] = pd.to_datetime(benchmark_data["date"])
+    benchmark_df = benchmark_data.dropna(subset=["date", "close"])
 
-    benchmark_df["dt"] = pd.to_datetime(benchmark_df["dt"])
+    # benchmark_df only contains trading days
+    close_prices = benchmark_df["close"].values
 
-    benchmark_df = benchmark_df.sort_values("dt").dropna(subset=["dt", "close"])
+    # 5 trading days per week
+    lookback_trading_days = frequency.weeks * 5
 
-    lookback_days = frequency.weeks * 7
-    unique_dates = pd.DataFrame({"Date": df["Date"].unique()}).sort_values("Date")
-    unique_dates["Prev_Date"] = unique_dates["Date"] - pd.Timedelta(days=lookback_days)
+    # get unique dates from raw_data
+    unique_date_values = raw_data["Date"].unique()
 
-    current_prices = pd.merge_asof(
-        unique_dates,
-        benchmark_df[["dt", "close"]],
-        left_on="Date",
-        right_on="dt",
-        direction="forward",
-        tolerance=pd.Timedelta(days=4),
-    ).rename(columns={"close": "curr_price"})
+    # for each date, find the next trading day (get monday, but if holiday get tuesday)
+    date_positions = np.searchsorted(benchmark_df["date"].values, unique_date_values, side="left")
 
-    last_period_prices = pd.merge_asof(
-        current_prices,
-        benchmark_df[["dt", "close"]],
-        left_on="Prev_Date",
-        right_on="dt",
-        direction="forward",
-        tolerance=pd.Timedelta(days=4),
-    ).rename(columns={"close": "prev_price"})
+    prev_positions = date_positions - lookback_trading_days
 
-    last_period_prices[INTERNAL_BENCHMARK_COL] = (
-        last_period_prices["curr_price"] - last_period_prices["prev_price"]
-    ) / last_period_prices["prev_price"]
+    valid_mask = (date_positions < len(close_prices)) & (prev_positions >= 0)
 
-    result_df = df.merge(
-        last_period_prices[["Date", INTERNAL_BENCHMARK_COL]], on="Date", how="left"
-    )
-    return result_df
+    # get prices at positions, or NaN if invalid. clip/maximum prevent bad index errors.
+    curr_prices = np.where(valid_mask, close_prices[np.clip(date_positions, 0, len(close_prices) - 1)], np.nan)
+    prev_prices = np.where(valid_mask, close_prices[np.maximum(prev_positions, 0)], np.nan)
+
+    benchmark_returns = (curr_prices - prev_prices) / prev_prices
+
+    result = raw_data.copy()
+    result[INTERNAL_BENCHMARK_COL] = raw_data["Date"].map(dict(zip(unique_date_values, benchmark_returns)))
+    return result
 
 
 def calculate_future_performance(

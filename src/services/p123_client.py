@@ -46,11 +46,7 @@ def fetch_benchmark_data(
         )
         data = response.json()
 
-        benchmark_df = pd.DataFrame(data["prices"])
-        if "date" in benchmark_df.columns and "dt" not in benchmark_df.columns:
-            benchmark_df = benchmark_df.rename(columns={"date": "dt"})
-
-        return benchmark_df
+        return pd.DataFrame(data["prices"])[["date", "close"]]
     except Exception as e:
         # if 4xx, token is probably expired
         if isinstance(e, requests.HTTPError) and e.response is not None and 400 <= e.response.status_code < 500:
