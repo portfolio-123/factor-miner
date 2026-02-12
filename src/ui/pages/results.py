@@ -32,7 +32,7 @@ def results() -> None:
 
     try:
         dataset_metadata = BackupDatasetService(fl_id).get_metadata(analysis.dataset_version)
-        st.session_state.formulas_data = pd.DataFrame(dataset_metadata.formulas)
+        st.session_state.formulas_data = dataset_metadata.formulas_df
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
         return

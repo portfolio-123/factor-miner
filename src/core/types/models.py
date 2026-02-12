@@ -1,5 +1,6 @@
 from enum import IntEnum, StrEnum
 
+import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -131,6 +132,14 @@ class DatasetConfig(BaseModel):
     formulas: list | None = None
     pitMethod: int
     active: bool = False
+
+    # for when tag is missing completely
+    @property
+    def formulas_df(self) -> pd.DataFrame:
+        df = pd.DataFrame(self.formulas)
+        if "tag" not in df.columns:
+            df["tag"] = ""
+        return df
 
 
 class AnalysisSummary(BaseModel):

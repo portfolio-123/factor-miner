@@ -115,12 +115,12 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     with DatasetService(fl_id) as svc:
                         preview_df, stats = svc.get_review_data()
                     show_factors_modal(
-                        pd.DataFrame(dataset_metadata.formulas),
+                        dataset_metadata.formulas_df,
                         stats,
                         preview_df,
                     )
                 else:
-                    show_factors_modal(pd.DataFrame(dataset_metadata.formulas))
+                    show_factors_modal(dataset_metadata.formulas_df)
         with header_status:
             is_active = dataset_metadata.active
             status_color = "#22c55e" if is_active else "#ef4444"
