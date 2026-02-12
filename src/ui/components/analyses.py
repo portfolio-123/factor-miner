@@ -2,6 +2,7 @@ import re
 import streamlit as st
 
 from src.core.types.models import Analysis, AnalysisProgress, AnalysisStatus
+from src.core.config.environment import P123_BASE_URL
 from src.ui.components.common import section_header
 from src.workers.analysis_service import analysis_service
 
@@ -61,7 +62,16 @@ def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         st.rerun(scope="app")
 
     if analysis and analysis.status == AnalysisStatus.FAILED:
-        st.error((analysis.error or "Analysis failed").split("\n")[0])
+        error_msg = (analysis.error or "Analysis failed").split("\n")[0]
+        st.error(error_msg)
+
+        if "No column found with formula:" in error_msg:
+            factors_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/factors"
+            generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
+            st.markdown(
+                f"[Add the missing formula in your Factor List]({factors_url}). "
+                f"If you have already added it, make sure to [generate a new dataset]({generate_url})."
+            )
         return
 
     progress = (

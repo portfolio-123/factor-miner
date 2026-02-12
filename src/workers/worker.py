@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.core.config.constants import PRICE_FORMULA, BASE_REQUIRED_COLUMNS
+from src.core.config.constants import PRICE_FORMULA, PRICE_FORMULA_FRIDAY, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
     Analysis,
     AnalysisStatus,
@@ -56,6 +56,7 @@ class AnalysisRunner:
             dataset_info = dataset_svc.get_metadata()
 
             price_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
+            find_column_by_formula(dataset_info.formulas, PRICE_FORMULA_FRIDAY)
             required_columns = BASE_REQUIRED_COLUMNS + [price_column]
 
             is_date_type = dataset_info.type == DatasetType.DATE

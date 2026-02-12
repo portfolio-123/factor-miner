@@ -25,7 +25,7 @@ def load_active_dataset() -> DatasetConfig | None:
     dataset_path = Path(FACTOR_LIST_DIR) / fl_id
 
     if not dataset_path.is_file():
-        download_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/download"
+        download_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
         st.warning(f"No dataset found for this Factor List. [Generate]({download_url})")
         return None
 
