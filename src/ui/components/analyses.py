@@ -72,6 +72,13 @@ def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
                 f"Click on [Add Missing]({factors_url}) to add the required formulas. "
                 f"If you have already added them, make sure to [generate a new dataset]({generate_url})."
             )
+
+        if "single-date" in error_msg:
+            generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
+            st.error(
+                f"Datasets of type Single Date are not supported. "
+                f"Please [generate a new dataset]({generate_url}) using Period."
+            )
         return
 
     progress = (

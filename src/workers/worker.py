@@ -55,14 +55,15 @@ class AnalysisRunner:
         with DatasetService(self.fl_id) as dataset_svc:
             dataset_info = dataset_svc.get_metadata()
 
+            if dataset_info.type == DatasetType.DATE:
+                raise ValueError("single-date")
+
             price_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
             find_column_by_formula(dataset_info.formulas, PRICE_FORMULA_FRIDAY)
             required_columns = BASE_REQUIRED_COLUMNS + [price_column]
 
-            is_date_type = dataset_info.type == DatasetType.DATE
-            base_dt = dataset_info.asOfDt if is_date_type else dataset_info.startDt
-            end_dt = dataset_info.asOfDt if is_date_type else dataset_info.endDt
-            start_dt = pd.to_datetime(base_dt) - pd.Timedelta(days=7)
+            start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
+            end_dt = dataset_info.endDt
 
             self.log(f"Fetching benchmark data for {params.benchmark_ticker}...")
             try:
