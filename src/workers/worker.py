@@ -78,7 +78,7 @@ class AnalysisRunner:
 
             self.log("Benchmark data fetched successfully")
 
-            def on_progress(completed: int, total: int, current_factor: str = "") -> None:
+            def on_progress(completed: int, total: int) -> None:
                 percent = (completed * 100) // total
                 prev_percent = ((completed - 1) * 100) // total if completed > 1 else -1
                 if percent // 10 > prev_percent // 10 or completed == total:
@@ -88,7 +88,6 @@ class AnalysisRunner:
                     progress=AnalysisProgress(
                         completed=completed,
                         total=total,
-                        current_factor=current_factor,
                     ),
                 )
 

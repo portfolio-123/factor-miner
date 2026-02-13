@@ -84,7 +84,7 @@ def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
     progress = (
         analysis.progress
         if analysis
-        else AnalysisProgress(completed=0, total=0, current_factor="-")
+        else AnalysisProgress(completed=0, total=0)
     )
     with st.columns([1, 2, 1])[1]:
         st.space(100)
@@ -102,7 +102,3 @@ def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         )
         st.progress(progress_value, text=progress_text)
 
-        if progress:
-            st.info(f"Analyzing: **{progress.current_factor}**")
-        else:
-            st.info("Starting...")

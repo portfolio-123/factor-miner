@@ -100,7 +100,7 @@ def analyze_factors(
     factor_columns: Optional[List[str]] = None,
     top_pct: float = 30.0,
     bottom_pct: float = 30.0,
-    progress_fn: Optional[Callable[[int, int, str], None]] = None,
+    progress_fn: Optional[Callable[[int, int], None]] = None,
     batch_size: int = 50,
 ) -> Tuple[pd.DataFrame, Dict[str, dict]]:
     """
@@ -239,7 +239,7 @@ def analyze_factors(
 
         completed = batch_start + len(batch_cols)
         if progress_fn:
-            progress_fn(completed, total_factors, batch_cols[-1])
+            progress_fn(completed, total_factors)
 
         del batch_df
 

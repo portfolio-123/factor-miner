@@ -28,7 +28,6 @@ class AnalysisStatus(StrEnum):
 class AnalysisProgress(BaseModel):
     completed: int
     total: int
-    current_factor: str = ""
 
 
 class AnalysisResults(BaseModel):
