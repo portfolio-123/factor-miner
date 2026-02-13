@@ -84,6 +84,7 @@ def results() -> None:
         N=analysis.params.n_factors,
         correlation_threshold=analysis.params.correlation_threshold,
         a_min=analysis.params.min_alpha,
+        max_na_pct=analysis.params.max_na_pct,
     )
 
     settings_tab, best_factors_tab, all_factors_tab = st.tabs(
@@ -108,6 +109,9 @@ def results() -> None:
                     ),
                     render_info_item(
                         "Max Correlation", f"{analysis.params.correlation_threshold}"
+                    ),
+                    render_info_item(
+                        "Max NA", f"{analysis.params.max_na_pct}%"
                     ),
                 ]
                 st.html(

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import scipy.stats as stats
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from src.services.dataset_service import DatasetService
 from src.core.types.models import Frequency
 from src.core.config.constants import INTERNAL_FUTURE_PERF_COL, INTERNAL_BENCHMARK_COL
@@ -102,7 +102,7 @@ def analyze_factors(
     bottom_pct: float = 30.0,
     progress_fn: Optional[Callable[[int, int, str], None]] = None,
     batch_size: int = 50,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, Dict[str, dict]]:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
     Reads factors in batches from Parquet.
@@ -117,13 +117,14 @@ def analyze_factors(
         batch_size: Number of factors to read per batch (default: 50)
 
     Returns:
-        DataFrame with factor analysis results (Date, factor, ret)
+        Tuple of (DataFrame with factor analysis results, dict of NA stats per factor)
     """
     total_factors = len(factor_columns)
 
     all_dates: List[np.ndarray] = []
     all_factors: List[np.ndarray] = []
     all_rets: List[np.ndarray] = []
+    na_stats_dict: Dict[str, dict] = {}
 
     # read date/ticker once and track row indices
     base_df = dataset_svc.read_columns(["Date", "Ticker"])
@@ -142,9 +143,15 @@ def analyze_factors(
     n_dates = len(unique_dates)
     del base_df, merged_base
 
-    def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Process a single factor and return arrays of (dates, factors, returns)."""
+    def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
+        """Process a single factor and return arrays of (dates, factors, returns, na_stats)."""
         factor_arr = batch_df[col].to_numpy()[valid_indices]
+
+        # Calculate NA stats
+        total_values = len(factor_arr)
+        na_count = np.isnan(factor_arr).sum()
+        na_pct = (na_count / total_values * 100) if total_values > 0 else 100.0
+        na_stats = {'na_pct': round(na_pct, 2)}
 
         valid_mask = perf_valid & ~np.isnan(factor_arr)
 
@@ -209,6 +216,7 @@ def analyze_factors(
             unique_dates[valid_indices_arr],
             np.full(len(valid_indices_arr), col, dtype=object),
             ret[valid_indices_arr],
+            na_stats,
         )
 
     for batch_start in range(0, total_factors, batch_size):
@@ -222,7 +230,8 @@ def analyze_factors(
             batch_results = list(executor.map(process_factor, batch_cols))
 
         # collect arrays from batch results
-        for dates_arr, factors_arr, rets_arr in batch_results:
+        for col, (dates_arr, factors_arr, rets_arr, na_stats) in zip(batch_cols, batch_results):
+            na_stats_dict[col] = na_stats
             if len(dates_arr) > 0:
                 all_dates.append(dates_arr)
                 all_factors.append(factors_arr)
@@ -236,19 +245,23 @@ def analyze_factors(
 
     # concatenate all arrays and build DataFrame once
     if all_dates:
-        return pd.DataFrame({
-            "Date": np.concatenate(all_dates),
-            "factor": np.concatenate(all_factors),
-            "ret": np.concatenate(all_rets),
-        })
+        return (
+            pd.DataFrame({
+                "Date": np.concatenate(all_dates),
+                "factor": np.concatenate(all_factors),
+                "ret": np.concatenate(all_rets),
+            }),
+            na_stats_dict,
+        )
     else:
-        return pd.DataFrame(columns=["Date", "factor", "ret"])
+        return pd.DataFrame(columns=["Date", "factor", "ret"]), na_stats_dict
 
 
 def calculate_factor_metrics(
     results_df: pd.DataFrame,
     raw_data: pd.DataFrame,
     periods_per_year: int = 52,
+    na_stats: Optional[Dict[str, dict]] = None,
 ) -> pd.DataFrame:
     """
     Calculate statistical metrics for each factor using vectorized operations.
@@ -258,9 +271,10 @@ def calculate_factor_metrics(
         results_df: DataFrame with factor returns (Date, factor, ret)
         raw_data: DataFrame with benchmark data from p123 api
         periods_per_year: Number of periods per year for annualization (default: 52 for weekly)
+        na_stats: Optional dict mapping factor names to their NA statistics
 
     Returns:
-        DataFrame with factor metrics
+        DataFrame with factor metrics including NA %
     """
     # get unique benchmark values per date
     benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
@@ -320,15 +334,23 @@ def calculate_factor_metrics(
 
     # filter factors with insufficient data
     valid_factors = n_valid >= 2
+    valid_factor_names = np.array(factor_names)[valid_factors]
 
     result = pd.DataFrame({
-        "column": np.array(factor_names)[valid_factors],
+        "column": valid_factor_names,
         "T Statistic": t_stat[valid_factors],
         "p-value": p_value[valid_factors],
         "beta": beta[valid_factors],
         "alpha": alpha[valid_factors],
         "annualized alpha %": ann_alpha[valid_factors],
     })
+
+    if na_stats is not None:
+        result["NA %"] = result["column"].map(
+            lambda col: na_stats.get(col, {}).get("na_pct", 0.0)
+        )
+    else:
+        result["NA %"] = 0.0
 
     return result
 
@@ -355,6 +377,7 @@ def select_best_features(
     N: int = 10,
     correlation_threshold: float = 0.5,
     a_min: float = 0.5,
+    max_na_pct: float = 40.0,
 ) -> tuple[list, dict[str, str]]:
     """
     Select N best features based on alpha and low correlation.
@@ -366,10 +389,11 @@ def select_best_features(
         N: Number of features to select
         correlation_threshold: Maximum allowed correlation
         a_min: Minimum absolute annualized alpha %
+        max_na_pct: Maximum allowed NA percentage
 
     Returns:
         Tuple of (selected feature names, classifications dict)
-        Classifications: "best", "below_alpha", "correlation_conflict", or "n_limit"
+        Classifications: "best", "below_alpha", "correlation_conflict", "n_limit", or "high_na"
     """
     classifications = {}
     selected_features = []
@@ -382,9 +406,17 @@ def select_best_features(
         by="annualized alpha %", key=abs, ascending=False
     )
 
-    for feature, alpha in zip(
-        sorted_metrics["column"], sorted_metrics["annualized alpha %"]
-    ):
+    has_na_col = "NA %" in sorted_metrics.columns
+
+    for idx, row in sorted_metrics.iterrows():
+        feature = row["column"]
+        alpha = row["annualized alpha %"]
+        na_pct = row["NA %"] if has_na_col else 0.0
+
+        if na_pct > max_na_pct:
+            classifications[feature] = "high_na"
+            continue
+
         if abs(alpha) < a_min:
             classifications[feature] = "below_alpha"
             continue

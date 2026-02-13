@@ -97,6 +97,7 @@ class SettingsForm(BaseModel):
     bottom_pct: float
     correlation_threshold: float
     n_factors: int
+    max_na_pct: float = 40.0
 
 
 class AnalysisParams(SettingsForm):

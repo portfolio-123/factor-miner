@@ -164,6 +164,7 @@ def render_results_table(
         columns={
             "column": "Factor",
             "annualized alpha %": "Ann. Alpha %",
+            "NA %": "NA %",
             "T Statistic": "T-Statistic",
             "p-value": "P-Value",
             "beta": "Beta",
@@ -171,13 +172,14 @@ def render_results_table(
         }
     )
 
-    display = display[["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Statistic", "P-Value"]]
+    display = display[["Rank", "Factor", "Ann. Alpha %", "NA %", "Beta", "T-Statistic", "P-Value"]]
 
     factor_names = display["Factor"].tolist()
 
     # format numeric columns as strings
     formatters = {
         "Ann. Alpha %": lambda x: f"{x:.2f}%",
+        "NA %": lambda x: f"{x:.1f}%",
         "Beta": lambda x: f"{x:.4f}",
         "T-Statistic": lambda x: f"{x:.4f}",
         "P-Value": lambda x: f"{x:.6f}",
@@ -189,6 +191,7 @@ def render_results_table(
         "Rank": st.column_config.NumberColumn("Rank", width="small"),
         "Factor": st.column_config.TextColumn("Factor", width="large"),
         "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
+        "NA %": st.column_config.TextColumn("NA %", width="small"),
         "Beta": st.column_config.TextColumn("Beta", width="small"),
         "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
         "P-Value": st.column_config.TextColumn("P-Value", width="small"),
@@ -200,6 +203,7 @@ def render_results_table(
             "correlation_conflict": "#ffebee",  # Light red
             "n_limit": "#f5f5f5",  # Light gray
             "below_alpha": "#fff3e0",  # Light orange
+            "high_na": "#fffde7",  # Light yellow
         }
 
         legend_items = [
@@ -207,6 +211,7 @@ def render_results_table(
             ("below_alpha", "#fff3e0", "Below Min Alpha"),
             ("correlation_conflict", "#ffebee", "Correlation Conflict"),
             ("n_limit", "#f5f5f5", "N Limit Reached"),
+            ("high_na", "#fffde7", "High NA %"),
         ]
         legend_html = """
         <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
