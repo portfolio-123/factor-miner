@@ -2,7 +2,7 @@ import json
 from typing import Any
 from io import StringIO
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 def read_json_file(path: Path) -> dict | None:
     try:
@@ -14,25 +14,27 @@ def read_json_file(path: Path) -> dict | None:
 
 def format_date(date_value: Any, format_str: str = "%Y/%m/%d") -> str:
     try:
-        import pandas as pd
-
         date_obj = pd.to_datetime(date_value)
         return date_obj.strftime(format_str)
     except Exception:
         return "N/A"
 
 
-def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y at %I:%M %p") -> str:
+def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y at %I:%M %p UTC") -> str:
     if not timestamp:
         return "N/A"
     try:
         ts = int(timestamp)
-        dt = datetime.fromtimestamp(ts)
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
         return dt.strftime(format_str)
     except (ValueError, TypeError):
         pass
     try:
         dt = datetime.fromisoformat(str(timestamp))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
         return dt.strftime(format_str)
     except (ValueError, TypeError):
         return "N/A"

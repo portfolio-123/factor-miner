@@ -88,29 +88,39 @@ def _build_norm_items(normalization) -> list[str]:
 
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
     with st.container(border=True):
-        header_left, _, header_right, header_status = st.columns(
-            [3, 1, 0.5, 0.15], vertical_alignment="center"
-        )
+        is_active = dataset_metadata.active
+        if is_active:
+            header_left, _, header_formulas, header_preview, header_status = st.columns(
+                [3, 0.5, 0.6, 0.5, 0.15], vertical_alignment="center"
+            )
+        else:
+            header_left, _, header_formulas, header_status = st.columns(
+                [3, 1, 0.6, 0.15], vertical_alignment="center"
+            )
         created_on = format_timestamp(dataset_metadata.version)
         fl_id = st.query_params.get("fl_id")
-        fl_link = f"{P123_BASE_URL}/sv/factorList/{fl_id}" if fl_id else None
+        fl_link = f"{P123_BASE_URL}/sv/factorList/{fl_id}"
         with header_left:
-            if fl_link:
-                st.html(
-                    f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using <a href="{fl_link}" target="_blank" style="color: #666;">Factor List  {fl_id}</a> at {created_on}</span></p>'
-                )
-            else:
-                st.html(
-                    f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset Parameters <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{created_on}</span></p>'
-                )
-        with header_right:
+            st.html(
+                f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using <a href="{fl_link}" target="_blank" style="color: #666;">Factor List {fl_id}</a></span></p>'
+            )
+        formula_count = len(dataset_metadata.formulas) if dataset_metadata.formulas else 0
+        with header_formulas:
             if st.button(
-                "Preview",
+                f"Formulas ({formula_count})",
                 width="stretch",
-                key=f"preview_dataset_{dataset_metadata.version}",
+                key=f"formulas_{dataset_metadata.version}",
                 type="secondary",
             ):
-                if dataset_metadata.active:
+                show_factors_modal(dataset_metadata.formulas_df, title="Dataset Formulas")
+        if is_active:
+            with header_preview:
+                if st.button(
+                    "Preview",
+                    width="stretch",
+                    key=f"preview_dataset_{dataset_metadata.version}",
+                    type="secondary",
+                ):
                     fl_id = st.query_params.get("fl_id")
                     with DatasetService(fl_id) as svc:
                         preview_df, stats = svc.get_review_data()
@@ -118,11 +128,9 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                         dataset_metadata.formulas_df,
                         stats,
                         preview_df,
+                        title="Dataset Preview",
                     )
-                else:
-                    show_factors_modal(dataset_metadata.formulas_df)
         with header_status:
-            is_active = dataset_metadata.active
             status_color = "#22c55e" if is_active else "#ef4444"
             status_title = "Active version" if is_active else "Not active version"
             st.html(
@@ -131,7 +139,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 f"</div>"
             )
 
-        c1, c2, c3 = st.columns([1, 0.5, 2.5], vertical_alignment="top")
+        c1, c2, c3, c4 = st.columns([1, 0.5, 1.5, 1], vertical_alignment="top")
 
         if dataset_metadata.type == DatasetType.DATE:
             date_label = "Date"
@@ -145,9 +153,10 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             date_value = f"{format_date(dataset_metadata.startDt, '%Y/%m/%d') if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt, '%Y/%m/%d') if dataset_metadata.endDt else 'N/A'}"
 
         big_items = [
-            (c2, "Frequency", FREQUENCY_LABELS.get(dataset_metadata.frequency, "N/A")),
             (c1, date_label, date_value),
+            (c2, "Frequency", FREQUENCY_LABELS.get(dataset_metadata.frequency, "N/A")),
             (c3, "Universe", dataset_metadata.universeName),
+            (c4, "Generated", created_on),
         ]
         for col, label, value in big_items:
             with col:

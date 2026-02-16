@@ -3,7 +3,7 @@ import logging
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -58,8 +58,8 @@ class AnalysisService:
             fl_id=fl_id,
             dataset_version=dataset_version,
             status=AnalysisStatus.PENDING,
-            created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
             params=params,
         )
 
@@ -82,14 +82,14 @@ class AnalysisService:
         return analysis
 
     def save(self, analysis: Analysis, **updates: Any) -> Analysis:
-        update_dict: dict[str, Any] = {"updated_at": datetime.now().isoformat()}
+        update_dict: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
         update_dict.update(updates)
 
         status = updates.get("status")
         if status == AnalysisStatus.RUNNING and analysis.started_at is None:
-            update_dict["started_at"] = datetime.now().isoformat()
+            update_dict["started_at"] = datetime.now(timezone.utc).isoformat()
         if status in (AnalysisStatus.SUCCESS, AnalysisStatus.FAILED):
-            update_dict["finished_at"] = datetime.now().isoformat()
+            update_dict["finished_at"] = datetime.now(timezone.utc).isoformat()
             update_dict["progress"] = None
 
         updated = analysis.model_copy(update=update_dict)

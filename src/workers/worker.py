@@ -59,8 +59,8 @@ class AnalysisRunner:
                 raise ValueError("single-date")
 
             price_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
-            find_column_by_formula(dataset_info.formulas, PRICE_FORMULA_FRIDAY)
-            required_columns = BASE_REQUIRED_COLUMNS + [price_column]
+            price_column_friday = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA_FRIDAY)
+            required_columns = BASE_REQUIRED_COLUMNS + [price_column, price_column_friday]
 
             start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
             end_dt = dataset_info.endDt

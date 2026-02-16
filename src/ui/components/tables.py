@@ -56,17 +56,47 @@ def show_factors_modal(
     formulas_df: pd.DataFrame,
     stats: dict | None = None,
     preview_df: pd.DataFrame | None = None,
+    title: str = "Dataset Preview",
 ) -> None:
-    @st.dialog("Dataset Preview", width="large")
+    @st.dialog(title, width="large")
     def _render() -> None:
-        show_data_tab = stats is not None and preview_df is not None
+        show_data = stats is not None and preview_df is not None
 
-        if show_data_tab:
-            factors_tab, data_tab = st.tabs(["Factors", "Data"])
+        if show_data:
+            # Show data preview directly (no tabs)
+            cols = st.columns(6, gap="small")
+            stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
+            stat_items = [
+                ("Rows", stats["num_rows"]),
+                ("Dates", stats["num_dates"]),
+                ("Columns", stats["num_columns"]),
+            ]
+            for col, (label, value) in zip(cols, stat_items):
+                with col:
+                    st.badge(label)
+                    st.html(f"<p style='{stat_style}'>{value}</p>")
+
+            if len(preview_df) > 20:
+                first_10 = preview_df.head(10)
+                last_10 = preview_df.tail(10)
+                display_preview = pd.concat([first_10, last_10], ignore_index=False)
+            else:
+                display_preview = preview_df
+
+            st.caption("Showing first and last 10 rows")
+
+            display_df = display_preview.reset_index()
+            display_df.rename(columns={"index": "Row"}, inplace=True)
+
+            st.dataframe(
+                display_df,
+                height=500,
+                width="stretch",
+                hide_index=True,
+                column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
+            )
         else:
-            factors_tab = st.container()
-
-        with factors_tab:
+            # Show formulas directly (no tabs)
             st.dataframe(
                 formulas_df[["formula", "name", "tag"]],
                 height=400,
@@ -104,40 +134,6 @@ def show_factors_modal(
                     file_name="dataset_factors.csv",
                     mime="text/csv",
                     width="stretch",
-                )
-
-        if show_data_tab:
-            with data_tab:
-                cols = st.columns(6, gap="small")
-                stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
-                stat_items = [
-                    ("Rows", stats["num_rows"]),
-                    ("Dates", stats["num_dates"]),
-                    ("Columns", stats["num_columns"]),
-                ]
-                for col, (label, value) in zip(cols, stat_items):
-                    with col:
-                        st.badge(label)
-                        st.html(f"<p style='{stat_style}'>{value}</p>")
-
-                if len(preview_df) > 20:
-                    first_10 = preview_df.head(10)
-                    last_10 = preview_df.tail(10)
-                    display_preview = pd.concat([first_10, last_10], ignore_index=False)
-                else:
-                    display_preview = preview_df
-
-                st.caption("Showing first and last 10 rows")
-
-                display_df = display_preview.reset_index()
-                display_df.rename(columns={"index": "Row"}, inplace=True)
-
-                st.dataframe(
-                    display_df,
-                    height=500,
-                    width="stretch",
-                    hide_index=True,
-                    column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
                 )
 
     _render()
@@ -304,7 +300,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         data.append(
             {
                 "": f"/results?fl_id={a.fl_id}&id={a.id}",
-                "Analysis Date": format_date(a.created_at, "%b %d, %Y %H:%M"),
+                "Analysis Date": format_timestamp(a.created_at, "%b %d, %Y at %I:%M %p UTC"),
                 "Run Time": format_runtime(a.started_at, a.finished_at),
                 "Universe": dataset.universeName if dataset else "N/A",
                 "Factors": len(dataset.formulas) if dataset and dataset.formulas else "N/A",
