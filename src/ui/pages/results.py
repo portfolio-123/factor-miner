@@ -32,7 +32,9 @@ def results() -> None:
         return
 
     try:
-        dataset_metadata = BackupDatasetService(fl_id).get_metadata(analysis.dataset_version)
+        dataset_metadata = BackupDatasetService(fl_id).get_metadata(
+            analysis.dataset_version
+        )
         st.session_state.formulas_data = dataset_metadata.formulas_df
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
@@ -40,7 +42,7 @@ def results() -> None:
     created_on = format_timestamp(analysis.created_at)
     is_complete = analysis.status == AnalysisStatus.SUCCESS
 
-    header_left, header_right = st.columns([6, 1])
+    header_left, header_right = st.columns([8, 1])
     with header_left:
         st.html(
             f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">'
@@ -49,7 +51,7 @@ def results() -> None:
         )
     with header_right:
         if is_complete or analysis.status == AnalysisStatus.FAILED:
-            if st.button("Logs", type="primary", key="header_logs"):
+            if st.button("Logs", type="primary", key="header_logs", width="stretch"):
                 show_analysis_logs_modal(analysis.logs)
 
     if analysis.status == AnalysisStatus.FAILED:
@@ -88,7 +90,9 @@ def results() -> None:
     )
 
     # Count factors excluded by NA filter
-    na_excluded_count = sum(1 for v in factor_classifications.values() if v == "high_na")
+    na_excluded_count = sum(
+        1 for v in factor_classifications.values() if v == "high_na"
+    )
 
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
@@ -102,13 +106,15 @@ def results() -> None:
 
     with settings_tab:
         render_dataset_card(dataset_metadata)
-        
+
         with st.container(border=True):
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
             param_items = [
                 render_info_item("Max. Factors", f"{analysis.params.n_factors}"),
                 render_info_item("Min. Annual Alpha", f"{analysis.params.min_alpha}%"),
-                render_info_item("Max Correlation", f"{analysis.params.correlation_threshold}"),
+                render_info_item(
+                    "Max Correlation", f"{analysis.params.correlation_threshold}"
+                ),
                 render_info_item("Max NA", f"{analysis.params.max_na_pct}%"),
                 render_info_item("Benchmark", f"{analysis.params.benchmark_ticker}"),
                 render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
@@ -121,9 +127,7 @@ def results() -> None:
         render_analysis_notes(analysis)
 
     with best_factors_tab:
-        st.caption(
-            "Best factors ranked by absolute annualized alpha (highest first)"
-        )
+        st.caption("Best factors ranked by absolute annualized alpha (highest first)")
 
         render_results_table(
             all_metrics_df[all_metrics_df["column"].isin(best_feature_names)],
@@ -142,9 +146,7 @@ def results() -> None:
             )
 
     with all_factors_tab:
-        st.caption(
-            "All factors ranked by absolute annualized alpha (highest first)"
-        )
+        st.caption("All factors ranked by absolute annualized alpha (highest first)")
 
         render_results_table(
             all_metrics_df,
