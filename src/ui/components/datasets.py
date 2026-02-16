@@ -102,7 +102,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         fl_link = f"{P123_BASE_URL}/sv/factorList/{fl_id}"
         with header_left:
             st.html(
-                f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using <a href="{fl_link}" target="_blank" style="color: #666;">{sts.session_state.get("fl_name")}</a></span></p>'
+                f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using <a href="{fl_link}" target="_blank" style="color: #666;">{st.session_state.get("fl_name")}</a></span></p>'
             )
         formula_count = (
             len(dataset_metadata.formulas) if dataset_metadata.formulas else 0
