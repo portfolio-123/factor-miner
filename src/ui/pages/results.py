@@ -87,17 +87,12 @@ def results() -> None:
         correlation_threshold=analysis.params.correlation_threshold,
         a_min=analysis.params.min_alpha,
         max_na_pct=analysis.params.max_na_pct,
-    )
-
-    # Count factors excluded by NA filter
-    na_excluded_count = sum(
-        1 for v in factor_classifications.values() if v == "high_na"
+        min_ic=analysis.params.min_ic,
     )
 
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
-        f"Found **{len(best_feature_names)}** of **{analysis.params.n_factors}** requested Best Factors. "
-        f"Number of factors excluded by NAs: {na_excluded_count}"
+        f"Found **{len(best_feature_names)}** of **{analysis.params.n_factors}** requested Best Factors."
     )
 
     settings_tab, best_factors_tab, all_factors_tab = st.tabs(
@@ -116,6 +111,7 @@ def results() -> None:
                     "Max Correlation", f"{analysis.params.correlation_threshold}"
                 ),
                 render_info_item("Max NA", f"{analysis.params.max_na_pct}%"),
+                render_info_item("Min. IC", f"{analysis.params.min_ic}"),
                 render_info_item("Benchmark", f"{analysis.params.benchmark_ticker}"),
                 render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
                 render_info_item("Bottom X (Short)", f"{analysis.params.bottom_pct}%"),

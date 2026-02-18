@@ -17,6 +17,7 @@ DEFAULT_BOTTOM_PCT: Final[float] = 20.0
 DEFAULT_CORRELATION_THRESHOLD: Final[float] = 0.5
 DEFAULT_N_FACTORS: Final[int] = 10
 DEFAULT_MAX_NA_PCT: Final[float] = 40.0
+DEFAULT_MIN_IC: Final[float] = 0.05
 AUTH_COOKIE_KEY: Final[str] = "p123_access_token"
 
 SCALING_LABELS: Final[dict[ScalingMethod, str]] = {

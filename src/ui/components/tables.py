@@ -203,6 +203,7 @@ def render_results_table(
             "n_limit": "#b0bec5",  # Blue-gray
             "below_alpha": "#ffcc80",  # Orange
             "high_na": "#fff59d",  # Yellow
+            "below_ic": "#ce93d8",  # Purple
         }
 
         legend_items = [
@@ -211,6 +212,7 @@ def render_results_table(
             ("correlation_conflict", "#ef9a9a", "Correlation Conflict"),
             ("n_limit", "#b0bec5", "N Limit Reached"),
             ("high_na", "#fff59d", "High NA %"),
+            ("below_ic", "#ce93d8", "Below Min IC"),
         ]
         legend_html = """
         <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">

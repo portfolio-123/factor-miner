@@ -10,6 +10,7 @@ from src.core.config.constants import (
     DEFAULT_CORRELATION_THRESHOLD,
     DEFAULT_N_FACTORS,
     DEFAULT_MAX_NA_PCT,
+    DEFAULT_MIN_IC,
 )
 from src.core.types.models import AnalysisParams
 from src.services.dataset_service import DatasetService
@@ -33,6 +34,7 @@ def _submit_analysis_creation() -> None:
             correlation_threshold=st.session_state.get("correlation_threshold"),
             n_factors=st.session_state.get("n_factors"),
             max_na_pct=st.session_state.get("max_na_pct"),
+            min_ic=st.session_state.get("min_ic"),
             access_token=st.session_state.get("access_token"),
         )
         analysis_service.start(fl_id, analysis_id, dataset_version, params)
@@ -97,7 +99,7 @@ def _render_settings() -> None:
         )
 
     section_header("Analysis Filters")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.number_input(
             "Min. Absolute Annual Alpha (%)",
@@ -134,6 +136,16 @@ def _render_settings() -> None:
             step=1.0,
             key="max_na_pct",
             help="Exclude factors with more than this percentage of missing values",
+        )
+    with col5:
+        st.number_input(
+            "Min. IC",
+            min_value=0.0,
+            max_value=1.0,
+            value=DEFAULT_MIN_IC,
+            step=0.01,
+            key="min_ic",
+            help="Exclude factors with IC below this threshold",
         )
 
 

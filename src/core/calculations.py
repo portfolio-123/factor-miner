@@ -449,6 +449,7 @@ def select_best_features(
     correlation_threshold: float = 0.5,
     a_min: float = 0.5,
     max_na_pct: float = 40.0,
+    min_ic: float = 0.05,
 ) -> tuple[list, dict[str, str]]:
     """
     Select N best features based on alpha and low correlation.
@@ -461,10 +462,11 @@ def select_best_features(
         correlation_threshold: Maximum allowed correlation
         a_min: Minimum absolute annualized alpha %
         max_na_pct: Maximum allowed NA percentage
+        min_ic: Minimum absolute IC threshold
 
     Returns:
         Tuple of (selected feature names, classifications dict)
-        Classifications: "best", "below_alpha", "correlation_conflict", "n_limit", or "high_na"
+        Classifications: "best", "below_alpha", "correlation_conflict", "n_limit", "high_na", or "below_ic"
     """
     classifications = {}
     selected_features = []
@@ -478,6 +480,7 @@ def select_best_features(
     )
 
     has_na_col = "NA %" in sorted_metrics.columns
+    has_ic_col = "IC" in sorted_metrics.columns
 
     for idx, row in sorted_metrics.iterrows():
         feature = row["column"]
@@ -486,6 +489,11 @@ def select_best_features(
 
         if na_pct > max_na_pct:
             classifications[feature] = "high_na"
+            continue
+
+        ic_value = row.get("IC", np.nan) if has_ic_col else np.nan
+        if pd.isna(ic_value) or abs(ic_value) < min_ic:
+            classifications[feature] = "below_ic"
             continue
 
         if abs(alpha) < a_min:
