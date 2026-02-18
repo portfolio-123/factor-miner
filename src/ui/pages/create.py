@@ -102,7 +102,7 @@ def _render_settings() -> None:
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.number_input(
-            "Min. Absolute Annual Alpha (%)",
+            "Min. Abs. Annual Alpha (%)",
             min_value=0.0,
             max_value=100.0,
             value=DEFAULT_MIN_ALPHA,
