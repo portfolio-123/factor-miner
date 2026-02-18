@@ -91,11 +91,11 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
         is_active = dataset_metadata.active
         if is_active:
             header_left, _, header_formulas, header_preview, header_status = st.columns(
-                [3, 0.5, 0.6, 0.5, 0.15], vertical_alignment="center"
+                [3, 0.5, 0.8, 0.5, 0.15], vertical_alignment="center"
             )
         else:
             header_left, _, header_formulas, header_status = st.columns(
-                [3, 1, 0.6, 0.15], vertical_alignment="center"
+                [3, 1, 0.8, 0.15], vertical_alignment="center"
             )
         created_on = format_timestamp(dataset_metadata.version)
         fl_id = st.query_params.get("fl_id")

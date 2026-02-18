@@ -161,24 +161,26 @@ def render_results_table(
             "column": "Factor",
             "annualized alpha %": "Ann. Alpha %",
             "NA %": "NA %",
-            "T Statistic": "T-Statistic",
             "p-value": "P-Value",
             "beta": "Beta",
             "rank": "Rank",
+            "IC": "IC",
+            "IC P-Value": "IC P-Value",
         }
     )
 
-    display = display[["Rank", "Factor", "Ann. Alpha %", "NA %", "Beta", "T-Statistic", "P-Value"]]
+    display = display[["Rank", "Factor", "NA %", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC P-Value"]]
 
     factor_names = display["Factor"].tolist()
 
     # format numeric columns as strings
     formatters = {
-        "Ann. Alpha %": lambda x: f"{x:.2f}%",
         "NA %": lambda x: f"{x:.1f}%",
+        "Ann. Alpha %": lambda x: f"{x:.2f}%",
         "Beta": lambda x: f"{x:.4f}",
-        "T-Statistic": lambda x: f"{x:.4f}",
         "P-Value": lambda x: f"{x:.6f}",
+        "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
+        "IC P-Value": lambda x: f"{x:.6f}" if pd.notna(x) else "N/A",
     }
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
@@ -186,28 +188,29 @@ def render_results_table(
     column_config = {
         "Rank": st.column_config.NumberColumn("Rank", width="small"),
         "Factor": st.column_config.TextColumn("Factor", width="large"),
-        "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
         "NA %": st.column_config.TextColumn("NA %", width="small"),
+        "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
         "Beta": st.column_config.TextColumn("Beta", width="small"),
-        "T-Statistic": st.column_config.TextColumn("T-Statistic", width="small"),
         "P-Value": st.column_config.TextColumn("P-Value", width="small"),
+        "IC": st.column_config.TextColumn("IC", width="small"),
+        "IC P-Value": st.column_config.TextColumn("IC P-Value", width="small"),
     }
 
     if factor_classifications is not None:
         color_map = {
-            "best": "#e8f5e9",  # Light green
-            "correlation_conflict": "#ffebee",  # Light red
-            "n_limit": "#f5f5f5",  # Light gray
-            "below_alpha": "#fff3e0",  # Light orange
-            "high_na": "#fffde7",  # Light yellow
+            "best": "#a5d6a7",  # Green
+            "correlation_conflict": "#ef9a9a",  # Red
+            "n_limit": "#b0bec5",  # Blue-gray
+            "below_alpha": "#ffcc80",  # Orange
+            "high_na": "#fff59d",  # Yellow
         }
 
         legend_items = [
-            ("best", "#e8f5e9", "Best Factor"),
-            ("below_alpha", "#fff3e0", "Below Min Alpha"),
-            ("correlation_conflict", "#ffebee", "Correlation Conflict"),
-            ("n_limit", "#f5f5f5", "N Limit Reached"),
-            ("high_na", "#fffde7", "High NA %"),
+            ("best", "#a5d6a7", "Best Factor"),
+            ("below_alpha", "#ffcc80", "Below Min Alpha"),
+            ("correlation_conflict", "#ef9a9a", "Correlation Conflict"),
+            ("n_limit", "#b0bec5", "N Limit Reached"),
+            ("high_na", "#fff59d", "High NA %"),
         ]
         legend_html = """
         <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">

@@ -106,7 +106,7 @@ class AnalysisRunner:
             perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column])
             future_perf_df = calculate_future_performance(perf_core, price_column)
             self.log("Analyzing factors...")
-            results_df, na_stats = analyze_factors(
+            results_df, factor_stats = analyze_factors(
                 future_perf_df,
                 dataset_svc,
                 factor_columns=factor_columns,
@@ -129,7 +129,7 @@ class AnalysisRunner:
                 results_df,
                 raw_data,
                 periods_per_year=dataset_info.frequency.periods_per_year,
-                na_stats=na_stats,
+                factor_stats=factor_stats,
             )
 
             self.log("Calculating correlation matrix...")

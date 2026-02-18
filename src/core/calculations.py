@@ -117,14 +117,14 @@ def analyze_factors(
         batch_size: Number of factors to read per batch (default: 50)
 
     Returns:
-        Tuple of (DataFrame with factor analysis results, dict of NA stats per factor)
+        Tuple of (DataFrame with factor analysis results, dict of factor stats per factor including NA%, IC, IC P-Value)
     """
     total_factors = len(factor_columns)
 
     all_dates: List[np.ndarray] = []
     all_factors: List[np.ndarray] = []
     all_rets: List[np.ndarray] = []
-    na_stats_dict: Dict[str, dict] = {}
+    factor_stats_dict: Dict[str, dict] = {}
 
     # read date/ticker once and track row indices
     base_df = dataset_svc.read_columns(["Date", "Ticker"])
@@ -144,14 +144,13 @@ def analyze_factors(
     del base_df, merged_base
 
     def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
-        """Process a single factor and return arrays of (dates, factors, returns, na_stats)."""
+        """Process a single factor and return arrays of (dates, factors, returns, factor_stats)."""
         factor_arr = batch_df[col].to_numpy()[valid_indices]
 
         # Calculate NA stats
         total_values = len(factor_arr)
         na_count = np.isnan(factor_arr).sum()
         na_pct = (na_count / total_values * 100) if total_values > 0 else 100.0
-        na_stats = {'na_pct': round(na_pct, 2)}
 
         valid_mask = perf_valid & ~np.isnan(factor_arr)
 
@@ -160,13 +159,78 @@ def analyze_factors(
         factor_f = factor_arr[valid_mask]
         perf_f = perf_arr[valid_mask]
 
+        # count how many stocks are per date
+        counts = np.bincount(inverse_f, minlength=n_dates)
+
+        # IC spearman correlation calculation
+        # sort by date and factor, compute factor ranks within each date
+        sort_idx_f = np.lexsort((factor_f, inverse_f))
+        inverse_sorted_f = inverse_f[sort_idx_f]
+
+        # group_starts[i] = index where date i starts in the sorted array
+        group_starts = np.zeros(n_dates + 1, dtype=np.int64)
+        group_starts[1:] = np.cumsum(counts)
+
+        factor_ranks = np.arange(len(inverse_sorted_f)) - group_starts[inverse_sorted_f] + 1
+
+        # unsort to original order
+        unsort_idx_f = np.argsort(sort_idx_f)
+        factor_ranks = factor_ranks[unsort_idx_f].astype(np.float64)
+
+        sort_idx_p = np.lexsort((perf_f, inverse_f))
+        inverse_sorted_p = inverse_f[sort_idx_p]
+        perf_ranks = np.arange(len(inverse_sorted_p)) - group_starts[inverse_sorted_p] + 1
+        unsort_idx_p = np.argsort(sort_idx_p)
+        perf_ranks = perf_ranks[unsort_idx_p].astype(np.float64)
+
+        # spearman correlation per date
+        n_per_date = counts.astype(np.float64)
+        sum_fr = np.bincount(inverse_f, weights=factor_ranks, minlength=n_dates)
+        sum_pr = np.bincount(inverse_f, weights=perf_ranks, minlength=n_dates)
+        mean_fr = np.divide(sum_fr, n_per_date, out=np.zeros_like(sum_fr), where=n_per_date > 0)
+        mean_pr = np.divide(sum_pr, n_per_date, out=np.zeros_like(sum_pr), where=n_per_date > 0)
+
+        # centered values
+        fr_centered = factor_ranks - mean_fr[inverse_f]
+        pr_centered = perf_ranks - mean_pr[inverse_f]
+
+        # covariance and variances per date
+        cov_per_date = np.bincount(inverse_f, weights=fr_centered * pr_centered, minlength=n_dates)
+        var_fr = np.bincount(inverse_f, weights=fr_centered ** 2, minlength=n_dates)
+        var_pr = np.bincount(inverse_f, weights=pr_centered ** 2, minlength=n_dates)
+
+        denom = np.sqrt(var_fr * var_pr)
+        valid_dates_ic = (counts >= 3) & (denom > 0)
+
+        ic_per_date = np.full(n_dates, np.nan)
+        ic_per_date[valid_dates_ic] = cov_per_date[valid_dates_ic] / denom[valid_dates_ic]
+
+        valid_ic = ic_per_date[valid_dates_ic]
+        mean_ic = np.mean(valid_ic) if len(valid_ic) > 0 else np.nan
+
+        n_valid_ic = counts[valid_dates_ic]
+        r_squared = ic_per_date[valid_dates_ic] ** 2
+        t_stats = ic_per_date[valid_dates_ic] * np.sqrt(n_valid_ic - 2) / np.sqrt(1 - r_squared + 1e-10)
+        pvals = 2 * (1 - stats.t.cdf(np.abs(t_stats), df=n_valid_ic - 2))
+
+        # fisher's method to combine p-values
+        valid_pvals = pvals[(pvals > 0) & (pvals < 1)]
+        if len(valid_pvals) > 0:
+            chi2_stat = -2 * np.sum(np.log(valid_pvals))
+            ic_pval = 1 - stats.chi2.cdf(chi2_stat, df=2 * len(valid_pvals))
+        else:
+            ic_pval = np.nan
+
+        factor_stats = {
+            'na_pct': round(na_pct, 2),
+            'ic': mean_ic,
+            'ic_pval': ic_pval,
+        }
+
         # group by date and then within each date, sort by factor value
         sort_keys = np.lexsort((factor_f, inverse_f))
         inverse_sorted = inverse_f[sort_keys]
         perf_sorted = perf_f[sort_keys]
-
-        # count how many stocks are per date. each row within a date, is +1 stock.
-        counts = np.bincount(inverse_sorted, minlength=n_dates)
 
         # considering how many stocks per date (counts), calculate what topx% and bottomx% translate to.
         top_n = (counts * (top_pct / 100.0)).astype(np.int64)
@@ -216,7 +280,7 @@ def analyze_factors(
             unique_dates[valid_indices_arr],
             np.full(len(valid_indices_arr), col, dtype=object),
             ret[valid_indices_arr],
-            na_stats,
+            factor_stats,
         )
 
     for batch_start in range(0, total_factors, batch_size):
@@ -230,8 +294,8 @@ def analyze_factors(
             batch_results = list(executor.map(process_factor, batch_cols))
 
         # collect arrays from batch results
-        for col, (dates_arr, factors_arr, rets_arr, na_stats) in zip(batch_cols, batch_results):
-            na_stats_dict[col] = na_stats
+        for col, (dates_arr, factors_arr, rets_arr, factor_stats) in zip(batch_cols, batch_results):
+            factor_stats_dict[col] = factor_stats
             if len(dates_arr) > 0:
                 all_dates.append(dates_arr)
                 all_factors.append(factors_arr)
@@ -251,17 +315,17 @@ def analyze_factors(
                 "factor": np.concatenate(all_factors),
                 "ret": np.concatenate(all_rets),
             }),
-            na_stats_dict,
+            factor_stats_dict,
         )
     else:
-        return pd.DataFrame(columns=["Date", "factor", "ret"]), na_stats_dict
+        return pd.DataFrame(columns=["Date", "factor", "ret"]), factor_stats_dict
 
 
 def calculate_factor_metrics(
     results_df: pd.DataFrame,
     raw_data: pd.DataFrame,
     periods_per_year: int = 52,
-    na_stats: Optional[Dict[str, dict]] = None,
+    factor_stats: Optional[Dict[str, dict]] = None,
 ) -> pd.DataFrame:
     """
     Calculate statistical metrics for each factor using vectorized operations.
@@ -271,10 +335,10 @@ def calculate_factor_metrics(
         results_df: DataFrame with factor returns (Date, factor, ret)
         raw_data: DataFrame with benchmark data from p123 api
         periods_per_year: Number of periods per year for annualization (default: 52 for weekly)
-        na_stats: Optional dict mapping factor names to their NA statistics
+        factor_stats: Optional dict mapping factor names to their statistics (NA%, IC, IC P-Value)
 
     Returns:
-        DataFrame with factor metrics including NA %
+        DataFrame with factor metrics including NA %, IC, and IC P-Value
     """
     # get unique benchmark values per date
     benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
@@ -323,7 +387,7 @@ def calculate_factor_metrics(
     # annualized alpha
     ann_alpha = 100 * ((1 + alpha) ** periods_per_year - 1)
 
-    # t-statistic
+    # t-statistic (used for p-value calculation)
     y_var = (y_centered ** 2).sum(axis=0) / (n_valid - 1)
     y_std = np.sqrt(y_var)
     y_stderr = y_std / np.sqrt(n_valid)
@@ -338,19 +402,26 @@ def calculate_factor_metrics(
 
     result = pd.DataFrame({
         "column": valid_factor_names,
-        "T Statistic": t_stat[valid_factors],
         "p-value": p_value[valid_factors],
         "beta": beta[valid_factors],
         "alpha": alpha[valid_factors],
         "annualized alpha %": ann_alpha[valid_factors],
     })
 
-    if na_stats is not None:
+    if factor_stats is not None:
         result["NA %"] = result["column"].map(
-            lambda col: na_stats.get(col, {}).get("na_pct", 0.0)
+            lambda col: factor_stats.get(col, {}).get("na_pct", 0.0)
+        )
+        result["IC"] = result["column"].map(
+            lambda col: factor_stats.get(col, {}).get("ic", np.nan)
+        )
+        result["IC P-Value"] = result["column"].map(
+            lambda col: factor_stats.get(col, {}).get("ic_pval", np.nan)
         )
     else:
         result["NA %"] = 0.0
+        result["IC"] = np.nan
+        result["IC P-Value"] = np.nan
 
     return result
 
