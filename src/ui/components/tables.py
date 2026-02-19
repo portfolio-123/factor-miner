@@ -251,8 +251,13 @@ def render_results_table(
             column_config=column_config,
         )
     else:
+        def alternate_row_colors(row: pd.Series) -> list[str]:
+            color = "#f8f9fa" if row.name % 2 == 0 else "#ffffff"
+            return [f"background-color: {color}"] * len(row)
+
+        styled_display = display.style.apply(alternate_row_colors, axis=1)
         st.dataframe(
-            display,
+            styled_display,
             height=500,
             width="stretch",
             hide_index=True,

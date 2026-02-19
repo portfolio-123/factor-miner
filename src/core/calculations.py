@@ -57,8 +57,12 @@ def calculate_benchmark_returns(
 
     benchmark_returns = (curr_prices - prev_prices) / prev_prices
 
-    result = raw_data.copy()
-    result[INTERNAL_BENCHMARK_COL] = raw_data["Date"].map(dict(zip(unique_date_values, benchmark_returns)))
+    bench_df = pd.DataFrame({
+        "Date": unique_date_values,
+        INTERNAL_BENCHMARK_COL: benchmark_returns
+    })
+    
+    result = raw_data.merge(bench_df, on="Date", how="left")
     return result
 
 
@@ -78,25 +82,12 @@ def calculate_future_performance(
         DataFrame with Date, Ticker, and internal future perf column
     """
     df = raw_data[["Date", "Ticker", price_column]].copy()
-
-    # sort by Ticker and Date
     df = df.sort_values(["Ticker", "Date"]).reset_index(drop=True)
 
-    # shift to get next period's values for each ticker
-    df["Next_Date"] = df.groupby("Ticker")["Date"].shift(-1)
-    df["Next_Price"] = df.groupby("Ticker")[price_column].shift(-1)
-
-    # calculate return only where there is a price and next price
-    valid_mask = (df[price_column].notna()) & (df["Next_Price"].notna())
-
-    # only add future perf column for valid rows
-    df[INTERNAL_FUTURE_PERF_COL] = float("nan")
-    df.loc[valid_mask, INTERNAL_FUTURE_PERF_COL] = (
-        df.loc[valid_mask, "Next_Price"] - df.loc[valid_mask, price_column]
-    ) / df.loc[valid_mask, price_column]
-
-    # drop temporary columns
-    df = df.drop(columns=["Next_Date", "Next_Price", price_column])
+    # calculate return as (next_price - current_price) / current_price
+    next_price = df.groupby("Ticker")[price_column].shift(-1)
+    df[INTERNAL_FUTURE_PERF_COL] = (next_price - df[price_column]) / df[price_column]
+    df = df.drop(columns=[price_column])
 
     return df
 
@@ -174,16 +165,15 @@ def analyze_factors(
         # Sort by (date, factor) to compute within-group factor ranks
         sort_keys = np.lexsort((factor_f, inverse_f))
         inverse_sorted = inverse_f[sort_keys]
-        factor_sorted = factor_f[sort_keys]
         perf_sorted = perf_f[sort_keys]
 
+        # Compute group boundaries once - reused for IC calc and top/bottom analysis
         group_starts = np.zeros(n_dates + 1, dtype=np.int64)
         group_starts[1:] = np.cumsum(counts)
-
-        # Compute within-group percentile rank for factor (already sorted by factor within date)
         rank_in_group = np.arange(len(inverse_sorted)) - group_starts[inverse_sorted]
-        group_sizes = counts[inverse_sorted].astype(np.float64)
-        f_rank = (rank_in_group + 0.5) / group_sizes  # 0-1 percentile rank
+        group_sizes = counts[inverse_sorted]
+        group_sizes_f = group_sizes.astype(np.float64)
+        f_rank = (rank_in_group + 0.5) / group_sizes_f  # 0-1 percentile rank
 
         # Compute within-group percentile rank for performance
         # Need to re-sort by (date, perf) to get perf ranks
@@ -192,7 +182,7 @@ def analyze_factors(
         perf_rank_pos[perf_order_within_date] = np.arange(len(perf_order_within_date))
         # Adjust to within-group position
         perf_rank_in_group = perf_rank_pos - group_starts[inverse_sorted]
-        r_rank = (perf_rank_in_group + 0.5) / group_sizes
+        r_rank = (perf_rank_in_group + 0.5) / group_sizes_f
 
         # Tail weights: w = 1 + alpha * |rank - 0.5|
         alpha = 4.0
@@ -247,16 +237,7 @@ def analyze_factors(
         top_n = (counts * (top_pct / 100.0)).astype(np.int64)
         bottom_n = (counts * (bottom_pct / 100.0)).astype(np.int64)
 
-        # create empty array with zeros, but with length as the amount of dates
-        group_starts = np.zeros(n_dates + 1, dtype=np.int64)
-        # fill array with cumulative sum of counts. except for the first one, the rest are the index of the first stock of each date in order.
-        group_starts[1:] = np.cumsum(counts)
-        # get position of each stock (row) within its date. lower rank meaning lower factor value.
-        rank_in_group = np.arange(len(inverse_sorted)) - group_starts[inverse_sorted]
-
-        # array which contains an integer per row. each integer represents the amount of stocks in the date it belongs to.
-        group_sizes = counts[inverse_sorted]
-        # same but instead of total stocks per date group, indicates amount of topx and bottomx stocks per date.
+        # expand top/bottom counts per stock
         top_n_expanded = top_n[inverse_sorted]
         bottom_n_expanded = bottom_n[inverse_sorted]
 
@@ -294,29 +275,29 @@ def analyze_factors(
             factor_stats,
         )
 
-    for batch_start in range(0, total_factors, batch_size):
-        batch_cols = factor_columns[batch_start : batch_start + batch_size]
+    with ThreadPoolExecutor() as executor:
+        for batch_start in range(0, total_factors, batch_size):
+            batch_cols = factor_columns[batch_start : batch_start + batch_size]
 
-        # read factor columns in batches
-        batch_df = dataset_svc.read_columns(batch_cols)
+            # read factor columns in batches
+            batch_df = dataset_svc.read_columns(batch_cols)
 
-        # process factors in parallel
-        with ThreadPoolExecutor() as executor:
+            # process factors in parallel
             batch_results = list(executor.map(process_factor, batch_cols))
 
-        # collect arrays from batch results
-        for col, (dates_arr, factors_arr, rets_arr, factor_stats) in zip(batch_cols, batch_results):
-            factor_stats_dict[col] = factor_stats
-            if len(dates_arr) > 0:
-                all_dates.append(dates_arr)
-                all_factors.append(factors_arr)
-                all_rets.append(rets_arr)
+            # collect arrays from batch results
+            for col, (dates_arr, factors_arr, rets_arr, factor_stats) in zip(batch_cols, batch_results):
+                factor_stats_dict[col] = factor_stats
+                if len(dates_arr) > 0:
+                    all_dates.append(dates_arr)
+                    all_factors.append(factors_arr)
+                    all_rets.append(rets_arr)
 
-        completed = batch_start + len(batch_cols)
-        if progress_fn:
-            progress_fn(completed, total_factors)
+            completed = batch_start + len(batch_cols)
+            if progress_fn:
+                progress_fn(completed, total_factors)
 
-        del batch_df
+            del batch_df
 
     # concatenate all arrays and build DataFrame once
     if all_dates:
@@ -377,11 +358,9 @@ def calculate_factor_metrics(
     y_masked = np.where(valid, y, 0.0)
     x_masked = np.where(valid, x, 0.0)
 
-    # mean/average calculation (sum / count)
-    y_sum = y_masked.sum(axis=0)
-    x_sum = x_masked.sum(axis=0)
-    y_mean = y_sum / n_valid
-    x_mean = x_sum / n_valid
+    # mean/average calculation
+    y_mean = y_masked.sum(axis=0) / n_valid
+    x_mean = x_masked.sum(axis=0) / n_valid
 
     # centered values for regression. how much is the difference relative to the mean, to calculate beta.
     y_centered = np.where(valid, y - y_mean, 0.0)
@@ -421,14 +400,14 @@ def calculate_factor_metrics(
 
     if factor_stats is not None:
         result["NA %"] = result["column"].map(
-            lambda col: factor_stats.get(col, {}).get("na_pct", 0.0)
-        )
+            {k: v.get("na_pct", 0.0) for k, v in factor_stats.items()}
+        ).fillna(0.0)
         result["IC"] = result["column"].map(
-            lambda col: factor_stats.get(col, {}).get("ic", np.nan)
-        )
+            {k: v.get("ic", np.nan) for k, v in factor_stats.items()}
+        ).fillna(np.nan)
         result["IC t-stat"] = result["column"].map(
-            lambda col: factor_stats.get(col, {}).get("ic_tstat", np.nan)
-        )
+            {k: v.get("ic_tstat", np.nan) for k, v in factor_stats.items()}
+        ).fillna(np.nan)
     else:
         result["NA %"] = 0.0
         result["IC"] = np.nan
@@ -493,16 +472,27 @@ def select_best_features(
     has_na_col = "NA %" in sorted_metrics.columns
     has_ic_col = "IC" in sorted_metrics.columns
 
-    for idx, row in sorted_metrics.iterrows():
-        feature = row["column"]
-        alpha = row["annualized alpha %"]
-        na_pct = row["NA %"] if has_na_col else 0.0
+    columns = sorted_metrics["column"].to_numpy()
+    alphas = sorted_metrics["annualized alpha %"].to_numpy()
+    na_pcts = sorted_metrics["NA %"].to_numpy() if has_na_col else np.zeros(len(sorted_metrics))
+    ics = sorted_metrics["IC"].to_numpy() if has_ic_col else None
 
-        if na_pct > max_na_pct:
+    # Pre-compute feature indices to avoid dict lookup in loop
+    feat_indices = np.array([col_to_idx.get(c, -1) for c in columns])
+
+    # Pre-compute vectorizable conditions
+    valid_na = na_pcts <= max_na_pct
+    valid_alpha = np.abs(alphas) >= a_min
+    valid_ic = np.isnan(ics) | (np.abs(ics) >= min_ic) if ics is not None else None
+
+    for i in range(len(columns)):
+        feature = columns[i]
+
+        if not valid_na[i]:
             classifications[feature] = "high_na"
             continue
 
-        if abs(alpha) < a_min:
+        if not valid_alpha[i]:
             classifications[feature] = "below_alpha"
             continue
 
@@ -510,19 +500,18 @@ def select_best_features(
             classifications[feature] = "n_limit"
             continue
 
-        feat_idx = col_to_idx.get(feature)
-        if feat_idx is None or not all(
-            abs(corr_arr[feat_idx, sel_idx]) < correlation_threshold
-            for sel_idx in selected_indices
+        if valid_ic is not None and not valid_ic[i]:
+            classifications[feature] = "below_ic"
+            continue
+
+        feat_idx = feat_indices[i]
+        # Vectorized correlation check using numpy array indexing
+        if feat_idx < 0 or (
+            len(selected_indices) > 0
+            and np.any(np.abs(corr_arr[feat_idx, selected_indices]) >= correlation_threshold)
         ):
             classifications[feature] = "correlation_conflict"
             continue
-
-        if has_ic_col:
-            ic_value = row["IC"]
-            if pd.notna(ic_value) and abs(float(ic_value)) < min_ic:
-                classifications[feature] = "below_ic"
-                continue
 
         selected_features.append(feature)
         selected_indices.append(feat_idx)
