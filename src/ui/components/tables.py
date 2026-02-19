@@ -135,7 +135,7 @@ def render_results_table(
             "column": "Factor",
             "annualized alpha %": "Ann. Alpha %",
             "NA %": "NA %",
-            "p-value": "P-Value",
+            "T-Stat": "T-Stat",
             "beta": "Beta",
             "rank": "Rank",
             "IC": "IC",
@@ -144,7 +144,7 @@ def render_results_table(
     )
 
     display = display[
-        ["Rank", "Factor", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC t-stat", "NA %"]
+        ["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "NA %"]
     ]
 
     factor_names = display["Factor"].tolist()
@@ -154,7 +154,7 @@ def render_results_table(
         "NA %": lambda x: f"{x:.1f}%",
         "Ann. Alpha %": lambda x: f"{x:.2f}%",
         "Beta": lambda x: f"{x:.4f}",
-        "P-Value": lambda x: f"{x:.6f}",
+        "T-Stat": lambda x: f"{x:.2f}",
         "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
         "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
     }
@@ -167,7 +167,7 @@ def render_results_table(
         ("NA %", "text", "small"),
         ("Ann. Alpha %", "text", "small"),
         ("Beta", "text", "small"),
-        ("P-Value", "text", "small"),
+        ("T-Stat", "text", "small"),
         ("IC", "text", "small"),
         ("IC t-stat", "text", "small"),
     ])

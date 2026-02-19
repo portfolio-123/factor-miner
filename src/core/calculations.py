@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import scipy.stats as stats
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, List, Optional, Tuple
 from src.services.dataset_service import DatasetService
@@ -317,7 +316,7 @@ def calculate_factor_metrics(
 ) -> pd.DataFrame:
     """
     Calculate statistical metrics for each factor using vectorized operations.
-    Computes alpha, beta, t-statistic, and p-value.
+    Computes alpha, beta, and t-statistic.
 
     Args:
         results_df: DataFrame with factor returns (Date, factor, ret)
@@ -373,14 +372,11 @@ def calculate_factor_metrics(
     # annualized alpha
     ann_alpha = 100 * ((1 + alpha) ** periods_per_year - 1)
 
-    # t-statistic (used for p-value calculation)
+    # t-statistic
     y_var = (y_centered ** 2).sum(axis=0) / (n_valid - 1)
     y_std = np.sqrt(y_var)
     y_stderr = y_std / np.sqrt(n_valid)
     t_stat = y_mean / y_stderr
-
-    # p-value
-    p_value = 2 * (1 - stats.t.cdf(np.abs(t_stat), df=n_valid - 1))
 
     # filter factors with insufficient data
     valid_factors = n_valid >= 2
@@ -388,7 +384,7 @@ def calculate_factor_metrics(
 
     result = pd.DataFrame({
         "column": valid_factor_names,
-        "p-value": p_value[valid_factors],
+        "T-Stat": t_stat[valid_factors],
         "beta": beta[valid_factors],
         "alpha": alpha[valid_factors],
         "annualized alpha %": ann_alpha[valid_factors],
@@ -477,7 +473,7 @@ def select_best_features(
 
     valid_na = na_pcts <= max_na_pct
     valid_alpha = np.abs(alphas) >= a_min
-    valid_ic = np.isnan(ics) | (np.abs(ics) >= min_ic) if ics is not None else None
+    valid_ic = np.abs(ics) >= min_ic if ics is not None else None
 
     for i in range(len(columns)):
         feature = columns[i]
