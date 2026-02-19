@@ -1,4 +1,37 @@
 import streamlit as st
+from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
+
+
+def render_copy_download_buttons(
+    csv_copy: str,
+    csv_download: str,
+    file_name: str,
+    key_prefix: str,
+    toast_msg: str = "Copied to clipboard",
+) -> None:
+    """Render copy-to-clipboard and download CSV buttons."""
+    _, col1, col2 = st.columns([3, 1, 1])
+    with col1:
+        if st.button(
+            type="primary",
+            label="Copy to Clipboard",
+            width="stretch",
+            key=f"{key_prefix}_copy",
+        ):
+            copy_to_clipboard_unsecured(csv_copy)
+            copy_to_clipboard(csv_copy)
+            st.toast(toast_msg)
+    with col2:
+        st.download_button(
+            type="primary",
+            label="Download CSV",
+            data=csv_download,
+            file_name=file_name,
+            mime="text/csv",
+            width="stretch",
+            key=f"{key_prefix}_download",
+        )
+
 
 def section_header(title: str) -> None:
     st.html(

@@ -106,21 +106,19 @@ def results() -> None:
 
         with st.container(border=True):
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
-            param_items = [
-                render_info_item("Max. Factors", f"{analysis.params.n_factors}"),
-                render_info_item("Min. Annual Alpha", f"{analysis.params.min_alpha}%"),
-                render_info_item(
-                    "Max Correlation", f"{analysis.params.correlation_threshold}"
-                ),
-                render_info_item("Max NA", f"{analysis.params.max_na_pct}%"),
-                render_info_item("Min. IC", f"{analysis.params.min_ic}"),
-                render_info_item("Benchmark", f"{analysis.params.benchmark_ticker}"),
-                render_info_item("Top X (Long)", f"{analysis.params.top_pct}%"),
-                render_info_item("Bottom X (Short)", f"{analysis.params.bottom_pct}%"),
+            p = analysis.params
+            settings = [
+                ("Max. Factors", p.n_factors),
+                ("Min. Annual Alpha", f"{p.min_alpha}%"),
+                ("Max Correlation", p.correlation_threshold),
+                ("Max NA", f"{p.max_na_pct}%"),
+                ("Min. IC", p.min_ic),
+                ("Benchmark", p.benchmark_ticker),
+                ("Top X (Long)", f"{p.top_pct}%"),
+                ("Bottom X (Short)", f"{p.bottom_pct}%"),
             ]
-            st.html(
-                f'<div style="display: flex; gap: 24px; flex-wrap: wrap;">{"".join(param_items)}</div>'
-            )
+            items_html = "".join(render_info_item(label, value) for label, value in settings)
+            st.html(f'<div style="display: flex; gap: 24px; flex-wrap: wrap;">{items_html}</div>')
 
         render_analysis_notes(analysis)
 

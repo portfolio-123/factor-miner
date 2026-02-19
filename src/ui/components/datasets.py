@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pandas as pd
 import streamlit as st
 from src.ui.components.tables import show_factors_modal
 from src.core.config.constants import (
@@ -47,46 +46,40 @@ def _build_norm_items(normalization) -> list[str]:
     items = [
         ("Scaling", scaling_label),
         ("Scope", normalization.scope.title() if normalization.scope else "None"),
-        ("N/A Handling", "Middle" if normalization.naFill else "None"),
     ]
 
     if normalization.scaling in (ScalingMethod.NORMAL, ScalingMethod.MINMAX):
-        items.insert(
-            2,
-            (
-                "Trim",
-                (
-                    f"{normalization.trimPct}%"
-                    if normalization.trimPct is not None
-                    else "N/A"
-                ),
-            ),
-        )
+        trim_value = f"{normalization.trimPct}%" if normalization.trimPct is not None else "N/A"
+        items.append(("Trim", trim_value))
 
         if normalization.scaling == ScalingMethod.MINMAX:
-            outlier_label = "Outliers"
-            outlier_value = (
-                normalization.outliers.title() if normalization.outliers else "None"
-            )
+            outlier_value = normalization.outliers.title() if normalization.outliers else "None"
+            items.append(("Outliers", outlier_value))
         else:
-            outlier_label = "Outlier Limit"
-            outlier_value = (
-                str(normalization.outlierLimit)
-                if normalization.outlierLimit is not None
-                else "None"
-            )
+            outlier_value = str(normalization.outlierLimit) if normalization.outlierLimit is not None else "None"
+            items.append(("Outlier Limit", outlier_value))
 
-        items.insert(3, (outlier_label, outlier_value))
+    items.append(("N/A Handling", "Middle" if normalization.naFill else "None"))
 
     if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
-        items.append(
-            ("ML Training End", format_date(normalization.mlTrainingEnd, "%Y/%m/%d"))
-        )
+        items.append(("ML Training End", format_date(normalization.mlTrainingEnd, "%Y/%m/%d")))
 
     return [render_info_item(label, value) for label, value in items]
 
 
+def _get_date_display(dataset_metadata: DatasetConfig) -> tuple[str, str]:
+    fmt = "%Y/%m/%d"
+    if dataset_metadata.type == DatasetType.DATE:
+        value = format_date(dataset_metadata.asOfDt, fmt) if dataset_metadata.asOfDt else "N/A"
+        return "Date", value
+    start = format_date(dataset_metadata.startDt, fmt) if dataset_metadata.startDt else "N/A"
+    end = format_date(dataset_metadata.endDt, fmt) if dataset_metadata.endDt else "N/A"
+    return "Period", f"{start} - {end}"
+
+
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
+    fl_id = st.query_params.get("fl_id")
+
     with st.container(border=True):
         is_active = dataset_metadata.active
         if is_active:
@@ -97,16 +90,13 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             header_left, _, header_formulas, header_status = st.columns(
                 [3, 0.9, 0.9, 0.15], vertical_alignment="center"
             )
-        created_on = format_timestamp(dataset_metadata.version)
-        fl_id = st.query_params.get("fl_id")
         fl_link = f"{P123_BASE_URL}/sv/factorList/{fl_id}"
         with header_left:
             st.html(
                 f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using <a href="{fl_link}" target="_blank" style="color: #666;">{st.session_state.get("fl_name")}</a></span></p>'
             )
-        formula_count = (
-            len(dataset_metadata.formulas) if dataset_metadata.formulas else 0
-        )
+
+        formula_count = len(dataset_metadata.formulas) if dataset_metadata.formulas else 0
         with header_formulas:
             if st.button(
                 f"Formulas ({formula_count})",
@@ -114,9 +104,8 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 key=f"formulas_{dataset_metadata.version}",
                 type="secondary",
             ):
-                show_factors_modal(
-                    dataset_metadata.formulas_df, title="Dataset Formulas"
-                )
+                show_factors_modal(dataset_metadata.formulas_df, title="Dataset Formulas")
+
         if is_active:
             with header_preview:
                 if st.button(
@@ -125,15 +114,12 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     key=f"preview_dataset_{dataset_metadata.version}",
                     type="secondary",
                 ):
-                    fl_id = st.query_params.get("fl_id")
                     with DatasetService(fl_id) as svc:
                         preview_df, stats = svc.get_review_data()
                     show_factors_modal(
-                        dataset_metadata.formulas_df,
-                        stats,
-                        preview_df,
-                        title="Dataset Preview",
+                        dataset_metadata.formulas_df, stats, preview_df, title="Dataset Preview"
                     )
+
         with header_status:
             status_color = "#22c55e" if is_active else "#ef4444"
             status_title = "Active version" if is_active else "Not active version"
@@ -144,22 +130,12 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             )
 
         c1, c2, c3, c4 = st.columns([1, 0.5, 1.25, 1.5], vertical_alignment="top")
-
-        if dataset_metadata.type == DatasetType.DATE:
-            date_label = "Date"
-            date_value = (
-                format_date(dataset_metadata.asOfDt, "%Y/%m/%d")
-                if dataset_metadata.asOfDt
-                else "N/A"
-            )
-        else:
-            date_label = "Period"
-            date_value = f"{format_date(dataset_metadata.startDt, '%Y/%m/%d') if dataset_metadata.startDt else 'N/A'} - {format_date(dataset_metadata.endDt, '%Y/%m/%d') if dataset_metadata.endDt else 'N/A'}"
+        date_label, date_value = _get_date_display(dataset_metadata)
 
         big_items = [
             (c1, date_label, date_value),
             (c2, "Frequency", FREQUENCY_LABELS.get(dataset_metadata.frequency, "N/A")),
-            (c3, "Generated", created_on),
+            (c3, "Generated", format_timestamp(dataset_metadata.version)),
             (c4, "Universe", dataset_metadata.universeName),
         ]
         for col, label, value in big_items:

@@ -14,12 +14,10 @@ def show_analysis_logs_modal(logs: list[str] | None) -> None:
             st.info("No logs available for this analysis.")
             return
 
-        log_lines = []
-        for log in logs:
-            formatted = re.sub(
-                r"(\[.*?\])", r'<span style="color: #2196F3;">\1</span>', log
-            )
-            log_lines.append(formatted)
+        log_lines = [
+            re.sub(r"(\[.*?\])", r'<span style="color: #2196F3;">\1</span>', log)
+            for log in logs
+        ]
 
         log_html = "<br>".join(log_lines)
         st.html(
@@ -54,6 +52,40 @@ def render_analysis_notes(analysis: Analysis) -> None:
             analysis_service.save(analysis, notes=notes_value)
 
 
+def _render_failure_message(fl_id: str, error: str | None) -> None:
+    error_msg = (error or "Analysis failed").split("\n")[0]
+    st.error(error_msg)
+
+    generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
+
+    if "No column found with formula:" in error_msg:
+        factors_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/factors"
+        st.error(
+            f"Click on [Add Missing]({factors_url}) to add the required formulas. "
+            f"If you have already added them, make sure to [generate a new dataset]({generate_url})."
+        )
+    elif "single-date" in error_msg:
+        st.error(
+            f"Datasets of type Single Date are not supported. "
+            f"Please [generate a new dataset]({generate_url}) using Period."
+        )
+
+
+def _render_progress_bar(progress: AnalysisProgress | None) -> None:
+    has_progress = progress and progress.total > 0
+    progress_value = (progress.completed / progress.total) if has_progress else 0
+    progress_text = (
+        f"{progress.completed} / {progress.total} factors analyzed"
+        if has_progress
+        else "Preparing analysis..."
+    )
+
+    with st.columns([1, 2, 1])[1]:
+        st.space(100)
+        st.subheader("Running Factor Analysis")
+        st.progress(progress_value, text=progress_text)
+
+
 @st.fragment(run_every="0.5s")
 def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
     analysis = analysis_service.get(fl_id, analysis_id)
@@ -62,43 +94,8 @@ def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         st.rerun(scope="app")
 
     if analysis and analysis.status == AnalysisStatus.FAILED:
-        error_msg = (analysis.error or "Analysis failed").split("\n")[0]
-        st.error(error_msg)
-
-        if "No column found with formula:" in error_msg:
-            factors_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/factors"
-            generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
-            st.error(
-                f"Click on [Add Missing]({factors_url}) to add the required formulas. "
-                f"If you have already added them, make sure to [generate a new dataset]({generate_url})."
-            )
-
-        if "single-date" in error_msg:
-            generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
-            st.error(
-                f"Datasets of type Single Date are not supported. "
-                f"Please [generate a new dataset]({generate_url}) using Period."
-            )
+        _render_failure_message(fl_id, analysis.error)
         return
 
-    progress = (
-        analysis.progress
-        if analysis
-        else AnalysisProgress(completed=0, total=0)
-    )
-    with st.columns([1, 2, 1])[1]:
-        st.space(100)
-        st.subheader("Running Factor Analysis")
-
-        progress_value = (
-            (progress.completed / progress.total)
-            if (progress and progress.total > 0)
-            else 0
-        )
-        progress_text = (
-            f"{progress.completed} / {progress.total} factors analyzed"
-            if (progress and progress.total > 0)
-            else "Preparing analysis..."
-        )
-        st.progress(progress_value, text=progress_text)
+    _render_progress_bar(analysis.progress if analysis else None)
 

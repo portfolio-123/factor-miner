@@ -45,3 +45,12 @@ DATASET_TYPE_LABELS: Final[dict[DatasetType, str]] = {
     DatasetType.PERIOD: "Period",
     DatasetType.DATE: "Date",
 }
+
+CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {
+    "best": ("#a5d6a7", "Best Factor"),
+    "correlation_conflict": ("#ef9a9a", "Correlation Conflict"),
+    "high_na": ("#fff59d", "High NA %"),
+    "below_alpha": ("#ffcc80", "Below Min Alpha"),
+    "below_ic": ("#ce93d8", "Below Min IC"),
+    "n_limit": ("#b0bec5", "N Limit Reached"),
+}

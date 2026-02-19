@@ -1,10 +1,20 @@
 import streamlit as st
 import pandas as pd
-from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
+from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisSummary, DatasetType
 from src.core.utils.common import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
 from src.services.dataset_service import BackupDatasetService
+from src.ui.components.common import render_copy_download_buttons
+
+
+def build_column_config(specs: list[tuple[str, str, str]]) -> dict:
+    types = {
+        "text": st.column_config.TextColumn,
+        "number": st.column_config.NumberColumn,
+        "link": st.column_config.LinkColumn,
+    }
+    return {name: types[t](name, width=width) for name, t, width in specs}
 
 
 def render_correlation_matrix(
@@ -14,42 +24,21 @@ def render_correlation_matrix(
     key_suffix: str = "",
 ) -> None:
     st.subheader(title)
+    rounded = corr_matrix_df.round(4)
     st.dataframe(
-        corr_matrix_df.round(4),
+        rounded,
         height=min(400, 50 + len(corr_matrix_df) * 35),
         width="stretch",
     )
 
-    _, col1, col2 = st.columns([3, 1, 1])
-    corr_csv_copy = corr_matrix_df.round(4).to_csv(sep="\t")
-    corr_csv_download = corr_matrix_df.round(4).to_csv()
-
-    with col1:
-        if st.button(
-            type="primary",
-            label="Copy to Clipboard",
-            width="stretch",
-            key=f"corr_matrix_copy{key_suffix}",
-        ):
-            copy_to_clipboard_unsecured(corr_csv_copy)
-            copy_to_clipboard(corr_csv_copy)
-            st.toast("Correlation matrix copied to clipboard")
-
-    with col2:
-        file_name = (
-            f"{file_prefix}_correlation_matrix.csv"
-            if file_prefix
-            else "correlation_matrix.csv"
-        )
-        st.download_button(
-            type="primary",
-            label="Download CSV",
-            data=corr_csv_download,
-            file_name=file_name,
-            mime="text/csv",
-            width="stretch",
-            key=f"corr_matrix_download{key_suffix}",
-        )
+    file_name = f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"
+    render_copy_download_buttons(
+        csv_copy=rounded.to_csv(sep="\t"),
+        csv_download=rounded.to_csv(),
+        file_name=file_name,
+        key_prefix=f"corr_matrix{key_suffix}",
+        toast_msg="Correlation matrix copied to clipboard",
+    )
 
 
 def show_factors_modal(
@@ -63,7 +52,6 @@ def show_factors_modal(
         show_data = stats is not None and preview_df is not None
 
         if show_data:
-            # Show data preview directly (no tabs)
             cols = st.columns(6, gap="small")
             stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
             stat_items = [
@@ -96,45 +84,28 @@ def show_factors_modal(
                 column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
             )
         else:
-            # Show formulas directly (no tabs)
+            subset_cols = ["formula", "name", "tag"]
+            subset = formulas_df[subset_cols]
+
             st.dataframe(
-                formulas_df[["formula", "name", "tag"]],
+                subset,
                 height=400,
                 width="stretch",
-                column_config={
-                    "formula": st.column_config.TextColumn("Formula", width="large"),
-                    "name": st.column_config.TextColumn("Name", width="medium"),
-                    "tag": st.column_config.TextColumn("Tag", width="small"),
-                },
+                column_config=build_column_config([
+                    ("formula", "text", "large"),
+                    ("name", "text", "medium"),
+                    ("tag", "text", "small"),
+                ]),
                 hide_index=True,
             )
 
-            _, col1, col2 = st.columns([3, 1, 1])
-
-            csv_to_copy = formulas_df[["formula", "name", "tag"]].to_csv(
-                index=False, sep="\t"
+            render_copy_download_buttons(
+                csv_copy=subset.to_csv(index=False, sep="\t"),
+                csv_download=subset.to_csv(index=False),
+                file_name="dataset_factors.csv",
+                key_prefix="factors_modal",
+                toast_msg="Factors copied to clipboard",
             )
-            csv_to_download = formulas_df[["formula", "name", "tag"]].to_csv(
-                index=False
-            )
-
-            with col1:
-                if st.button(
-                    type="primary", label="Copy to Clipboard", width="stretch"
-                ):
-                    copy_to_clipboard_unsecured(csv_to_copy)
-                    copy_to_clipboard(csv_to_copy)
-                    st.toast("Factors copied to clipboard")
-
-            with col2:
-                st.download_button(
-                    type="primary",
-                    label="Download CSV",
-                    data=csv_to_download,
-                    file_name="dataset_factors.csv",
-                    mime="text/csv",
-                    width="stretch",
-                )
 
     _render()
 
@@ -150,8 +121,6 @@ def render_results_table(
     sorted_metrics = metrics.sort_values(
         by="annualized alpha %", key=abs, ascending=False
     ).reset_index(drop=True)
-
-    sorted_metrics = sorted_metrics.copy()
 
     if 'rank' not in sorted_metrics.columns:
         sorted_metrics['rank'] = range(1, len(sorted_metrics) + 1)
@@ -185,39 +154,22 @@ def render_results_table(
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
 
-    column_config = {
-        "Rank": st.column_config.NumberColumn("Rank", width="small"),
-        "Factor": st.column_config.TextColumn("Factor", width="large"),
-        "NA %": st.column_config.TextColumn("NA %", width="small"),
-        "Ann. Alpha %": st.column_config.TextColumn("Ann. Alpha %", width="small"),
-        "Beta": st.column_config.TextColumn("Beta", width="small"),
-        "P-Value": st.column_config.TextColumn("P-Value", width="small"),
-        "IC": st.column_config.TextColumn("IC", width="small"),
-        "IC t-stat": st.column_config.TextColumn("IC t-stat", width="small"),
-    }
+    column_config = build_column_config([
+        ("Rank", "number", "small"),
+        ("Factor", "text", "large"),
+        ("NA %", "text", "small"),
+        ("Ann. Alpha %", "text", "small"),
+        ("Beta", "text", "small"),
+        ("P-Value", "text", "small"),
+        ("IC", "text", "small"),
+        ("IC t-stat", "text", "small"),
+    ])
 
     if factor_classifications is not None:
-        color_map = {
-            "best": "#a5d6a7",  # Green
-            "correlation_conflict": "#ef9a9a",  # Red
-            "n_limit": "#b0bec5",  # Blue-gray
-            "below_alpha": "#ffcc80",  # Orange
-            "high_na": "#fff59d",  # Yellow
-            "below_ic": "#ce93d8",  # Purple
-        }
+        color_map = {k: v[0] for k, v in CLASSIFICATION_COLORS.items()}
 
-        legend_items = [
-            ("best", "#a5d6a7", "Best Factor"),
-            ("correlation_conflict", "#ef9a9a", "Correlation Conflict"),
-            ("high_na", "#fff59d", "High NA %"),
-            ("below_alpha", "#ffcc80", "Below Min Alpha"),
-            ("below_ic", "#ce93d8", "Below Min IC"),
-            ("n_limit", "#b0bec5", "N Limit Reached"),
-        ]
-        legend_html = """
-        <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
-        """
-        for _, color, label in legend_items:
+        legend_html = '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">'
+        for _, (color, label) in CLASSIFICATION_COLORS.items():
             legend_html += f"""
             <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="
@@ -234,61 +186,38 @@ def render_results_table(
         legend_html += "</div>"
         st.html(legend_html)
 
-        def color_row(row: pd.Series) -> list[str]:
+        def style_fn(row: pd.Series) -> list[str]:
             factor = factor_names[row.name]
             classification = factor_classifications.get(factor, "")
             color = color_map.get(classification, "")
             if color:
                 return [f"background-color: {color}"] * len(row)
             return [""] * len(row)
-
-        styled_display = display.style.apply(color_row, axis=1)
-        st.dataframe(
-            styled_display,
-            height=500,
-            width="stretch",
-            hide_index=True,
-            column_config=column_config,
-        )
     else:
-        def alternate_row_colors(row: pd.Series) -> list[str]:
+        def style_fn(row: pd.Series) -> list[str]:
             color = "#f8f9fa" if row.name % 2 == 0 else "#ffffff"
             return [f"background-color: {color}"] * len(row)
 
-        styled_display = display.style.apply(alternate_row_colors, axis=1)
-        st.dataframe(
-            styled_display,
-            height=500,
-            width="stretch",
-            hide_index=True,
-            column_config=column_config,
-        )
-
-    _, col1, col2 = st.columns([3, 1, 1])
+    st.dataframe(
+        display.style.apply(style_fn, axis=1),
+        height=500,
+        width="stretch",
+        hide_index=True,
+        column_config=column_config,
+    )
 
     # Add formula and tag columns for both copy and download operations
     enriched_df = add_formula_and_tag_columns(display, formulas_data)
+    csv_download = enriched_df.to_csv(index=False)
 
-    # tab delimited for copy to clipboard (with Formula and Tag)
-    csv_to_copy = enriched_df.to_csv(index=False, sep="\t")
-
-    with col1:
-        if st.button(type="primary", label="Copy to Clipboard", width="stretch", key=f"{key}_copy"):
-            copy_to_clipboard_unsecured(csv_to_copy)
-            copy_to_clipboard(csv_to_copy)
-            st.toast("Factors copied to clipboard")
-
-    with col2:
-        file_name = f"{fl_id}_factors.csv" if fl_id else "factors.csv"
-        st.download_button(
-            type="primary",
-            label="Download CSV",
-            data=enriched_df.to_csv(index=False),
-            file_name=file_name,
-            mime="text/csv",
-            width="stretch",
-            key=f"{key}_download",
-        )
+    file_name = f"{fl_id}_factors.csv" if fl_id else "factors.csv"
+    render_copy_download_buttons(
+        csv_copy=enriched_df.to_csv(index=False, sep="\t"),
+        csv_download=csv_download,
+        file_name=file_name,
+        key_prefix=key,
+        toast_msg="Factors copied to clipboard",
+    )
 
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
@@ -328,7 +257,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
 
     df = pd.DataFrame(data)
 
-    # alternate color mapping to differenciate between datasets
+    # alternate color mapping to differentiate between datasets
     unique_versions = df["_dataset_version"].unique()
     version_colors = {
         v: "#f5f5f5" if i % 2 == 0 else "#ffffff"
@@ -352,20 +281,16 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         hide_index=True,
         column_config={
             "": st.column_config.LinkColumn("", display_text="View →", width="small"),
-            "Analysis Date": st.column_config.TextColumn(
-                "Analysis Date", width="medium"
-            ),
-            "Run Time": st.column_config.TextColumn("Run Time", width="small"),
-            "Universe": st.column_config.TextColumn("Universe", width="medium"),
-            "Factors": st.column_config.NumberColumn("Factors", width="small"),
-            "Avg Abs Alpha": st.column_config.TextColumn(
-                "Avg Abs Alpha", width="small"
-            ),
-            "Period": st.column_config.TextColumn("Period", width="medium"),
-            "Dataset Created": st.column_config.TextColumn(
-                "Dataset Created", width="medium"
-            ),
-            "Status": st.column_config.TextColumn("Status", width="small"),
-            "Notes": st.column_config.TextColumn("Notes", width="small"),
+            **build_column_config([
+                ("Analysis Date", "text", "medium"),
+                ("Run Time", "text", "small"),
+                ("Universe", "text", "medium"),
+                ("Factors", "number", "small"),
+                ("Avg Abs Alpha", "text", "small"),
+                ("Period", "text", "medium"),
+                ("Dataset Created", "text", "medium"),
+                ("Status", "text", "small"),
+                ("Notes", "text", "small"),
+            ]),
         },
     )
