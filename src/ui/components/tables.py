@@ -3,7 +3,12 @@ import pandas as pd
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
 from src.core.types.models import AnalysisSummary, DatasetType
-from src.core.utils.common import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
+from src.core.utils.common import (
+    add_formula_and_tag_columns,
+    format_date,
+    format_runtime,
+    format_timestamp,
+)
 from src.services.dataset_service import BackupDatasetService
 
 
@@ -153,8 +158,8 @@ def render_results_table(
 
     sorted_metrics = sorted_metrics.copy()
 
-    if 'rank' not in sorted_metrics.columns:
-        sorted_metrics['rank'] = range(1, len(sorted_metrics) + 1)
+    if "rank" not in sorted_metrics.columns:
+        sorted_metrics["rank"] = range(1, len(sorted_metrics) + 1)
 
     display = sorted_metrics.rename(
         columns={
@@ -169,7 +174,9 @@ def render_results_table(
         }
     )
 
-    display = display[["Rank", "Factor", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC t-stat", "NA %"]]
+    display = display[
+        ["Rank", "Factor", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC t-stat", "NA %"]
+    ]
 
     factor_names = display["Factor"].tolist()
 
@@ -251,8 +258,9 @@ def render_results_table(
             column_config=column_config,
         )
     else:
+
         def alternate_row_colors(row: pd.Series) -> list[str]:
-            color = "#f8f9fa" if row.name % 2 == 0 else "#ffffff"
+            color = "#f8f9fa" if row.name % 2 == 1 else "#ffffff"
             return [f"background-color: {color}"] * len(row)
 
         styled_display = display.style.apply(alternate_row_colors, axis=1)
@@ -273,7 +281,12 @@ def render_results_table(
     csv_to_copy = enriched_df.to_csv(index=False, sep="\t")
 
     with col1:
-        if st.button(type="primary", label="Copy to Clipboard", width="stretch", key=f"{key}_copy"):
+        if st.button(
+            type="primary",
+            label="Copy to Clipboard",
+            width="stretch",
+            key=f"{key}_copy",
+        ):
             copy_to_clipboard_unsecured(csv_to_copy)
             copy_to_clipboard(csv_to_copy)
             st.toast("Factors copied to clipboard")
@@ -301,7 +314,9 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
 
         if dataset:
             if dataset.type == DatasetType.DATE:
-                period_value = format_date(dataset.asOfDt, '%Y/%m/%d') if dataset.asOfDt else "N/A"
+                period_value = (
+                    format_date(dataset.asOfDt, "%Y/%m/%d") if dataset.asOfDt else "N/A"
+                )
             else:
                 period_value = f"{format_date(dataset.startDt, '%Y/%m/%d')} - {format_date(dataset.endDt, '%Y/%m/%d')}"
         else:
@@ -310,10 +325,14 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         data.append(
             {
                 "": f"/results?fl_id={a.fl_id}&id={a.id}",
-                "Analysis Date": format_timestamp(a.created_at, "%b %d, %Y at %I:%M %p UTC"),
+                "Analysis Date": format_timestamp(
+                    a.created_at, "%b %d, %Y at %I:%M %p UTC"
+                ),
                 "Run Time": format_runtime(a.started_at, a.finished_at),
                 "Universe": dataset.universeName if dataset else "N/A",
-                "Factors": len(dataset.formulas) if dataset and dataset.formulas else "N/A",
+                "Factors": (
+                    len(dataset.formulas) if dataset and dataset.formulas else "N/A"
+                ),
                 "Avg Abs Alpha": (
                     f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
                 ),
@@ -331,8 +350,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
     # alternate color mapping to differenciate between datasets
     unique_versions = df["_dataset_version"].unique()
     version_colors = {
-        v: "#f5f5f5" if i % 2 == 0 else "#ffffff"
-        for i, v in enumerate(unique_versions)
+        v: "#f5f5f5" if i % 2 == 0 else "#ffffff" for i, v in enumerate(unique_versions)
     }
 
     # map each row index to its color based on dataset
