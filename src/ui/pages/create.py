@@ -87,6 +87,7 @@ def _render_settings() -> None:
             value=DEFAULT_TOP_PCT,
             step=1.0,
             key="top_pct",
+            help="Percentage of top-ranked stocks to go long",
         )
     with col3:
         st.number_input(
@@ -96,6 +97,7 @@ def _render_settings() -> None:
             value=DEFAULT_BOTTOM_PCT,
             step=1.0,
             key="bottom_pct",
+            help="Percentage of bottom-ranked stocks to short",
         )
 
     section_header("Analysis Filters")
@@ -110,13 +112,13 @@ def _render_settings() -> None:
             key="min_alpha",
         )
     with col2:
-        st.slider(
-            "Correlation Threshold",
+        st.number_input(
+            "Min. IC",
             min_value=0.0,
             max_value=1.0,
-            value=DEFAULT_CORRELATION_THRESHOLD,
-            step=0.05,
-            key="correlation_threshold",
+            value=DEFAULT_MIN_IC,
+            step=0.01,
+            key="min_ic",
         )
     with col3:
         st.number_input(
@@ -126,6 +128,7 @@ def _render_settings() -> None:
             value=DEFAULT_N_FACTORS,
             step=1,
             key="n_factors",
+            help="Maximum number of 'Best Factors' to select",
         )
     with col4:
         st.number_input(
@@ -135,17 +138,15 @@ def _render_settings() -> None:
             value=DEFAULT_MAX_NA_PCT,
             step=1.0,
             key="max_na_pct",
-            help="Exclude factors with more than this percentage of missing values",
+            help="If a factor has a higher percentage of NAs, it will be excluded",
         )
     with col5:
-        st.number_input(
-            "Min. IC",
+        st.slider(
+            "Correlation Threshold",
             min_value=0.0,
             max_value=1.0,
-            value=DEFAULT_MIN_IC,
-            step=0.01,
-            key="min_ic",
-            help="Exclude factors with IC below this threshold",
+            value=DEFAULT_CORRELATION_THRESHOLD,
+            step=0.05,
+            key="correlation_threshold",
+            help="Maximum allowed correlation between selected factors",
         )
-
-

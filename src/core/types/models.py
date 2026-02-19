@@ -3,9 +3,6 @@ from enum import IntEnum, StrEnum
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.core.config.constants import DEFAULT_MIN_IC, DEFAULT_MAX_NA_PCT
-
-
 class AnalysisStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
@@ -98,8 +95,8 @@ class SettingsForm(BaseModel):
     bottom_pct: float
     correlation_threshold: float
     n_factors: int
-    max_na_pct: float = DEFAULT_MAX_NA_PCT
-    min_ic: float = DEFAULT_MIN_IC
+    max_na_pct: float
+    min_ic: float
 
 
 class AnalysisParams(SettingsForm):
