@@ -5,7 +5,15 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Dict, List, Optional, Tuple
 from src.services.dataset_service import DatasetService
 from src.core.types.models import Frequency
-from src.core.config.constants import INTERNAL_FUTURE_PERF_COL, INTERNAL_BENCHMARK_COL
+from src.core.config.constants import (
+    INTERNAL_FUTURE_PERF_COL,
+    INTERNAL_BENCHMARK_COL,
+    DEFAULT_CORRELATION_THRESHOLD,
+    DEFAULT_MIN_ALPHA,
+    DEFAULT_MAX_NA_PCT,
+    DEFAULT_MIN_IC,
+    DEFAULT_N_FACTORS,
+)
 
 
 def calculate_benchmark_returns(
@@ -117,7 +125,7 @@ def analyze_factors(
         batch_size: Number of factors to read per batch (default: 50)
 
     Returns:
-        Tuple of (DataFrame with factor analysis results, dict of factor stats per factor including NA%, IC, IC P-Value)
+        Tuple of (DataFrame with factor analysis results, dict of factor stats per factor including NA%, IC, IC t-stat)
     """
     total_factors = len(factor_columns)
 
@@ -162,75 +170,78 @@ def analyze_factors(
         # count how many stocks are per date
         counts = np.bincount(inverse_f, minlength=n_dates)
 
-        # IC spearman correlation calculation
-        # sort by date and factor, compute factor ranks within each date
-        sort_idx_f = np.lexsort((factor_f, inverse_f))
-        inverse_sorted_f = inverse_f[sort_idx_f]
+        # Vectorized weighted IC using argsort-based ranking (no scipy loop)
+        # Sort by (date, factor) to compute within-group factor ranks
+        sort_keys = np.lexsort((factor_f, inverse_f))
+        inverse_sorted = inverse_f[sort_keys]
+        factor_sorted = factor_f[sort_keys]
+        perf_sorted = perf_f[sort_keys]
 
-        # group_starts[i] = index where date i starts in the sorted array
         group_starts = np.zeros(n_dates + 1, dtype=np.int64)
         group_starts[1:] = np.cumsum(counts)
 
-        factor_ranks = np.arange(len(inverse_sorted_f)) - group_starts[inverse_sorted_f] + 1
+        # Compute within-group percentile rank for factor (already sorted by factor within date)
+        rank_in_group = np.arange(len(inverse_sorted)) - group_starts[inverse_sorted]
+        group_sizes = counts[inverse_sorted].astype(np.float64)
+        f_rank = (rank_in_group + 0.5) / group_sizes  # 0-1 percentile rank
 
-        # unsort to original order
-        unsort_idx_f = np.argsort(sort_idx_f)
-        factor_ranks = factor_ranks[unsort_idx_f].astype(np.float64)
+        # Compute within-group percentile rank for performance
+        # Need to re-sort by (date, perf) to get perf ranks
+        perf_order_within_date = np.lexsort((perf_sorted, inverse_sorted))
+        perf_rank_pos = np.empty_like(perf_order_within_date)
+        perf_rank_pos[perf_order_within_date] = np.arange(len(perf_order_within_date))
+        # Adjust to within-group position
+        perf_rank_in_group = perf_rank_pos - group_starts[inverse_sorted]
+        r_rank = (perf_rank_in_group + 0.5) / group_sizes
 
-        sort_idx_p = np.lexsort((perf_f, inverse_f))
-        inverse_sorted_p = inverse_f[sort_idx_p]
-        perf_ranks = np.arange(len(inverse_sorted_p)) - group_starts[inverse_sorted_p] + 1
-        unsort_idx_p = np.argsort(sort_idx_p)
-        perf_ranks = perf_ranks[unsort_idx_p].astype(np.float64)
+        # Tail weights: w = 1 + alpha * |rank - 0.5|
+        alpha = 4.0
+        weights = 1.0 + alpha * np.abs(f_rank - 0.5)
 
-        # spearman correlation per date
-        n_per_date = counts.astype(np.float64)
-        sum_fr = np.bincount(inverse_f, weights=factor_ranks, minlength=n_dates)
-        sum_pr = np.bincount(inverse_f, weights=perf_ranks, minlength=n_dates)
-        mean_fr = np.divide(sum_fr, n_per_date, out=np.zeros_like(sum_fr), where=n_per_date > 0)
-        mean_pr = np.divide(sum_pr, n_per_date, out=np.zeros_like(sum_pr), where=n_per_date > 0)
+        # Weighted correlation per date using bincount
+        w_sum = np.bincount(inverse_sorted, weights=weights, minlength=n_dates)
+        w_sum = np.where(w_sum > 0, w_sum, 1.0)
 
-        # centered values
-        fr_centered = factor_ranks - mean_fr[inverse_f]
-        pr_centered = perf_ranks - mean_pr[inverse_f]
+        mean_f = np.bincount(inverse_sorted, weights=weights * f_rank, minlength=n_dates) / w_sum
+        mean_r = np.bincount(inverse_sorted, weights=weights * r_rank, minlength=n_dates) / w_sum
 
-        # covariance and variances per date
-        cov_per_date = np.bincount(inverse_f, weights=fr_centered * pr_centered, minlength=n_dates)
-        var_fr = np.bincount(inverse_f, weights=fr_centered ** 2, minlength=n_dates)
-        var_pr = np.bincount(inverse_f, weights=pr_centered ** 2, minlength=n_dates)
+        f_centered = f_rank - mean_f[inverse_sorted]
+        r_centered = r_rank - mean_r[inverse_sorted]
 
-        denom = np.sqrt(var_fr * var_pr)
-        valid_dates_ic = (counts >= 3) & (denom > 0)
+        cov_fr = np.bincount(inverse_sorted, weights=weights * f_centered * r_centered, minlength=n_dates) / w_sum
+        var_f = np.bincount(inverse_sorted, weights=weights * f_centered ** 2, minlength=n_dates) / w_sum
+        var_r = np.bincount(inverse_sorted, weights=weights * r_centered ** 2, minlength=n_dates) / w_sum
 
-        ic_per_date = np.full(n_dates, np.nan)
-        ic_per_date[valid_dates_ic] = cov_per_date[valid_dates_ic] / denom[valid_dates_ic]
+        denom = np.sqrt(var_f * var_r)
+        ic_per_date = np.where((denom > 0) & (counts >= 4), cov_fr / denom, np.nan)
 
-        valid_ic = ic_per_date[valid_dates_ic]
-        mean_ic = np.mean(valid_ic) if len(valid_ic) > 0 else np.nan
+        # fisher z-transform for p-values
+        valid_ic_mask = (counts >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
+        pvals_per_date = np.full(n_dates, np.nan)
+        if np.any(valid_ic_mask):
+            ic_valid = np.clip(ic_per_date[valid_ic_mask], -0.9999, 0.9999)
+            n_valid = counts[valid_ic_mask]
+            z_vals = np.arctanh(ic_valid)
+            se_vals = 1.0 / np.sqrt(n_valid - 3)
+            z_stat = np.abs(z_vals) / se_vals
+            pvals_per_date[valid_ic_mask] = 2 * (1 - stats.norm.cdf(z_stat))
 
-        n_valid_ic = counts[valid_dates_ic]
-        r_squared = ic_per_date[valid_dates_ic] ** 2
-        t_stats = ic_per_date[valid_dates_ic] * np.sqrt(n_valid_ic - 2) / np.sqrt(1 - r_squared + 1e-10)
-        pvals = 2 * (1 - stats.t.cdf(np.abs(t_stats), df=n_valid_ic - 2))
+        valid_ic = ic_per_date[valid_ic_mask]
+        n_ic = len(valid_ic)
+        mean_ic = np.mean(valid_ic) if n_ic > 0 else np.nan
 
-        # fisher's method to combine p-values
-        valid_pvals = pvals[(pvals > 0) & (pvals < 1)]
-        if len(valid_pvals) > 0:
-            chi2_stat = -2 * np.sum(np.log(valid_pvals))
-            ic_pval = 1 - stats.chi2.cdf(chi2_stat, df=2 * len(valid_pvals))
+        # IC t-statistic: mean(IC) / (std(IC) / sqrt(n))
+        if n_ic > 1:
+            std_ic = np.std(valid_ic, ddof=1)
+            ic_tstat = mean_ic / (std_ic / np.sqrt(n_ic)) if std_ic > 0 else np.nan
         else:
-            ic_pval = np.nan
+            ic_tstat = np.nan
 
         factor_stats = {
             'na_pct': round(na_pct, 2),
             'ic': mean_ic,
-            'ic_pval': ic_pval,
+            'ic_tstat': ic_tstat,
         }
-
-        # group by date and then within each date, sort by factor value
-        sort_keys = np.lexsort((factor_f, inverse_f))
-        inverse_sorted = inverse_f[sort_keys]
-        perf_sorted = perf_f[sort_keys]
 
         # considering how many stocks per date (counts), calculate what topx% and bottomx% translate to.
         top_n = (counts * (top_pct / 100.0)).astype(np.int64)
@@ -335,10 +346,10 @@ def calculate_factor_metrics(
         results_df: DataFrame with factor returns (Date, factor, ret)
         raw_data: DataFrame with benchmark data from p123 api
         periods_per_year: Number of periods per year for annualization (default: 52 for weekly)
-        factor_stats: Optional dict mapping factor names to their statistics (NA%, IC, IC P-Value)
+        factor_stats: Optional dict mapping factor names to their statistics (NA%, IC, IC t-stat)
 
     Returns:
-        DataFrame with factor metrics including NA %, IC, and IC P-Value
+        DataFrame with factor metrics including NA %, IC, and IC t-stat
     """
     # get unique benchmark values per date
     benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
@@ -415,13 +426,13 @@ def calculate_factor_metrics(
         result["IC"] = result["column"].map(
             lambda col: factor_stats.get(col, {}).get("ic", np.nan)
         )
-        result["IC P-Value"] = result["column"].map(
-            lambda col: factor_stats.get(col, {}).get("ic_pval", np.nan)
+        result["IC t-stat"] = result["column"].map(
+            lambda col: factor_stats.get(col, {}).get("ic_tstat", np.nan)
         )
     else:
         result["NA %"] = 0.0
         result["IC"] = np.nan
-        result["IC P-Value"] = np.nan
+        result["IC t-stat"] = np.nan
 
     return result
 
@@ -445,11 +456,11 @@ def calculate_correlation_matrix(results_df: pd.DataFrame) -> pd.DataFrame:
 def select_best_features(
     metrics_df: pd.DataFrame,
     correlation_matrix: pd.DataFrame,
-    N: int = 10,
-    correlation_threshold: float = 0.5,
-    a_min: float = 0.5,
-    max_na_pct: float = 40.0,
-    min_ic: float = 0.05,
+    N: int = DEFAULT_N_FACTORS,
+    correlation_threshold: float = DEFAULT_CORRELATION_THRESHOLD,
+    a_min: float = DEFAULT_MIN_ALPHA,
+    max_na_pct: float = DEFAULT_MAX_NA_PCT,
+    min_ic: float = DEFAULT_MIN_IC,
 ) -> tuple[list, dict[str, str]]:
     """
     Select N best features based on alpha and low correlation.
@@ -491,11 +502,6 @@ def select_best_features(
             classifications[feature] = "high_na"
             continue
 
-        ic_value = row.get("IC", np.nan) if has_ic_col else np.nan
-        if pd.isna(ic_value) or abs(ic_value) < min_ic:
-            classifications[feature] = "below_ic"
-            continue
-
         if abs(alpha) < a_min:
             classifications[feature] = "below_alpha"
             continue
@@ -505,14 +511,21 @@ def select_best_features(
             continue
 
         feat_idx = col_to_idx.get(feature)
-        if feat_idx is not None and all(
+        if feat_idx is None or not all(
             abs(corr_arr[feat_idx, sel_idx]) < correlation_threshold
             for sel_idx in selected_indices
         ):
-            selected_features.append(feature)
-            selected_indices.append(feat_idx)
-            classifications[feature] = "best"
-        else:
             classifications[feature] = "correlation_conflict"
+            continue
+
+        if has_ic_col:
+            ic_value = row["IC"]
+            if pd.notna(ic_value) and abs(float(ic_value)) < min_ic:
+                classifications[feature] = "below_ic"
+                continue
+
+        selected_features.append(feature)
+        selected_indices.append(feat_idx)
+        classifications[feature] = "best"
 
     return selected_features, classifications

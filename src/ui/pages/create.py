@@ -34,7 +34,7 @@ def _submit_analysis_creation() -> None:
             correlation_threshold=st.session_state.get("correlation_threshold"),
             n_factors=st.session_state.get("n_factors"),
             max_na_pct=st.session_state.get("max_na_pct"),
-            min_ic=st.session_state.get("min_ic"),
+            min_ic=float(st.session_state.get("min_ic", DEFAULT_MIN_IC)),
             access_token=st.session_state.get("access_token"),
         )
         analysis_service.start(fl_id, analysis_id, dataset_version, params)

@@ -165,11 +165,11 @@ def render_results_table(
             "beta": "Beta",
             "rank": "Rank",
             "IC": "IC",
-            "IC P-Value": "IC P-Value",
+            "IC t-stat": "IC t-stat",
         }
     )
 
-    display = display[["Rank", "Factor", "NA %", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC P-Value"]]
+    display = display[["Rank", "Factor", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC t-stat", "NA %"]]
 
     factor_names = display["Factor"].tolist()
 
@@ -180,7 +180,7 @@ def render_results_table(
         "Beta": lambda x: f"{x:.4f}",
         "P-Value": lambda x: f"{x:.6f}",
         "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
-        "IC P-Value": lambda x: f"{x:.6f}" if pd.notna(x) else "N/A",
+        "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
     }
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
@@ -193,7 +193,7 @@ def render_results_table(
         "Beta": st.column_config.TextColumn("Beta", width="small"),
         "P-Value": st.column_config.TextColumn("P-Value", width="small"),
         "IC": st.column_config.TextColumn("IC", width="small"),
-        "IC P-Value": st.column_config.TextColumn("IC P-Value", width="small"),
+        "IC t-stat": st.column_config.TextColumn("IC t-stat", width="small"),
     }
 
     if factor_classifications is not None:
@@ -208,11 +208,11 @@ def render_results_table(
 
         legend_items = [
             ("best", "#a5d6a7", "Best Factor"),
-            ("below_alpha", "#ffcc80", "Below Min Alpha"),
             ("correlation_conflict", "#ef9a9a", "Correlation Conflict"),
-            ("n_limit", "#b0bec5", "N Limit Reached"),
             ("high_na", "#fff59d", "High NA %"),
+            ("below_alpha", "#ffcc80", "Below Min Alpha"),
             ("below_ic", "#ce93d8", "Below Min IC"),
+            ("n_limit", "#b0bec5", "N Limit Reached"),
         ]
         legend_html = """
         <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
