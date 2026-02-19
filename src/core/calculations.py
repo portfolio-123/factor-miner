@@ -161,22 +161,22 @@ def analyze_factors(
         # count how many stocks are per date
         counts = np.bincount(inverse_f, minlength=n_dates)
 
-        # Vectorized weighted IC using argsort-based ranking (no scipy loop)
-        # Sort by (date, factor) to compute within-group factor ranks
+        # Sort by (date, factor)
         sort_keys = np.lexsort((factor_f, inverse_f))
         inverse_sorted = inverse_f[sort_keys]
         perf_sorted = perf_f[sort_keys]
 
-        # Compute group boundaries once - reused for IC calc and top/bottom analysis
+        # Compute period boundaries
         group_starts = np.zeros(n_dates + 1, dtype=np.int64)
         group_starts[1:] = np.cumsum(counts)
+        # get position of each row within its period
         rank_in_group = np.arange(len(inverse_sorted)) - group_starts[inverse_sorted]
         group_sizes = counts[inverse_sorted]
         group_sizes_f = group_sizes.astype(np.float64)
-        f_rank = (rank_in_group + 0.5) / group_sizes_f  # 0-1 percentile rank
+        # calculate percentile rank of each row within its period. +0.5 to get the middle of the range - e.g. 1/3 => 1.5/3=0.5. 
+        f_rank = (rank_in_group + 0.5) / group_sizes_f
 
-        # Compute within-group percentile rank for performance
-        # Need to re-sort by (date, perf) to get perf ranks
+        # sort by (date, perf)
         perf_order_within_date = np.lexsort((perf_sorted, inverse_sorted))
         perf_rank_pos = np.empty_like(perf_order_within_date)
         perf_rank_pos[perf_order_within_date] = np.arange(len(perf_order_within_date))
@@ -188,34 +188,30 @@ def analyze_factors(
         alpha = 4.0
         weights = 1.0 + alpha * np.abs(f_rank - 0.5)
 
-        # Weighted correlation per date using bincount
+        # Weighted Spearman correlation (IC) per date.
+        # sum of weights per date, avoid div by zero
         w_sum = np.bincount(inverse_sorted, weights=weights, minlength=n_dates)
         w_sum = np.where(w_sum > 0, w_sum, 1.0)
 
+        # weighted mean of factor and perf ranks per date
         mean_f = np.bincount(inverse_sorted, weights=weights * f_rank, minlength=n_dates) / w_sum
         mean_r = np.bincount(inverse_sorted, weights=weights * r_rank, minlength=n_dates) / w_sum
 
+        # center ranks by subtracting their date's mean
         f_centered = f_rank - mean_f[inverse_sorted]
         r_centered = r_rank - mean_r[inverse_sorted]
 
+        # weighted covariance and variances per date
         cov_fr = np.bincount(inverse_sorted, weights=weights * f_centered * r_centered, minlength=n_dates) / w_sum
         var_f = np.bincount(inverse_sorted, weights=weights * f_centered ** 2, minlength=n_dates) / w_sum
         var_r = np.bincount(inverse_sorted, weights=weights * r_centered ** 2, minlength=n_dates) / w_sum
 
+        # IC = cov / (std_f * std_r), require at least 4 stocks
         denom = np.sqrt(var_f * var_r)
         ic_per_date = np.where((denom > 0) & (counts >= 4), cov_fr / denom, np.nan)
 
-        # fisher z-transform for p-values
+        # aggregate: mean IC across all valid dates
         valid_ic_mask = (counts >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
-        pvals_per_date = np.full(n_dates, np.nan)
-        if np.any(valid_ic_mask):
-            ic_valid = np.clip(ic_per_date[valid_ic_mask], -0.9999, 0.9999)
-            n_valid = counts[valid_ic_mask]
-            z_vals = np.arctanh(ic_valid)
-            se_vals = 1.0 / np.sqrt(n_valid - 3)
-            z_stat = np.abs(z_vals) / se_vals
-            pvals_per_date[valid_ic_mask] = 2 * (1 - stats.norm.cdf(z_stat))
-
         valid_ic = ic_per_date[valid_ic_mask]
         n_ic = len(valid_ic)
         mean_ic = np.mean(valid_ic) if n_ic > 0 else np.nan
@@ -477,10 +473,8 @@ def select_best_features(
     na_pcts = sorted_metrics["NA %"].to_numpy() if has_na_col else np.zeros(len(sorted_metrics))
     ics = sorted_metrics["IC"].to_numpy() if has_ic_col else None
 
-    # Pre-compute feature indices to avoid dict lookup in loop
     feat_indices = np.array([col_to_idx.get(c, -1) for c in columns])
 
-    # Pre-compute vectorizable conditions
     valid_na = na_pcts <= max_na_pct
     valid_alpha = np.abs(alphas) >= a_min
     valid_ic = np.isnan(ics) | (np.abs(ics) >= min_ic) if ics is not None else None
@@ -505,7 +499,6 @@ def select_best_features(
             continue
 
         feat_idx = feat_indices[i]
-        # Vectorized correlation check using numpy array indexing
         if feat_idx < 0 or (
             len(selected_indices) > 0
             and np.any(np.abs(corr_arr[feat_idx, selected_indices]) >= correlation_threshold)
