@@ -3,7 +3,12 @@ import pandas as pd
 
 from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisSummary, DatasetType
-from src.core.utils.common import add_formula_and_tag_columns, format_date, format_runtime, format_timestamp
+from src.core.utils.common import (
+    add_formula_and_tag_columns,
+    format_date,
+    format_runtime,
+    format_timestamp,
+)
 from src.services.dataset_service import BackupDatasetService
 from src.ui.components.common import render_copy_download_buttons
 
@@ -138,7 +143,9 @@ def render_results_table(
         }
     )
 
-    display = display[["Rank", "Factor", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC t-stat", "NA %"]]
+    display = display[
+        ["Rank", "Factor", "Ann. Alpha %", "Beta", "P-Value", "IC", "IC t-stat", "NA %"]
+    ]
 
     factor_names = display["Factor"].tolist()
 
@@ -195,7 +202,7 @@ def render_results_table(
             return [""] * len(row)
     else:
         def style_fn(row: pd.Series) -> list[str]:
-            color = "#f8f9fa" if row.name % 2 == 0 else "#ffffff"
+            color = "#f8f9fa" if row.name % 2 == 1 else "#ffffff"
             return [f"background-color: {color}"] * len(row)
 
     st.dataframe(
@@ -230,7 +237,9 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
 
         if dataset:
             if dataset.type == DatasetType.DATE:
-                period_value = format_date(dataset.asOfDt, '%Y/%m/%d') if dataset.asOfDt else "N/A"
+                period_value = (
+                    format_date(dataset.asOfDt, "%Y/%m/%d") if dataset.asOfDt else "N/A"
+                )
             else:
                 period_value = f"{format_date(dataset.startDt, '%Y/%m/%d')} - {format_date(dataset.endDt, '%Y/%m/%d')}"
         else:
@@ -239,10 +248,14 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         data.append(
             {
                 "": f"/results?fl_id={a.fl_id}&id={a.id}",
-                "Analysis Date": format_timestamp(a.created_at, "%b %d, %Y at %I:%M %p UTC"),
+                "Analysis Date": format_timestamp(
+                    a.created_at, "%b %d, %Y at %I:%M %p UTC"
+                ),
                 "Run Time": format_runtime(a.started_at, a.finished_at),
                 "Universe": dataset.universeName if dataset else "N/A",
-                "Factors": len(dataset.formulas) if dataset and dataset.formulas else "N/A",
+                "Factors": (
+                    len(dataset.formulas) if dataset and dataset.formulas else "N/A"
+                ),
                 "Avg Abs Alpha": (
                     f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
                 ),
@@ -260,8 +273,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
     # alternate color mapping to differentiate between datasets
     unique_versions = df["_dataset_version"].unique()
     version_colors = {
-        v: "#f5f5f5" if i % 2 == 0 else "#ffffff"
-        for i, v in enumerate(unique_versions)
+        v: "#f5f5f5" if i % 2 == 0 else "#ffffff" for i, v in enumerate(unique_versions)
     }
 
     # map each row index to its color based on dataset
