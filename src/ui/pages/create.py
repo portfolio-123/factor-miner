@@ -130,12 +130,12 @@ def _render_settings() -> None:
     with col2:
         st.number_input(
             "Bottom X (Short) %",
-            min_value=1.0,
+            min_value=0.0,
             max_value=100.0,
             value=_get_setting_value("bottom_pct", DEFAULT_BOTTOM_PCT),
             step=1.0,
             key="bottom_pct",
-            help="Percentage of bottom-ranked stocks to short",
+            help="Percentage of bottom-ranked stocks to short (0 = long-only)",
         )
 
     section_header("Analysis Filters")
