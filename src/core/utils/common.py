@@ -4,6 +4,10 @@ from io import StringIO
 from pathlib import Path
 from datetime import datetime, timezone
 import pandas as pd
+
+
+def extract_benchmark_ticker(benchmark: str) -> str:
+    return benchmark[benchmark.rfind("(") + 1 : benchmark.rfind(")")]
 def read_json_file(path: Path) -> dict | None:
     try:
         with open(path, "r") as f:

@@ -15,7 +15,7 @@ from src.core.types.models import (
     AnalysisResults,
     DatasetType,
 )
-from src.core.utils.common import serialize_dataframe, find_column_by_formula
+from src.core.utils.common import serialize_dataframe, find_column_by_formula, extract_benchmark_ticker
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
 from src.services.p123_client import fetch_benchmark_data
@@ -64,11 +64,12 @@ class AnalysisRunner:
 
             start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
             end_dt = dataset_info.endDt
+            benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
-            self.log(f"Fetching benchmark data for {dataset_info.benchmark}...")
+            self.log(f"Fetching benchmark data for {benchmark_ticker}...")
             try:
                 benchmark_data = fetch_benchmark_data(
-                    benchmark_ticker=dataset_info.benchmark,
+                    benchmark_ticker=benchmark_ticker,
                     access_token=params.access_token,
                     start_date=start_dt.strftime("%Y-%m-%d"),
                     end_date=end_dt,
