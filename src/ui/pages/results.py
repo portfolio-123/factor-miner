@@ -123,14 +123,14 @@ def results() -> None:
         render_analysis_notes(analysis)
 
     with best_factors_tab:
-        st.caption("Best factors ranked by absolute annualized alpha (highest first)")
-
-        render_results_table(
-            all_metrics_df[all_metrics_df["column"].isin(best_feature_names)],
-            key="best_factors",
-        )
-
         if best_feature_names:
+            st.caption("Best factors ranked by absolute annualized alpha (highest first)")
+
+            render_results_table(
+                all_metrics_df[all_metrics_df["column"].isin(best_feature_names)],
+                key="best_factors",
+            )
+
             st.divider()
             best_corr_matrix = corr_matrix_df.loc[
                 best_feature_names, best_feature_names
@@ -139,6 +139,11 @@ def results() -> None:
                 corr_matrix_df=best_corr_matrix,
                 title="Correlation Matrix (Best Factors)",
                 file_prefix=fl_id,
+            )
+        else:
+            st.info(
+                "No factors met all the selection criteria. "
+                "You can view all factors and their classifications in the **All Factors** tab."
             )
 
     with all_factors_tab:
