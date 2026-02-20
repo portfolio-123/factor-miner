@@ -65,10 +65,10 @@ class AnalysisRunner:
             start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
             end_dt = dataset_info.endDt
 
-            self.log(f"Fetching benchmark data for {params.benchmark_ticker}...")
+            self.log(f"Fetching benchmark data for {dataset_info.benchmark}...")
             try:
                 benchmark_data = fetch_benchmark_data(
-                    benchmark_ticker=params.benchmark_ticker,
+                    benchmark_ticker=dataset_info.benchmark,
                     access_token=params.access_token,
                     start_date=start_dt.strftime("%Y-%m-%d"),
                     end_date=end_dt,

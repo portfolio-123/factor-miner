@@ -113,7 +113,7 @@ def results() -> None:
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
                 ("Min. IC", p.min_ic),
-                ("Benchmark", p.benchmark_ticker),
+                ("Benchmark", dataset_metadata.benchmark),
                 ("Top X (Long)", f"{p.top_pct}%"),
                 ("Bottom X (Short)", f"{p.bottom_pct}%"),
             ]

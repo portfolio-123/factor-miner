@@ -89,7 +89,6 @@ class Frequency(IntEnum):
 
 
 class SettingsForm(BaseModel):
-    benchmark_ticker: str
     min_alpha: float
     top_pct: float
     bottom_pct: float

@@ -3,7 +3,6 @@ import uuid
 import streamlit as st
 
 from src.core.config.constants import (
-    DEFAULT_BENCHMARK,
     DEFAULT_MIN_ALPHA,
     DEFAULT_TOP_PCT,
     DEFAULT_BOTTOM_PCT,
@@ -27,7 +26,6 @@ def _submit_analysis_creation() -> None:
 
     try:
         params = AnalysisParams(
-            benchmark_ticker=st.session_state.get("benchmark_ticker"),
             min_alpha=st.session_state.get("min_alpha"),
             top_pct=st.session_state.get("top_pct"),
             bottom_pct=st.session_state.get("bottom_pct"),
@@ -72,14 +70,8 @@ def create_form() -> None:
 
 def _render_settings() -> None:
     section_header("Portfolio Settings")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
-        st.text_input(
-            "Benchmark Ticker",
-            value=DEFAULT_BENCHMARK,
-            key="benchmark_ticker",
-        )
-    with col2:
         st.number_input(
             "Top X (Long) %",
             min_value=1.0,
@@ -89,7 +81,7 @@ def _render_settings() -> None:
             key="top_pct",
             help="Percentage of top-ranked stocks to go long",
         )
-    with col3:
+    with col2:
         st.number_input(
             "Bottom X (Short) %",
             min_value=1.0,
