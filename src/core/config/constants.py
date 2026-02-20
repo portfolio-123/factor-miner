@@ -18,6 +18,7 @@ DEFAULT_N_FACTORS: Final[int] = 10
 DEFAULT_MAX_NA_PCT: Final[float] = 40.0
 DEFAULT_MIN_IC: Final[float] = 0.015
 AUTH_COOKIE_KEY: Final[str] = "p123_access_token"
+SETTINGS_STORAGE_KEY: Final[str] = "last_analysis_settings"
 
 SCALING_LABELS: Final[dict[ScalingMethod, str]] = {
     ScalingMethod.NORMAL: "Z-Score",
