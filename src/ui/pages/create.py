@@ -89,29 +89,22 @@ def create_form() -> None:
     st.title("Create Analysis")
     render_dataset_card(active_dataset_metadata)
 
-    _render_settings_fragment()
-
-    _, _, col_run = st.columns([3, 1, 1])
-    with col_run:
-        st.button(
-            "Run Analysis",
-            type="primary",
-            on_click=_submit_analysis,
-            width="stretch",
-        )
-
-
-@st.fragment
-def _render_settings_fragment() -> None:
     _apply_settings_if_triggered()
     _render_settings()
 
-    _, col_last_settings, _ = st.columns([3, 1, 1])
+    _, col_last_settings, col_run = st.columns([3, 1, 1])
     with col_last_settings:
         st.button(
             "Use Last Settings",
             type="secondary",
             on_click=lambda: st.session_state.update(_load_settings_triggered=True),
+            width="stretch",
+        )
+    with col_run:
+        st.button(
+            "Run Analysis",
+            type="primary",
+            on_click=_submit_analysis,
             width="stretch",
         )
 
