@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from typing import Self
@@ -67,7 +68,19 @@ class DatasetService:
     def backup_metadata(self, dest_path: Path) -> None:
         source_metadata = self._reader.get_schema_metadata()
         if source_metadata:
-            table = pa.table({}).replace_schema_metadata(source_metadata)
+            num_rows = self._reader._parquet_file.metadata.num_rows
+            dataset_metadata_raw = source_metadata.get(b"datasetMetadata")
+            if dataset_metadata_raw:
+                dataset_metadata = json.loads(dataset_metadata_raw.decode("utf-8"))
+                dataset_metadata["numRows"] = num_rows
+                updated_metadata = {
+                    **source_metadata,
+                    b"datasetMetadata": json.dumps(dataset_metadata).encode("utf-8"),
+                }
+            else:
+                updated_metadata = source_metadata
+
+            table = pa.table({}).replace_schema_metadata(updated_metadata)
             pq.write_table(table, dest_path)
 
 class BackupDatasetService:
@@ -84,7 +97,6 @@ class BackupDatasetService:
     def get_metadata(self, version: str) -> DatasetConfig:
         with ParquetDataReader(self.get_backup_path(version)) as reader:
             metadata = reader.get_dataset_info()
-            metadata.num_rows = reader._parquet_file.metadata.num_rows
         metadata.version = version
         current = DatasetService(self.fl_id).current_version
         metadata.active = current is not None and version == current

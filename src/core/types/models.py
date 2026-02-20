@@ -131,7 +131,7 @@ class DatasetConfig(BaseModel):
     formulas: list | None = None
     pitMethod: int
     active: bool = False
-    num_rows: int | None = None
+    num_rows: int | None = Field(default=None, alias="numRows")
 
     # for when tag is missing completely
     @property

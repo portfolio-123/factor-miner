@@ -229,8 +229,8 @@ def render_results_table(
 
 def _format_params_json(params) -> str:
     return (
-        f'{{"factors": {params.n_factors}, "alpha": {params.min_alpha}, '
-        f'"correl": {params.correlation_threshold}, "IC": {params.min_ic}, '
+        f'{{"max.n": {params.n_factors}, "α": {params.min_alpha}, '
+        f'"corr": {params.correlation_threshold}, "IC": {params.min_ic}, '
         f'"top": "{int(params.top_pct)}%", "btm": "{int(params.bottom_pct)}%"}}'
     )
 
@@ -239,7 +239,8 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
     datasets = BackupDatasetService(fl_id).load_all_versions()
 
-    data = []
+    # Build rows data with version for alternating colors
+    rows = []
     for a in analyses:
         dataset = datasets.get(a.dataset_version)
 
@@ -253,68 +254,110 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         else:
             period_value = "N/A"
 
-        data.append(
-            {
-                "": f"/results?fl_id={a.fl_id}&id={a.id}",
-                "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M"),
-                "Run Time": format_runtime(a.started_at, a.finished_at),
-                "Universe": dataset.universeName if dataset else "N/A",
-                "Factors": (
-                    len(dataset.formulas) if dataset and dataset.formulas else "N/A"
-                ),
-                "Rows": (
-                    f"{dataset.num_rows:,}" if dataset and dataset.num_rows else "N/A"
-                ),
-                "Avg Abs Alpha": (
-                    f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
-                ),
-                "Period": period_value,
-                "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M")
+        rows.append({
+            "link": f"/results?fl_id={a.fl_id}&id={a.id}",
+            "analysis_date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M") + " UTC",
+            "run_time": format_runtime(a.started_at, a.finished_at),
+            "universe": dataset.universeName if dataset else "N/A",
+            "factors": len(dataset.formulas) if dataset and dataset.formulas else "N/A",
+            "rows": f"{dataset.num_rows:,}" if dataset and dataset.num_rows else "N/A",
+            "avg_abs_alpha": f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A",
+            "period": period_value,
+            "dataset_created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M") + " UTC"
                 + (" 🟢" if dataset and dataset.active else ""),
-                "Parameters": _format_params_json(a.params),
-                "Status": a.status.display,
-                "Notes": a.notes or "",
-                "_dataset_version": a.dataset_version,
-            }
-        )
+            "parameters": _format_params_json(a.params),
+            "status": a.status.display,
+            "notes": a.notes or "",
+            "version": a.dataset_version,
+        })
 
-    df = pd.DataFrame(data)
+    # Alternate colors by dataset version
+    unique_versions = list(dict.fromkeys(r["version"] for r in rows))
+    version_colors = {v: "#f8f8f8" if i % 2 == 0 else "#ffffff" for i, v in enumerate(unique_versions)}
 
-    # alternate color mapping to differentiate between datasets
-    unique_versions = df["_dataset_version"].unique()
-    version_colors = {
-        v: "#f5f5f5" if i % 2 == 0 else "#ffffff" for i, v in enumerate(unique_versions)
-    }
+    # Build HTML table with clickable rows
+    html = """
+    <style>
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .history-table th {
+            background: #f0f2f6;
+            padding: 8px 6px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 1px solid #ddd;
+            border-right: 1px solid #ddd;
+            white-space: nowrap;
+        }
+        .history-table th:last-child {
+            border-right: none;
+        }
+        .history-table td {
+            padding: 0;
+            border-bottom: 1px solid #eee;
+            border-right: 1px solid #eee;
+        }
+        .history-table td:last-child {
+            border-right: none;
+        }
+        .history-table td a {
+            display: block;
+            padding: 6px;
+            color: inherit;
+            text-decoration: none;
+        }
+        .history-table tr:hover {
+            filter: brightness(0.93);
+        }
+        .params-cell a, .date-cell a {
+            font-family: monospace;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+    <div style="max-height: 400px; overflow-y: auto;">
+    <table class="history-table">
+        <thead>
+            <tr>
+                <th>Analysis Date</th>
+                <th>Run Time</th>
+                <th>Universe</th>
+                <th>Factors</th>
+                <th>Rows</th>
+                <th>Avg|α|</th>
+                <th>Period</th>
+                <th>Dataset Created</th>
+                <th>Parameters</th>
+                <th>Status</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
 
-    # map each row index to its color based on dataset
-    row_colors = df["_dataset_version"].map(version_colors)
-    display_df = df.drop(columns=["_dataset_version"])
+    for row in rows:
+        bg = version_colors[row["version"]]
+        link = row["link"]
+        html += f"""
+            <tr style="background: {bg}">
+                <td class="date-cell"><a href="{link}" target="_top">{row['analysis_date']}</a></td>
+                <td><a href="{link}" target="_top">{row['run_time']}</a></td>
+                <td><a href="{link}" target="_top">{row['universe']}</a></td>
+                <td><a href="{link}" target="_top">{row['factors']}</a></td>
+                <td><a href="{link}" target="_top">{row['rows']}</a></td>
+                <td><a href="{link}" target="_top">{row['avg_abs_alpha']}</a></td>
+                <td class="date-cell"><a href="{link}" target="_top">{row['period']}</a></td>
+                <td class="date-cell"><a href="{link}" target="_top">{row['dataset_created']}</a></td>
+                <td class="params-cell"><a href="{link}" target="_top">{row['parameters']}</a></td>
+                <td><a href="{link}" target="_top">{row['status']}</a></td>
+                <td><a href="{link}" target="_top">{row['notes'] or '&nbsp;'}</a></td>
+            </tr>
+        """
 
-    def color_row(row: pd.Series) -> list[str]:
-        color = row_colors[row.name]
-        return [f"background-color: {color}"] * len(row)
+    html += "</tbody></table></div>"
 
-    styled_df = display_df.style.apply(color_row, axis=1)
-
-    st.dataframe(
-        styled_df,
-        height=400,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "": st.column_config.LinkColumn("", display_text="View →", width="small"),
-            **build_column_config([
-                ("Analysis Date", "text", "small"),
-                ("Run Time", "text", "small"),
-                ("Universe", "text", "medium"),
-                ("Factors", "number", "small"),
-                ("Rows", "text", "small"),
-                ("Avg Abs Alpha", "text", "small"),
-                ("Period", "text", "medium"),
-                ("Dataset Created", "text", "small"),
-                ("Parameters", "text", "medium"),
-                ("Status", "text", "small"),
-                ("Notes", "text", "small"),
-            ]),
-        },
-    )
+    st.html(html)
