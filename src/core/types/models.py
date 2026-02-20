@@ -32,6 +32,8 @@ class AnalysisProgress(BaseModel):
 class AnalysisResults(BaseModel):
     all_metrics: str
     all_corr_matrix: str
+    best_feature_names: list[str] = []
+    factor_classifications: dict[str, str] = {}
 
 
 class TokenPayload(BaseModel):
@@ -153,6 +155,7 @@ class AnalysisSummary(BaseModel):
     params: AnalysisParams
     notes: str | None = None
     avg_abs_alpha: float | None = None
+    best_factors_count: int | None = None
 
 
 class Analysis(AnalysisSummary):

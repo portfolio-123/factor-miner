@@ -25,6 +25,7 @@ from src.core.calculations import (
     analyze_factors,
     calculate_factor_metrics,
     calculate_correlation_matrix,
+    select_best_features,
 )
 
 
@@ -142,12 +143,26 @@ class AnalysisRunner:
             avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
             self.log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")
 
+            best_feature_names, factor_classifications = select_best_features(
+                metrics_df=metrics_df,
+                correlation_matrix=corr_matrix,
+                N=params.n_factors,
+                correlation_threshold=params.correlation_threshold,
+                a_min=params.min_alpha,
+                max_na_pct=params.max_na_pct,
+                min_ic=params.min_ic,
+            )
+            best_factors_count = len(best_feature_names)
+            self.log(f"Best factors: {best_factors_count}/{len(metrics_df)}")
+
             self.log("Analysis complete!")
 
             return {
                 "all_metrics": serialize_dataframe(metrics_df),
                 "all_corr_matrix": serialize_dataframe(corr_matrix),
                 "avg_abs_alpha": avg_abs_alpha,
+                "best_feature_names": best_feature_names,
+                "factor_classifications": factor_classifications,
             }
 
     def execute(self) -> None:
@@ -169,8 +184,11 @@ class AnalysisRunner:
                 results=AnalysisResults(
                     all_metrics=results["all_metrics"],
                     all_corr_matrix=results["all_corr_matrix"],
+                    best_feature_names=results["best_feature_names"],
+                    factor_classifications=results["factor_classifications"],
                 ),
                 avg_abs_alpha=results["avg_abs_alpha"],
+                best_factors_count=len(results["best_feature_names"]),
             )
             self.log("Analysis completed successfully")
 

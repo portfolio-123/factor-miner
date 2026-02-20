@@ -254,12 +254,16 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         else:
             period_value = "N/A"
 
+        total_factors = len(dataset.formulas)
+        best_factors = a.best_factors_count or 0
+        factors_display = f"{best_factors}/{total_factors}"
+
         rows.append({
             "link": f"/results?fl_id={a.fl_id}&id={a.id}",
             "analysis_date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M") + " UTC",
             "run_time": format_runtime(a.started_at, a.finished_at),
             "universe": dataset.universeName if dataset else "N/A",
-            "factors": len(dataset.formulas) if dataset and dataset.formulas else "N/A",
+            "factors": factors_display,
             "rows": f"{dataset.num_rows:,}" if dataset and dataset.num_rows else "N/A",
             "avg_abs_alpha": f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A",
             "period": period_value,
@@ -326,7 +330,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 <th>Analysis Date</th>
                 <th>Run Time</th>
                 <th>Universe</th>
-                <th>Factors</th>
+                <th>Best Factors</th>
                 <th>Rows</th>
                 <th>Avg|α|</th>
                 <th>Period</th>

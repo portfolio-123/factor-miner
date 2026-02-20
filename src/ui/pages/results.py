@@ -15,7 +15,6 @@ from src.core.utils.common import (
     format_runtime,
     format_timestamp,
 )
-from src.core.calculations import select_best_features
 from src.workers.analysis_service import analysis_service
 from src.services.dataset_service import BackupDatasetService
 
@@ -80,16 +79,8 @@ def results() -> None:
     ).reset_index(drop=True)
     all_metrics_df["rank"] = range(1, len(all_metrics_df) + 1)
 
-    best_feature_names, factor_classifications = select_best_features(
-        metrics_df=all_metrics_df,
-        correlation_matrix=corr_matrix_df,
-        N=analysis.params.n_factors,
-        correlation_threshold=analysis.params.correlation_threshold,
-        a_min=analysis.params.min_alpha,
-        max_na_pct=analysis.params.max_na_pct,
-        min_ic=analysis.params.min_ic,
-    )
-
+    best_feature_names = analysis.results.best_feature_names
+    factor_classifications = analysis.results.factor_classifications
     na_excluded_count = sum(1 for c in factor_classifications.values() if c == "high_na")
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
