@@ -51,5 +51,5 @@ CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {
     "high_na": ("#fff59d", "High NA %"),
     "below_alpha": ("#ffcc80", "Below Min Alpha"),
     "below_ic": ("#ce93d8", "Below Min IC"),
-    "n_limit": ("#b0bec5", "N Limit Reached"),
+    "n_limit": ("#b0bec5", "Max. Factors Reached"),
 }
