@@ -84,6 +84,7 @@ class BackupDatasetService:
     def get_metadata(self, version: str) -> DatasetConfig:
         with ParquetDataReader(self.get_backup_path(version)) as reader:
             metadata = reader.get_dataset_info()
+            metadata.num_rows = reader._parquet_file.metadata.num_rows
         metadata.version = version
         current = DatasetService(self.fl_id).current_version
         metadata.active = current is not None and version == current

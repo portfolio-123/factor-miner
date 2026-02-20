@@ -227,6 +227,14 @@ def render_results_table(
     )
 
 
+def _format_params_json(params) -> str:
+    return (
+        f'{{"factors": {params.n_factors}, "alpha": {params.min_alpha}, '
+        f'"correl": {params.correlation_threshold}, "IC": {params.min_ic}, '
+        f'"top": "{int(params.top_pct)}%", "btm": "{int(params.bottom_pct)}%"}}'
+    )
+
+
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
     datasets = BackupDatasetService(fl_id).load_all_versions()
@@ -238,30 +246,32 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         if dataset:
             if dataset.type == DatasetType.DATE:
                 period_value = (
-                    format_date(dataset.asOfDt, "%Y/%m/%d") if dataset.asOfDt else "N/A"
+                    format_date(dataset.asOfDt, "%Y-%m-%d") if dataset.asOfDt else "N/A"
                 )
             else:
-                period_value = f"{format_date(dataset.startDt, '%Y/%m/%d')} - {format_date(dataset.endDt, '%Y/%m/%d')}"
+                period_value = f"{format_date(dataset.startDt, '%Y-%m-%d')} - {format_date(dataset.endDt, '%Y-%m-%d')}"
         else:
             period_value = "N/A"
 
         data.append(
             {
                 "": f"/results?fl_id={a.fl_id}&id={a.id}",
-                "Analysis Date": format_timestamp(
-                    a.created_at, "%b %d, %Y at %I:%M %p UTC"
-                ),
+                "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M"),
                 "Run Time": format_runtime(a.started_at, a.finished_at),
                 "Universe": dataset.universeName if dataset else "N/A",
                 "Factors": (
                     len(dataset.formulas) if dataset and dataset.formulas else "N/A"
                 ),
+                "Rows": (
+                    f"{dataset.num_rows:,}" if dataset and dataset.num_rows else "N/A"
+                ),
                 "Avg Abs Alpha": (
                     f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
                 ),
                 "Period": period_value,
-                "Dataset Created": format_timestamp(a.dataset_version)
+                "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M")
                 + (" 🟢" if dataset and dataset.active else ""),
+                "Parameters": _format_params_json(a.params),
                 "Status": a.status.display,
                 "Notes": a.notes or "",
                 "_dataset_version": a.dataset_version,
@@ -294,13 +304,15 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         column_config={
             "": st.column_config.LinkColumn("", display_text="View →", width="small"),
             **build_column_config([
-                ("Analysis Date", "text", "medium"),
+                ("Analysis Date", "text", "small"),
                 ("Run Time", "text", "small"),
                 ("Universe", "text", "medium"),
                 ("Factors", "number", "small"),
+                ("Rows", "text", "small"),
                 ("Avg Abs Alpha", "text", "small"),
                 ("Period", "text", "medium"),
-                ("Dataset Created", "text", "medium"),
+                ("Dataset Created", "text", "small"),
+                ("Parameters", "text", "medium"),
                 ("Status", "text", "small"),
                 ("Notes", "text", "small"),
             ]),
