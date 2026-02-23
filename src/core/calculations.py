@@ -1,8 +1,11 @@
+import logging
 import time
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("calculations")
 from src.services.dataset_service import DatasetService
 from src.core.types.models import Frequency
 from src.core.config.constants import (
@@ -118,6 +121,7 @@ def analyze_factors(
     Returns:
         Tuple of (DataFrame with factor analysis results, dict of factor stats per factor including NA%, IC, IC t-stat)
     """
+    logger.info(f"analyze_factors: starting with {len(factor_columns)} factors")
     total_factors = len(factor_columns)
 
     all_dates: List[np.ndarray] = []
@@ -126,24 +130,28 @@ def analyze_factors(
     factor_stats_dict: Dict[str, dict] = {}
 
     # read date/ticker once and track row indices
+    logger.info("analyze_factors: reading Date/Ticker columns")
     base_df = dataset_svc.read_columns(["Date", "Ticker"])
+    logger.info(f"analyze_factors: read {len(base_df)} rows")
 
     base_df["_row_idx"] = np.arange(len(base_df))
 
     # add future performance column to base dataframe. TODO: determine how to handle missing values, or stocks exiting/entering the universe
+    logger.info("analyze_factors: merging with future_perf_df")
     merged_base = base_df.merge(future_perf_df, on=["Date", "Ticker"], how="inner")
     valid_indices = merged_base["_row_idx"].to_numpy()
     perf_arr = merged_base[INTERNAL_FUTURE_PERF_COL].to_numpy()
+    logger.info(f"analyze_factors: merged, {len(merged_base)} rows")
 
     # the inverse checks the row and maps it to an index. all the rows with the first date of the period will be index 0, and so on.
     unique_dates, date_inverse = np.unique(merged_base["Date"], return_inverse=True)
     perf_valid = ~np.isnan(perf_arr)
 
     n_dates = len(unique_dates)
+    logger.info(f"analyze_factors: {n_dates} unique dates")
     del base_df, merged_base
 
     def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
-        """Process a single factor and return arrays of (dates, factors, returns, factor_stats)."""
         factor_arr = batch_df[col].to_numpy()[valid_indices]
 
         # Calculate NA stats
@@ -271,23 +279,34 @@ def analyze_factors(
             factor_stats,
         )
 
+    logger.info("analyze_factors: entering ThreadPoolExecutor")
     with ThreadPoolExecutor() as executor:
+        logger.info("analyze_factors: ThreadPoolExecutor started")
         completed_count = 0
         last_progress_time = 0.0
-        progress_interval = 3.0
+        progress_interval = 3.0  # throttle progress updates to every 3 seconds
 
+        # Process factors in batches
         for batch_start in range(0, total_factors, batch_size):
             batch_cols = factor_columns[batch_start : batch_start + batch_size]
+            logger.info(f"analyze_factors: reading batch {batch_start}, {len(batch_cols)} columns")
 
-            # read factor columns in batches
             batch_df = dataset_svc.read_columns(batch_cols)
+            logger.info(f"analyze_factors: batch read complete, {len(batch_df)} rows")
 
+            # executor.submit() schedules process_factor(col) to run in a background thread.
+            # It returns a Future object immediately (non-blocking).
+            # We build a dict mapping Future -> column name so we can identify results later.
             future_to_col = {
                 executor.submit(process_factor, col): col for col in batch_cols
             }
 
+            # as_completed() yields futures sa they finish.
             for future in as_completed(future_to_col):
+                # Look up which column this future was processing
                 col = future_to_col[future]
+                # future.result() blocks until the task completes and returns the result.
+                # If the task raised an exception, .result() re-raises it here.
                 dates_arr, factors_arr, rets_arr, factor_stats = future.result()
                 factor_stats_dict[col] = factor_stats
                 if len(dates_arr) > 0:
@@ -295,6 +314,7 @@ def analyze_factors(
                     all_factors.append(factors_arr)
                     all_rets.append(rets_arr)
 
+                # Update progress but throttle
                 completed_count += 1
                 if progress_fn:
                     now = time.monotonic()
@@ -377,7 +397,7 @@ def calculate_factor_metrics(
     denominator = (x_centered * x_centered).sum(axis=0)
     beta = numerator / denominator
 
-    # alpha = how off is the return from the benchmark in absolute terms.
+    # alpha = how off is the return from the benchmark in absolute terms. y is factor returns, x is benchmark returns.
     alpha = y_mean - beta * x_mean
 
     # annualized alpha
