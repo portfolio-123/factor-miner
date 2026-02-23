@@ -284,7 +284,7 @@ def analyze_factors(
         logger.info("analyze_factors: ThreadPoolExecutor started")
         completed_count = 0
         last_progress_time = 0.0
-        progress_interval = 3.0  # throttle progress updates to every 3 seconds
+        progress_interval = 1.0  # throttle progress updates to every 1 second
 
         # Process factors in batches
         for batch_start in range(0, total_factors, batch_size):
