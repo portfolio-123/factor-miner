@@ -72,10 +72,12 @@ def results() -> None:
 
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
+    rank_by = getattr(analysis.params, "rank_by", "Alpha")
 
     # add rank column
+    sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
     all_metrics_df = all_metrics_df.sort_values(
-        by="annualized alpha %", key=abs, ascending=False
+        by=sort_col, key=abs, ascending=False
     ).reset_index(drop=True)
     all_metrics_df["rank"] = range(1, len(all_metrics_df) + 1)
 
@@ -99,11 +101,11 @@ def results() -> None:
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
             p = analysis.params
             settings = [
+                ("Rank By", rank_by),
                 ("Max. Factors", p.n_factors),
-                ("Min. Annual Alpha", f"{p.min_alpha}%"),
+                ("Min. IC", p.min_ic) if rank_by == "IC" else ("Min. Annual Alpha", f"{p.min_alpha}%"),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
-                ("Min. IC", p.min_ic),
                 ("Benchmark", dataset_metadata.benchmark),
                 ("Top X (Long)", f"{p.top_pct}%"),
                 ("Bottom X (Short)", f"{p.bottom_pct}%"),
@@ -115,11 +117,13 @@ def results() -> None:
 
     with best_factors_tab:
         if best_feature_names:
-            st.caption("Best factors ranked by absolute annualized alpha (highest first)")
+            metric_label = "IC" if rank_by == "IC" else "absolute annualized alpha"
+            st.caption(f"Best factors ranked by {metric_label} (highest first)")
 
             render_results_table(
                 all_metrics_df[all_metrics_df["column"].isin(best_feature_names)],
                 key="best_factors",
+                rank_by=rank_by,
             )
 
             st.divider()
@@ -138,10 +142,12 @@ def results() -> None:
             )
 
     with all_factors_tab:
-        st.caption("All factors ranked by absolute annualized alpha (highest first)")
+        metric_label = "IC" if rank_by == "IC" else "absolute annualized alpha"
+        st.caption(f"All factors ranked by {metric_label} (highest first)")
 
         render_results_table(
             all_metrics_df,
             factor_classifications=factor_classifications,
             key="all_factors",
+            rank_by=rank_by,
         )

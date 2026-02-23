@@ -118,6 +118,15 @@ def _render_settings() -> None:
     section_header("Portfolio Settings")
     col1, col2, col3 = st.columns(3)
     with col1:
+        st.radio(
+            "Rank By",
+            options=["Alpha", "IC"],
+            index=0 if _get_setting_value("rank_by", "Alpha") == "Alpha" else 1,
+            key="rank_by",
+            horizontal=True,
+            help="Select metric to rank factors by",
+        )
+    with col2:
         st.number_input(
             "Top X (Long) %",
             min_value=1.0,
@@ -127,7 +136,7 @@ def _render_settings() -> None:
             key="top_pct",
             help="Percentage of top-ranked stocks to go long",
         )
-    with col2:
+    with col3:
         st.number_input(
             "Bottom X (Short) %",
             min_value=0.0,
@@ -136,15 +145,6 @@ def _render_settings() -> None:
             step=1.0,
             key="bottom_pct",
             help="Percentage of bottom-ranked stocks to short (0 = long-only)",
-        )
-    with col3:
-        st.radio(
-            "Rank By",
-            options=["Alpha", "IC"],
-            index=0 if _get_setting_value("rank_by", "Alpha") == "Alpha" else 1,
-            key="rank_by",
-            horizontal=True,
-            help="Select metric to rank factors by",
         )
 
     section_header("Analysis Filters")

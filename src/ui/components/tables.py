@@ -119,13 +119,13 @@ def render_results_table(
     metrics: pd.DataFrame,
     factor_classifications: dict[str, str] | None = None,
     key: str = "results",
+    rank_by: str = "Alpha",
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
 
-    sorted_metrics = metrics.sort_values(
-        by="annualized alpha %", key=abs, ascending=False
-    ).reset_index(drop=True)
+    sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
+    sorted_metrics = metrics.sort_values(by=sort_col, key=abs, ascending=False).reset_index(drop=True)
 
     if 'rank' not in sorted_metrics.columns:
         sorted_metrics['rank'] = range(1, len(sorted_metrics) + 1)
@@ -143,40 +143,59 @@ def render_results_table(
         }
     )
 
-    display = display[
-        ["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "NA %"]
-    ]
+    # Conditionally include columns based on rank_by selection
+    if rank_by == "IC":
+        display = display[
+            ["Rank", "Factor", "IC", "IC t-stat", "NA %"]
+        ]
+    else:
+        display = display[
+            ["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "NA %"]
+        ]
 
     factor_names = display["Factor"].tolist()
 
-    # format numeric columns as strings
-    formatters = {
-        "NA %": lambda x: f"{x:.1f}%",
-        "Ann. Alpha %": lambda x: f"{x:.2f}%",
-        "Beta": lambda x: f"{x:.4f}",
-        "T-Stat": lambda x: f"{x:.2f}",
-        "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
-        "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
-    }
+    # format numeric columns as strings based on rank_by selection
+    if rank_by == "IC":
+        formatters = {
+            "NA %": lambda x: f"{x:.1f}%",
+            "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
+            "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
+        }
+        column_config = build_column_config([
+            ("Rank", "number", "small"),
+            ("Factor", "text", "large"),
+            ("IC", "text", "small"),
+            ("IC t-stat", "text", "small"),
+            ("NA %", "text", "small"),
+        ])
+    else:
+        formatters = {
+            "NA %": lambda x: f"{x:.1f}%",
+            "Ann. Alpha %": lambda x: f"{x:.2f}%",
+            "Beta": lambda x: f"{x:.4f}",
+            "T-Stat": lambda x: f"{x:.2f}",
+        }
+        column_config = build_column_config([
+            ("Rank", "number", "small"),
+            ("Factor", "text", "large"),
+            ("Ann. Alpha %", "text", "small"),
+            ("Beta", "text", "small"),
+            ("T-Stat", "text", "small"),
+            ("NA %", "text", "small"),
+        ])
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
-
-    column_config = build_column_config([
-        ("Rank", "number", "small"),
-        ("Factor", "text", "large"),
-        ("NA %", "text", "small"),
-        ("Ann. Alpha %", "text", "small"),
-        ("Beta", "text", "small"),
-        ("T-Stat", "text", "small"),
-        ("IC", "text", "small"),
-        ("IC t-stat", "text", "small"),
-    ])
 
     if factor_classifications is not None:
         color_map = {k: v[0] for k, v in CLASSIFICATION_COLORS.items()}
 
+        excluded_classification = "below_ic" if rank_by == "Alpha" else "below_alpha"
+
         legend_html = '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">'
-        for _, (color, label) in CLASSIFICATION_COLORS.items():
+        for key, (color, label) in CLASSIFICATION_COLORS.items():
+            if key == excluded_classification:
+                continue
             legend_html += f"""
             <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="
@@ -228,9 +247,11 @@ def render_results_table(
 
 
 def _format_params_json(params) -> str:
+    rank_by = getattr(params, "rank_by", "Alpha")
+    metric_str = f'"IC": {params.min_ic}' if rank_by == "IC" else f'"α": {params.min_alpha}'
     return (
-        f'{{"max.n": {params.n_factors}, "α": {params.min_alpha}, '
-        f'"corr": {params.correlation_threshold}, "IC": {params.min_ic}, '
+        f'{{"max.n": {params.n_factors}, {metric_str}, '
+        f'"corr": {params.correlation_threshold}, '
         f'"top": "{int(params.top_pct)}%", "btm": "{int(params.bottom_pct)}%"}}'
     )
 
