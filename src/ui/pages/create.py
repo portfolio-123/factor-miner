@@ -14,7 +14,7 @@ from src.core.config.constants import (
     SETTINGS_STORAGE_KEY,
 )
 from src.core.types.models import AnalysisParams, SettingsForm
-from src.core.utils.local_storage_utils import get_local_storage, set_local_storage
+from src.core.utils.local_storage_utils import get_local_storage
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
@@ -27,13 +27,16 @@ def _get_setting_value(key: str, default):
     return default
 
 
-def _save_settings() -> None:
+def _save_settings_to_storage() -> None:
     settings = {key: st.session_state.get(key) for key in SettingsForm.model_fields}
-    set_local_storage(SETTINGS_STORAGE_KEY, settings)
+    settings_json = json.dumps(settings).replace("'", "\\'")
+    st.html(f"""
+        <script>
+            localStorage.setItem('{SETTINGS_STORAGE_KEY}', '{settings_json}');
+        </script>
+    """)
 
 
-# get_local_storage (st_js_blocking) only works during render, not in button callbacks.
-# The button sets a flag, then this function runs on rerender to actually load settings.
 def _apply_settings_if_triggered() -> None:
     if not st.session_state.get("_load_settings_triggered"):
         return
@@ -56,17 +59,18 @@ def _submit_analysis() -> None:
     analysis_id = uuid.uuid4().hex[:8]
 
     try:
+        rank_by = st.session_state.get("rank_by", "Alpha")
         params = AnalysisParams(
-            min_alpha=st.session_state.get("min_alpha"),
+            min_alpha=st.session_state.get("min_alpha", DEFAULT_MIN_ALPHA),
             top_pct=st.session_state.get("top_pct"),
             bottom_pct=st.session_state.get("bottom_pct"),
             correlation_threshold=st.session_state.get("correlation_threshold"),
             n_factors=st.session_state.get("n_factors"),
             max_na_pct=st.session_state.get("max_na_pct"),
             min_ic=float(st.session_state.get("min_ic", DEFAULT_MIN_IC)),
+            rank_by=rank_by,
             access_token=st.session_state.get("access_token"),
         )
-        _save_settings()
         analysis_service.start(fl_id, analysis_id, dataset_version, params)
         st.session_state["_redirect_to_results"] = analysis_id
     except Exception as e:
@@ -75,6 +79,7 @@ def _submit_analysis() -> None:
 
 def create_form() -> None:
     if analysis_id := st.session_state.pop("_redirect_to_results", None):
+        _save_settings_to_storage()
         st.switch_page(
             st.session_state["pages"]["results"],
             query_params={
@@ -111,7 +116,7 @@ def create_form() -> None:
 
 def _render_settings() -> None:
     section_header("Portfolio Settings")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.number_input(
             "Top X (Long) %",
@@ -132,28 +137,39 @@ def _render_settings() -> None:
             key="bottom_pct",
             help="Percentage of bottom-ranked stocks to short (0 = long-only)",
         )
+    with col3:
+        st.radio(
+            "Rank By",
+            options=["Alpha", "IC"],
+            index=0 if _get_setting_value("rank_by", "Alpha") == "Alpha" else 1,
+            key="rank_by",
+            horizontal=True,
+            help="Select metric to rank factors by",
+        )
 
     section_header("Analysis Filters")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    rank_by = st.session_state.get("rank_by", "Alpha")
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.number_input(
-            "Min. Abs. Annual Alpha (%)",
-            min_value=0.0,
-            max_value=100.0,
-            value=_get_setting_value("min_alpha", DEFAULT_MIN_ALPHA),
-            step=0.1,
-            key="min_alpha",
-        )
+        if rank_by == "Alpha":
+            st.number_input(
+                "Min. Abs. Annual Alpha (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=_get_setting_value("min_alpha", DEFAULT_MIN_ALPHA),
+                step=0.1,
+                key="min_alpha",
+            )
+        else:
+            st.number_input(
+                "Min. IC",
+                min_value=0.0,
+                max_value=1.0,
+                value=_get_setting_value("min_ic", DEFAULT_MIN_IC),
+                step=0.01,
+                key="min_ic",
+            )
     with col2:
-        st.number_input(
-            "Min. IC",
-            min_value=0.0,
-            max_value=1.0,
-            value=_get_setting_value("min_ic", DEFAULT_MIN_IC),
-            step=0.01,
-            key="min_ic",
-        )
-    with col3:
         st.number_input(
             "Max. Factors",
             min_value=1,
@@ -163,7 +179,7 @@ def _render_settings() -> None:
             key="n_factors",
             help="Maximum number of 'Best Factors' to select",
         )
-    with col4:
+    with col3:
         st.number_input(
             "Max. NA (%)",
             min_value=0.0,
@@ -173,7 +189,7 @@ def _render_settings() -> None:
             key="max_na_pct",
             help="If a factor has a higher percentage of NAs, it will be excluded",
         )
-    with col5:
+    with col4:
         st.slider(
             "Correlation Threshold",
             min_value=0.0,

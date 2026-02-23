@@ -98,6 +98,7 @@ class SettingsForm(BaseModel):
     n_factors: int
     max_na_pct: float
     min_ic: float
+    rank_by: str = "Alpha"
 
 
 class AnalysisParams(SettingsForm):
@@ -109,9 +110,9 @@ class NormalizationConfig(BaseModel):
 
     scaling: str
     scope: str
-    trimPct: float
+    trimPct: float | None = None
     outliers: str | None = None
-    outlierLimit: float
+    outlierLimit: float | None = None
     mlTrainingEnd: str | None = None
     naFill: str
 

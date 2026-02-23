@@ -53,10 +53,10 @@ def _build_norm_items(normalization) -> list[str]:
         items.append(("Trim", trim_value))
 
         if normalization.scaling == ScalingMethod.MINMAX:
-            outlier_value = normalization.outliers.title() if normalization.outliers else "None"
+            outlier_value = normalization.outliers.title() if normalization.outliers else "N/A"
             items.append(("Outliers", outlier_value))
         else:
-            outlier_value = str(normalization.outlierLimit) if normalization.outlierLimit is not None else "None"
+            outlier_value = str(normalization.outlierLimit) if normalization.outlierLimit is not None else "N/A"
             items.append(("Outlier Limit", outlier_value))
 
     items.append(("N/A Handling", "Middle" if normalization.naFill else "None"))
