@@ -1,6 +1,7 @@
+import time
 import pandas as pd
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List, Optional, Tuple
 from src.services.dataset_service import DatasetService
 from src.core.types.models import Frequency
@@ -271,26 +272,36 @@ def analyze_factors(
         )
 
     with ThreadPoolExecutor() as executor:
+        completed_count = 0
+        last_progress_time = 0.0
+        progress_interval = 3.0
+
         for batch_start in range(0, total_factors, batch_size):
             batch_cols = factor_columns[batch_start : batch_start + batch_size]
 
             # read factor columns in batches
             batch_df = dataset_svc.read_columns(batch_cols)
 
-            # process factors in parallel
-            batch_results = list(executor.map(process_factor, batch_cols))
+            future_to_col = {
+                executor.submit(process_factor, col): col for col in batch_cols
+            }
 
-            # collect arrays from batch results
-            for col, (dates_arr, factors_arr, rets_arr, factor_stats) in zip(batch_cols, batch_results):
+            for future in as_completed(future_to_col):
+                col = future_to_col[future]
+                dates_arr, factors_arr, rets_arr, factor_stats = future.result()
                 factor_stats_dict[col] = factor_stats
                 if len(dates_arr) > 0:
                     all_dates.append(dates_arr)
                     all_factors.append(factors_arr)
                     all_rets.append(rets_arr)
 
-            completed = batch_start + len(batch_cols)
-            if progress_fn:
-                progress_fn(completed, total_factors)
+                completed_count += 1
+                if progress_fn:
+                    now = time.monotonic()
+                    is_complete = completed_count == total_factors
+                    if is_complete or (now - last_progress_time) >= progress_interval:
+                        progress_fn(completed_count, total_factors)
+                        last_progress_time = now
 
             del batch_df
 
@@ -432,9 +443,10 @@ def select_best_features(
     a_min: float = DEFAULT_MIN_ALPHA,
     max_na_pct: float = DEFAULT_MAX_NA_PCT,
     min_ic: float = DEFAULT_MIN_IC,
+    rank_by: str = "Alpha",
 ) -> tuple[list, dict[str, str]]:
     """
-    Select N best features based on alpha and low correlation.
+    Select N best features based on alpha or IC and low correlation.
     Also classifies all factors into categories.
 
     Args:
@@ -445,6 +457,7 @@ def select_best_features(
         a_min: Minimum absolute annualized alpha %
         max_na_pct: Maximum allowed NA percentage
         min_ic: Minimum absolute IC threshold
+        rank_by: Metric to rank by ("Alpha" or "IC")
 
     Returns:
         Tuple of (selected feature names, classifications dict)
@@ -457,9 +470,8 @@ def select_best_features(
     corr_arr = correlation_matrix.values
     col_to_idx = {c: i for i, c in enumerate(correlation_matrix.columns)}
 
-    sorted_metrics = metrics_df.sort_values(
-        by="annualized alpha %", key=abs, ascending=False
-    )
+    sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
+    sorted_metrics = metrics_df.sort_values(by=sort_col, key=abs, ascending=False)
 
     has_na_col = "NA %" in sorted_metrics.columns
     has_ic_col = "IC" in sorted_metrics.columns
@@ -482,16 +494,17 @@ def select_best_features(
             classifications[feature] = "high_na"
             continue
 
-        if not valid_alpha[i]:
-            classifications[feature] = "below_alpha"
-            continue
+        if rank_by == "IC":
+            if valid_ic is not None and not valid_ic[i]:
+                classifications[feature] = "below_ic"
+                continue
+        else:
+            if not valid_alpha[i]:
+                classifications[feature] = "below_alpha"
+                continue
 
         if len(selected_features) >= N:
             classifications[feature] = "n_limit"
-            continue
-
-        if valid_ic is not None and not valid_ic[i]:
-            classifications[feature] = "below_ic"
             continue
 
         feat_idx = feat_indices[i]

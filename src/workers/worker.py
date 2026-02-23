@@ -182,6 +182,7 @@ class AnalysisRunner:
                 a_min=params.min_alpha,
                 max_na_pct=params.max_na_pct,
                 min_ic=params.min_ic,
+                rank_by=getattr(params, "rank_by", "Alpha"),
             )
             best_factors_count = len(best_feature_names)
             self.log(f"Best factors: {best_factors_count}/{len(metrics_df)}")
