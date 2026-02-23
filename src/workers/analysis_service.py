@@ -130,12 +130,17 @@ class AnalysisService:
         analysis = self.create(fl_id, analysis_id, dataset_version, params)
 
         project_root = Path(__file__).resolve().parent.parent.parent
+        log_dir = self.base_dir / fl_id / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        stderr_path = log_dir / f"{analysis_id}.stderr.log"
+
+        stderr_file = open(stderr_path, "w")
         subprocess.Popen(
             [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id],
             cwd=str(project_root),
             start_new_session=True,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_file,
         )
 
         return analysis

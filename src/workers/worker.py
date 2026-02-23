@@ -1,8 +1,18 @@
+import logging
 import sys
 import traceback
 from datetime import datetime
 
 import pandas as pd
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    stream=sys.stderr,
+)
+stderr_logger = logging.getLogger("worker")
+
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,11 +59,14 @@ class AnalysisRunner:
 
     def run(self) -> dict:
         self.log("Starting analysis...")
+        stderr_logger.info("Starting analysis")
 
         params = self.analysis.params
         self.log(f"Processing dataset: {self.fl_id}")
 
+        stderr_logger.info("Opening DatasetService")
         with DatasetService(self.fl_id) as dataset_svc:
+            stderr_logger.info("Getting metadata")
             dataset_info = dataset_svc.get_metadata()
 
             if dataset_info.type == DatasetType.DATE:
@@ -68,6 +81,7 @@ class AnalysisRunner:
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
+            stderr_logger.info(f"Fetching benchmark data for {benchmark_ticker}")
             try:
                 benchmark_data = fetch_benchmark_data(
                     benchmark_ticker=benchmark_ticker,
@@ -79,12 +93,14 @@ class AnalysisRunner:
                 self.analysis = self.service.clear_credentials(self.analysis)
 
             self.log("Benchmark data fetched successfully")
+            stderr_logger.info("Benchmark data fetched")
 
             def on_progress(completed: int, total: int) -> None:
                 percent = (completed * 100) // total
                 prev_percent = ((completed - 1) * 100) // total if completed > 1 else -1
                 if percent // 10 > prev_percent // 10 or completed == total:
                     self.log(f"Progress: {percent}% ({completed}/{total} factors)")
+                    stderr_logger.info(f"PROGRESS: {percent}% ({completed}/{total} factors)")
                 self.update(
                     status=AnalysisStatus.RUNNING,
                     progress=AnalysisProgress(
@@ -98,6 +114,7 @@ class AnalysisRunner:
                 for col in dataset_svc.column_names
                 if col not in required_columns
             ]
+            stderr_logger.info(f"Found {len(factor_columns)} factor columns")
 
             self.update(
                 status=AnalysisStatus.RUNNING,
@@ -105,9 +122,13 @@ class AnalysisRunner:
             )
 
             self.log("Calculating future performance...")
+            stderr_logger.info("Reading price columns for future performance")
             perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column])
+            stderr_logger.info(" Calculating future performance")
             future_perf_df = calculate_future_performance(perf_core, price_column)
+
             self.log("Analyzing factors...")
+            stderr_logger.info("Starting analyze_factors")
             results_df, factor_stats = analyze_factors(
                 future_perf_df,
                 dataset_svc,
@@ -116,8 +137,13 @@ class AnalysisRunner:
                 bottom_pct=params.bottom_pct,
                 progress_fn=on_progress,
             )
+            stderr_logger.info(f"analyze_factors complete, {len(results_df)} results")
+
+            stderr_logger.info("Reading Date column")
             raw_data = dataset_svc.read_columns(["Date"])
+
             self.log("Calculating benchmark returns...")
+            stderr_logger.info("Calculating benchmark returns")
             raw_data = calculate_benchmark_returns(
                 raw_data,
                 benchmark_data,
@@ -127,15 +153,19 @@ class AnalysisRunner:
                 raise ValueError("No results from factor analysis")
 
             self.log("Calculating factor metrics...")
+            stderr_logger.info("Calculating factor metrics")
             metrics_df = calculate_factor_metrics(
                 results_df,
                 raw_data,
                 periods_per_year=dataset_info.frequency.periods_per_year,
                 factor_stats=factor_stats,
             )
+            stderr_logger.info(f"factor metrics complete, {len(metrics_df)} factors")
 
             self.log("Calculating correlation matrix...")
+            stderr_logger.info("Calculating correlation matrix")
             corr_matrix = calculate_correlation_matrix(results_df)
+            stderr_logger.info("Correlation matrix complete")
 
             metrics_df = metrics_df.round(4)
             corr_matrix = corr_matrix.round(4)
@@ -143,6 +173,7 @@ class AnalysisRunner:
             avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
             self.log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")
 
+            stderr_logger.info("Selecting best features")
             best_feature_names, factor_classifications = select_best_features(
                 metrics_df=metrics_df,
                 correlation_matrix=corr_matrix,
@@ -154,8 +185,10 @@ class AnalysisRunner:
             )
             best_factors_count = len(best_feature_names)
             self.log(f"Best factors: {best_factors_count}/{len(metrics_df)}")
+            stderr_logger.info(f"Selected {best_factors_count} best features")
 
             self.log("Analysis complete!")
+            stderr_logger.info("Analysis complete")
 
             return {
                 "all_metrics": serialize_dataframe(metrics_df),
@@ -166,10 +199,12 @@ class AnalysisRunner:
             }
 
     def execute(self) -> None:
+        stderr_logger.info(f"Worker started for {self.fl_id}/{self.analysis_id}")
         self.log(f"Worker started for analysis: {self.fl_id}/{self.analysis_id}")
 
         self.analysis = self.service.get(self.fl_id, self.analysis_id)
         if self.analysis is None:
+            stderr_logger.error(f"Analysis {self.fl_id}/{self.analysis_id} not found")
             self.log(f"Analysis {self.fl_id}/{self.analysis_id} not found")
             sys.exit(1)
 
@@ -191,9 +226,11 @@ class AnalysisRunner:
                 best_factors_count=len(results["best_feature_names"]),
             )
             self.log("Analysis completed successfully")
+            stderr_logger.info("SUCCESS: Analysis completed")
 
         except Exception as e:
             error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
+            stderr_logger.error(f"EXCEPTION: {error_msg}")
             self.log(f"Error: {error_msg}")
             self.update(status=AnalysisStatus.FAILED, error=error_msg)
             sys.exit(1)
