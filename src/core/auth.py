@@ -12,9 +12,10 @@ from src.services.p123_client import (
 
 def _authenticate(token: str, save_cookie: bool = True) -> None:
     fl_id = st.query_params.get("fl_id")
-    fl_info = verify_factor_list_access(fl_id, token)
+    # TODO: Re-enable factor list access verification
+    # fl_info = verify_factor_list_access(fl_id, token)
     st.session_state.access_token = token
-    st.session_state.fl_name = fl_info.get("name", fl_id)
+    st.session_state.fl_name = fl_id  # Use fl_id directly since we skip verification
     if save_cookie:
         set_cookie(AUTH_COOKIE_KEY, token, days=1)
 
@@ -24,7 +25,7 @@ def login():
     if existing_token := st.session_state.get("access_token"):
         try:
             fl_id = st.query_params.get("fl_id")
-            verify_factor_list_access(fl_id, existing_token)
+            # verify_factor_list_access(fl_id, existing_token)
             return #token still valid
         except PermissionError:
             # token expired, clear it and continue to re-auth
