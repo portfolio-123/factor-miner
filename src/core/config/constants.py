@@ -11,8 +11,8 @@ INTERNAL_FUTURE_PERF_COL: Final[str] = "__future_perf__"
 INTERNAL_BENCHMARK_COL: Final[str] = "__benchmark__"
 
 DEFAULT_MIN_ALPHA: Final[float] = 0.5
-DEFAULT_TOP_PCT: Final[float] = 20.0
-DEFAULT_BOTTOM_PCT: Final[float] = 20.0
+DEFAULT_TOP_PCT: Final[float] = 10.0
+DEFAULT_BOTTOM_PCT: Final[float] = 10.0
 DEFAULT_CORRELATION_THRESHOLD: Final[float] = 0.5
 DEFAULT_N_FACTORS: Final[int] = 10
 DEFAULT_MAX_NA_PCT: Final[float] = 40.0
