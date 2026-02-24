@@ -175,11 +175,13 @@ def analyze_factors(
     def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
         logger.info(f"THREAD START: {col}")
         factor_arr = batch_df[col].to_numpy()[valid_indices]
+        logger.info(f"CHECKPOINT 1 [{col}]: got factor_arr, len={len(factor_arr)}")
 
         # Calculate NA stats
         total_values = len(factor_arr)
         na_count = np.isnan(factor_arr).sum()
         na_pct = (na_count / total_values * 100) if total_values > 0 else 100.0
+        logger.info(f"CHECKPOINT 2 [{col}]: NA stats done, na_pct={na_pct:.1f}%")
 
         valid_mask = perf_valid & ~np.isnan(factor_arr)
 
@@ -201,9 +203,11 @@ def analyze_factors(
         counts = np.bincount(inverse_f, minlength=n_dates)
 
         # Sort by (date, factor)
+        logger.info(f"CHECKPOINT 3 [{col}]: starting lexsort, len={len(factor_f)}")
         sort_keys = np.lexsort((factor_f, inverse_f))
         inverse_sorted = inverse_f[sort_keys]
         perf_sorted = perf_f[sort_keys]
+        logger.info(f"CHECKPOINT 4 [{col}]: lexsort done")
 
         # Compute period boundaries
         group_starts = np.zeros(n_dates + 1, dtype=np.int64)
@@ -246,11 +250,13 @@ def analyze_factors(
         var_r = np.bincount(inverse_sorted, weights=weights * r_centered ** 2, minlength=n_dates) / w_sum
 
         # IC = cov / (std_f * std_r), require at least 4 stocks
+        logger.info(f"CHECKPOINT 5 [{col}]: starting IC calculation")
         denom = np.sqrt(var_f * var_r)
         # to avoid division by zero
         valid_denom = (denom > 0) & (counts >= 4)
         ic_per_date = np.full(n_dates, np.nan)
         np.divide(cov_fr, denom, out=ic_per_date, where=valid_denom)
+        logger.info(f"CHECKPOINT 6 [{col}]: IC calculation done")
 
         # aggregate: mean IC across all valid dates
         valid_ic_mask = (counts >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
@@ -365,6 +371,7 @@ def analyze_factors(
         valid_results = valid_date_mask & ~np.isnan(ret)
         valid_indices_arr = np.where(valid_results)[0]
 
+        logger.info(f"THREAD COMPLETE [{col}]: returning {len(valid_indices_arr)} results")
         return (
             unique_dates[valid_indices_arr],
             np.full(len(valid_indices_arr), col, dtype=object),
