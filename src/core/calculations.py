@@ -213,7 +213,6 @@ def analyze_factors(
         rank_in_group = np.arange(len(inverse_sorted)) - group_starts[inverse_sorted]
         group_sizes = counts[inverse_sorted]
         group_sizes_f = group_sizes.astype(np.float32)
-        del group_sizes
         # calculate percentile rank of each row within its period
         f_rank = (rank_in_group + 0.5) / group_sizes_f
 
@@ -226,7 +225,7 @@ def analyze_factors(
         perf_rank_in_group = perf_rank_pos - group_starts[inverse_sorted]
         del perf_rank_pos
         r_rank = (perf_rank_in_group + 0.5) / group_sizes_f
-        del perf_rank_in_group, group_sizes_f, rank_in_group
+        del perf_rank_in_group, group_sizes_f
 
         # Tail weights: w = 1 + alpha * |rank - 0.5|
         alpha = 4.0
