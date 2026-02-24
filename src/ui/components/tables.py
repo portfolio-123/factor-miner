@@ -258,7 +258,9 @@ def render_results_table(
 
 def _format_params_json(params) -> str:
     rank_by = getattr(params, "rank_by", "Alpha")
-    metric_str = f'"IC": {params.min_ic}' if rank_by == "IC" else f'"α": {params.min_alpha}'
+    # if alpha is 0, avoid float rounding error
+    clean_min_alpha = 0 if params.min_alpha < 1e-9 else params.min_alpha
+    metric_str = f'"IC": {params.min_ic}' if rank_by == "IC" else f'"α": {clean_min_alpha}'
     return (
         f'{{"max.n": {params.n_factors}, {metric_str}, '
         f'"corr": {params.correlation_threshold}, '

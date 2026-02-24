@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("calculations")
+logger.info("this file was updated")
+
 from src.services.dataset_service import DatasetService
 from src.core.types.models import Frequency
 from src.core.config.constants import (
@@ -171,6 +173,7 @@ def analyze_factors(
     del base_df, merged_base
 
     def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
+        logger.info(f"THREAD START: {col}")
         factor_arr = batch_df[col].to_numpy()[valid_indices]
 
         # Calculate NA stats
@@ -397,7 +400,13 @@ def analyze_factors(
                 col = future_to_col[future]
                 # future.result() blocks until the task completes and returns the result.
                 # If the task raised an exception, .result() re-raises it here.
-                dates_arr, factors_arr, rets_arr, factor_stats = future.result()
+                try:
+                    dates_arr, factors_arr, rets_arr, factor_stats = future.result()
+                except Exception as e:
+                    import traceback
+                    logger.error(f"THREAD CRASHED - Factor {col}: {type(e).__name__}: {e}")
+                    logger.error(traceback.format_exc())
+                    continue
                 factor_stats_dict[col] = factor_stats
                 if len(dates_arr) > 0:
                     all_dates.append(dates_arr)
@@ -653,7 +662,9 @@ def select_best_features(
     feat_indices = np.array([col_to_idx.get(c, -1) for c in columns])
 
     valid_na = na_pcts <= max_na_pct
-    valid_alpha = np.abs(alphas) >= a_min
+    # skip alpha filter if a_min is effectively 0
+    skip_alpha_filter = a_min < 1e-9
+    valid_alpha = np.ones(len(alphas), dtype=bool) if skip_alpha_filter else np.abs(alphas) >= a_min
     valid_ic = np.abs(ics) >= min_ic if ics is not None else None
 
     for i in range(len(columns)):

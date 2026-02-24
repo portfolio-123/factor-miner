@@ -100,10 +100,11 @@ def results() -> None:
         with st.container(border=True):
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
             p = analysis.params
+            clean_min_alpha = 0 if p.min_alpha < 1e-9 else p.min_alpha
             settings = [
                 ("Rank By", rank_by),
                 ("Max. Factors", p.n_factors),
-                ("Min. IC", p.min_ic) if rank_by == "IC" else ("Min. Annual Alpha", f"{p.min_alpha}%"),
+                ("Min. IC", p.min_ic) if rank_by == "IC" else ("Min. Annual Alpha", f"{clean_min_alpha}%"),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
                 ("Benchmark", dataset_metadata.benchmark),
