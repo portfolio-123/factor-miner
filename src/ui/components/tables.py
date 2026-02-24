@@ -134,6 +134,8 @@ def render_results_table(
         columns={
             "column": "Factor",
             "annualized alpha %": "Ann. Alpha %",
+            "annualized long %": "Ann. Long %",
+            "annualized short %": "Ann. Short %",
             "NA %": "NA %",
             "T-Stat": "T-Stat",
             "beta": "Beta",
@@ -146,11 +148,11 @@ def render_results_table(
     # Conditionally include columns based on rank_by selection
     if rank_by == "IC":
         display = display[
-            ["Rank", "Factor", "IC", "IC t-stat", "NA %"]
+            ["Rank", "Factor", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"]
         ]
     else:
         display = display[
-            ["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "NA %"]
+            ["Rank", "Factor", "Ann. Alpha %", "Ann. Long %", "Ann. Short %", "Beta", "T-Stat", "NA %"]
         ]
 
     factor_names = display["Factor"].tolist()
@@ -161,25 +163,33 @@ def render_results_table(
             "NA %": lambda x: f"{x:.1f}%",
             "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
             "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
+            "Ann. Long %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
+            "Ann. Short %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
         }
         column_config = build_column_config([
             ("Rank", "number", "small"),
             ("Factor", "text", "large"),
             ("IC", "text", "small"),
             ("IC t-stat", "text", "small"),
+            ("Ann. Long %", "text", "small"),
+            ("Ann. Short %", "text", "small"),
             ("NA %", "text", "small"),
         ])
     else:
         formatters = {
             "NA %": lambda x: f"{x:.1f}%",
-            "Ann. Alpha %": lambda x: f"{x:.2f}%",
-            "Beta": lambda x: f"{x:.4f}",
-            "T-Stat": lambda x: f"{x:.2f}",
+            "Ann. Alpha %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
+            "Ann. Long %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
+            "Ann. Short %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
+            "Beta": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
+            "T-Stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
         }
         column_config = build_column_config([
             ("Rank", "number", "small"),
             ("Factor", "text", "large"),
             ("Ann. Alpha %", "text", "small"),
+            ("Ann. Long %", "text", "small"),
+            ("Ann. Short %", "text", "small"),
             ("Beta", "text", "small"),
             ("T-Stat", "text", "small"),
             ("NA %", "text", "small"),

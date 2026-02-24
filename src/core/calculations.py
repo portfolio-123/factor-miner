@@ -25,12 +25,13 @@ def calculate_benchmark_returns(
     frequency: Frequency,
 ) -> pd.DataFrame:
     """
-    Calculate benchmark returns for each date in the dataset based on data frequency.
+    Calculate forward-looking benchmark returns for each date in the dataset.
+    Returns the benchmark return from current date to next period date.
 
     Args:
         raw_data: Dataset with 'Date' column
         benchmark_data: Benchmark price data with 'dt' and 'close' columns
-        frequency: Dataset frequency to determine the lookback period
+        frequency: Dataset frequency to determine the forward period
 
     Returns:
         DataFrame with 'benchmark' column added
@@ -42,29 +43,31 @@ def calculate_benchmark_returns(
     close_prices = benchmark_df["close"].values
 
     # 5 trading days per week
-    lookback_trading_days = frequency.weeks * 5
+    forward_trading_days = frequency.weeks * 5
 
     # get unique dates from raw_data
     unique_date_values = raw_data["Date"].unique()
 
-    # for each date, find the next trading day (get monday, but if holiday get tuesday)
+    # for each date, find the next trading day (Monday for Saturday dates)
     date_positions = np.searchsorted(benchmark_df["dt"].values, unique_date_values, side="left")
 
-    prev_positions = date_positions - lookback_trading_days
+    # Forward-looking: get position of next period's date
+    next_positions = date_positions + forward_trading_days
 
-    valid_mask = (date_positions < len(close_prices)) & (prev_positions >= 0)
+    valid_mask = (date_positions < len(close_prices)) & (next_positions < len(close_prices))
 
-    # get prices at positions, or NaN if invalid. clip/maximum prevent bad index errors.
+    # get prices at positions, or NaN if invalid
     curr_prices = np.where(valid_mask, close_prices[np.clip(date_positions, 0, len(close_prices) - 1)], np.nan)
-    prev_prices = np.where(valid_mask, close_prices[np.maximum(prev_positions, 0)], np.nan)
+    next_prices = np.where(valid_mask, close_prices[np.clip(next_positions, 0, len(close_prices) - 1)], np.nan)
 
-    benchmark_returns = (curr_prices - prev_prices) / prev_prices
+    # Forward return: (next_price - curr_price) / curr_price
+    benchmark_returns = (next_prices - curr_prices) / curr_prices
 
     bench_df = pd.DataFrame({
         "Date": unique_date_values,
         INTERNAL_BENCHMARK_COL: benchmark_returns
     })
-    
+
     result = raw_data.merge(bench_df, on="Date", how="left")
     return result
 
@@ -87,9 +90,25 @@ def calculate_future_performance(
     df = raw_data[["Date", "Ticker", price_column]].copy()
     df = df.sort_values(["Ticker", "Date"]).reset_index(drop=True)
 
+    # Treat price=0 as missing data (invalid price)
+    df.loc[df[price_column] == 0, price_column] = np.nan
+
     # calculate return as (next_price - current_price) / current_price
     next_price = df.groupby("Ticker")[price_column].shift(-1)
     df[INTERNAL_FUTURE_PERF_COL] = (next_price - df[price_column]) / df[price_column]
+
+    # Replace inf with nan (happens when price = 0) and warn
+    inf_mask = np.isinf(df[INTERNAL_FUTURE_PERF_COL])
+    if inf_mask.any():
+        # Log details: Date, Ticker, current_price, next_price
+        df["_next_price"] = next_price
+        bad_df = df[inf_mask][["Date", "Ticker", price_column, "_next_price"]].head(5)
+        logger.warning(f"Found {inf_mask.sum()} inf values in future perf (division by zero):")
+        for _, row in bad_df.iterrows():
+            logger.warning(f"  {row['Date']} | {row['Ticker']} | price={row[price_column]} | next_price={row['_next_price']}")
+        df = df.drop(columns=["_next_price"])
+        df[INTERNAL_FUTURE_PERF_COL] = df[INTERNAL_FUTURE_PERF_COL].replace([np.inf, -np.inf], np.nan)
+
     df = df.drop(columns=[price_column])
 
     return df
@@ -166,6 +185,15 @@ def analyze_factors(
         factor_f = factor_arr[valid_mask]
         perf_f = perf_arr[valid_mask]
 
+        # Check for inf in source data
+        inf_in_perf = np.isinf(perf_f).sum()
+        inf_in_factor = np.isinf(factor_f).sum()
+        if inf_in_perf > 0 or inf_in_factor > 0:
+            inf_indices = np.where(np.isinf(perf_f))[0][:5]  # first 5
+            inf_dates = unique_dates[inverse_f[inf_indices]] if len(inf_indices) > 0 else []
+            logger.warning(f"Factor {col}: SOURCE DATA has {inf_in_perf} inf in perf, {inf_in_factor} inf in factor. "
+                          f"Sample dates with inf perf: {[str(d)[:10] for d in inf_dates]}")
+
         # count how many stocks are per date
         counts = np.bincount(inverse_f, minlength=n_dates)
 
@@ -216,7 +244,10 @@ def analyze_factors(
 
         # IC = cov / (std_f * std_r), require at least 4 stocks
         denom = np.sqrt(var_f * var_r)
-        ic_per_date = np.where((denom > 0) & (counts >= 4), cov_fr / denom, np.nan)
+        # to avoid division by zero
+        valid_denom = (denom > 0) & (counts >= 4)
+        ic_per_date = np.full(n_dates, np.nan)
+        np.divide(cov_fr, denom, out=ic_per_date, where=valid_denom)
 
         # aggregate: mean IC across all valid dates
         valid_ic_mask = (counts >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
@@ -267,6 +298,65 @@ def analyze_factors(
         ret[valid_date_mask] = (
             (top_sums[valid_date_mask] - bottom_sums[valid_date_mask]) / divisor[valid_date_mask]
         )
+
+        # Calculate average long/short returns per date
+        long_ret = np.full(n_dates, np.nan)
+        short_ret = np.full(n_dates, np.nan)
+        valid_top_mask = top_n > 0
+        valid_bottom_mask = bottom_n > 0
+        long_ret[valid_top_mask] = top_sums[valid_top_mask] / top_n[valid_top_mask]
+        short_ret[valid_bottom_mask] = bottom_sums[valid_bottom_mask] / bottom_n[valid_bottom_mask]
+
+        # Calculate cumulative long/short returns (for CAGR)
+        # Use log returns to avoid overflow: sum(log(1+r)) then exp() - 1
+        # Also filter out inf values (bad data)
+        inf_long_count = np.isinf(long_ret).sum()
+        inf_short_count = np.isinf(short_ret).sum()
+        if inf_long_count > 0 or inf_short_count > 0:
+            logger.warning(f"Factor {col}: found {inf_long_count} inf in long_ret, {inf_short_count} inf in short_ret - filtering out")
+
+        valid_long = ~np.isnan(long_ret) & np.isfinite(long_ret)
+        valid_short = ~np.isnan(short_ret) & np.isfinite(short_ret)
+        n_long_periods = int(valid_long.sum())
+        n_short_periods = int(valid_short.sum())
+
+        if valid_long.any():
+            log_cum_long = np.sum(np.log1p(long_ret[valid_long]))
+            cumulative_long_ret = np.exp(log_cum_long) - 1
+        else:
+            cumulative_long_ret = np.nan
+
+        if valid_short.any():
+            log_cum_short = np.sum(np.log1p(short_ret[valid_short]))
+            cumulative_short_ret = np.exp(log_cum_short) - 1
+        else:
+            cumulative_short_ret = np.nan
+
+        # DEBUG: Log rebalance statistics (use log equity to avoid overflow)
+        logger.info(f"\n=== REBALANCE STATISTICS for {col} ===")
+        logger.info(f"{'Date':<12} {'LongRet%':>10} {'LogEq':>10} {'TopN':>6} {'BotN':>6}")
+        logger.info("-" * 50)
+        log_equity = np.log(100.0)
+        valid_date_indices = np.where(valid_long)[0]
+        for i in valid_date_indices:
+            period_ret = long_ret[i]
+            log_equity += np.log1p(period_ret)
+            date_str = str(unique_dates[i])[:10]
+            logger.info(f"{date_str:<12} {period_ret*100:>10.4f} {log_equity:>10.4f} {top_n[i]:>6} {bottom_n[i]:>6}")
+        logger.info("-" * 50)
+        final_equity = np.exp(log_equity)
+        logger.info(f"Final Equity: {final_equity:.4f} (Total Return: {(final_equity/100 - 1)*100:.2f}%)")
+
+        # Add to factor_stats
+        factor_stats['cumulative_long_ret'] = cumulative_long_ret
+        factor_stats['cumulative_short_ret'] = cumulative_short_ret
+        factor_stats['n_long_periods'] = n_long_periods
+        factor_stats['n_short_periods'] = n_short_periods
+        factor_stats['valid_dates_pct'] = round(100 * n_long_periods / n_dates, 1) if n_dates > 0 else 0.0
+
+        # Log data quality info
+        logger.info(f"Factor {col}: valid_dates={n_long_periods}/{n_dates} ({factor_stats['valid_dates_pct']}%), "
+                    f"stocks_per_date: min={counts.min()}, max={counts.max()}, median={int(np.median(counts))}")
 
         # build results as arrays instead of dicts
         valid_results = valid_date_mask & ~np.isnan(ret)
@@ -397,13 +487,30 @@ def calculate_factor_metrics(
     denominator = (x_centered * x_centered).sum(axis=0)
     beta = numerator / denominator
 
-    # alpha = how off is the return from the benchmark in absolute terms. y is factor returns, x is benchmark returns.
-    alpha = y_mean - beta * x_mean
+    # Calculate benchmark CAGR for alpha calculation (use log returns to avoid overflow)
+    bench_returns = bench_aligned.values
+    valid_bench = ~np.isnan(bench_returns)
+    n_bench_periods = int(valid_bench.sum())
+    if valid_bench.any():
+        log_cum_bench = np.sum(np.log1p(bench_returns[valid_bench]))
+        cumulative_bench = np.exp(log_cum_bench) - 1
+    else:
+        cumulative_bench = np.nan
+    years_bench = n_bench_periods / periods_per_year
+    annualized_bench = 100 * ((1 + cumulative_bench) ** (1 / years_bench) - 1) if years_bench > 0 else np.nan
 
-    # annualized alpha
-    ann_alpha = 100 * ((1 + alpha) ** periods_per_year - 1)
+    logger.info(f"DEBUG: Benchmark CAGR - cumulative: {cumulative_bench*100:.2f}%, periods: {n_bench_periods}, years: {years_bench:.2f}, annualized: {annualized_bench:.2f}%")
 
-    # t-statistic
+    # DEBUG: Log ALL benchmark returns for comparison with P123 (use log equity)
+    bench_dates = pivot.index.tolist()
+    logger.info(f"DEBUG: All benchmark returns (compare with P123 Bench%):")
+    log_bench_equity = np.log(100.0)
+    for i in range(len(bench_dates)):
+        if not np.isnan(bench_returns[i]):
+            log_bench_equity += np.log1p(bench_returns[i])
+        logger.info(f"  {str(bench_dates[i])[:10]}: bench={bench_returns[i]*100:.4f}%, log_eq={log_bench_equity:.4f}")
+
+    # t-statistic (based on factor returns)
     y_var = (y_centered ** 2).sum(axis=0) / (n_valid - 1)
     y_std = np.sqrt(y_var)
     y_stderr = y_std / np.sqrt(n_valid)
@@ -417,8 +524,6 @@ def calculate_factor_metrics(
         "column": valid_factor_names,
         "T-Stat": t_stat[valid_factors],
         "beta": beta[valid_factors],
-        "alpha": alpha[valid_factors],
-        "annualized alpha %": ann_alpha[valid_factors],
     })
 
     if factor_stats is not None:
@@ -431,10 +536,54 @@ def calculate_factor_metrics(
         result["IC t-stat"] = result["column"].map(
             {k: v.get("ic_tstat", np.nan) for k, v in factor_stats.items()}
         ).fillna(np.nan)
+
+        # Annualized long/short returns using CAGR
+        cumulative_long = result["column"].map(
+            {k: v.get("cumulative_long_ret", np.nan) for k, v in factor_stats.items()}
+        ).fillna(np.nan)
+        cumulative_short = result["column"].map(
+            {k: v.get("cumulative_short_ret", np.nan) for k, v in factor_stats.items()}
+        ).fillna(np.nan)
+        n_long_periods = result["column"].map(
+            {k: v.get("n_long_periods", 0) for k, v in factor_stats.items()}
+        ).fillna(0)
+        n_short_periods = result["column"].map(
+            {k: v.get("n_short_periods", 0) for k, v in factor_stats.items()}
+        ).fillna(0)
+
+        # CAGR = (1 + cumulative_return) ^ (1 / years) - 1
+        years_long = n_long_periods / periods_per_year
+        years_short = n_short_periods / periods_per_year
+        result["annualized long %"] = 100 * ((1 + cumulative_long) ** (1 / years_long) - 1)
+        result["annualized short %"] = 100 * ((1 + cumulative_short) ** (1 / years_short) - 1)
+
+        # Alpha = Annualized Long Return - Annualized Benchmark Return
+        result["annualized alpha %"] = result["annualized long %"] - annualized_bench
+
+        # Data quality: % of dates with enough stocks for valid long/short portfolios
+        result["valid dates %"] = result["column"].map(
+            {k: v.get("valid_dates_pct", 0.0) for k, v in factor_stats.items()}
+        ).fillna(0.0)
+
+        # DEBUG: Log CAGR calculation details for first factor
+        if len(result) > 0:
+            idx = 0
+            logger.info(f"=== CAGR DEBUG - Factor: {result['column'].iloc[idx]} ===")
+            logger.info(f"  cumulative_long: {cumulative_long.iloc[idx]:.6f} ({cumulative_long.iloc[idx]*100:.2f}%)")
+            logger.info(f"  n_long_periods: {n_long_periods.iloc[idx]}")
+            logger.info(f"  periods_per_year: {periods_per_year}")
+            logger.info(f"  years_long: {years_long.iloc[idx]:.4f}")
+            logger.info(f"  annualized_long: {result['annualized long %'].iloc[idx]:.2f}%")
+            logger.info(f"  annualized_bench: {annualized_bench:.2f}%")
+            logger.info(f"  annualized_alpha: {result['annualized alpha %'].iloc[idx]:.2f}%")
     else:
         result["NA %"] = 0.0
         result["IC"] = np.nan
         result["IC t-stat"] = np.nan
+        result["annualized long %"] = np.nan
+        result["annualized short %"] = np.nan
+        result["annualized alpha %"] = np.nan
+        result["valid dates %"] = 0.0
 
     return result
 
