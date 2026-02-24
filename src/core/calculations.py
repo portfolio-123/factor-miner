@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import pandas as pd
 import numpy as np
@@ -6,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("calculations")
-logger.info("this file was updated")
 
 from src.services.dataset_service import DatasetService
 from src.core.types.models import Frequency
@@ -173,22 +173,20 @@ def analyze_factors(
     del base_df, merged_base
 
     def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
-        logger.info(f"THREAD START: {col}")
         factor_arr = batch_df[col].to_numpy()[valid_indices]
-        logger.info(f"CHECKPOINT 1 [{col}]: got factor_arr, len={len(factor_arr)}")
 
         # Calculate NA stats
         total_values = len(factor_arr)
         na_count = np.isnan(factor_arr).sum()
         na_pct = (na_count / total_values * 100) if total_values > 0 else 100.0
-        logger.info(f"CHECKPOINT 2 [{col}]: NA stats done, na_pct={na_pct:.1f}%")
 
         valid_mask = perf_valid & ~np.isnan(factor_arr)
 
         # filter to valid rows only
         inverse_f = date_inverse[valid_mask]
-        factor_f = factor_arr[valid_mask]
-        perf_f = perf_arr[valid_mask]
+        factor_f = factor_arr[valid_mask].astype(np.float32)
+        perf_f = perf_arr[valid_mask].astype(np.float32)
+        del factor_arr, valid_mask
 
         # Check for inf in source data
         inf_in_perf = np.isinf(perf_f).sum()
@@ -203,11 +201,10 @@ def analyze_factors(
         counts = np.bincount(inverse_f, minlength=n_dates)
 
         # Sort by (date, factor)
-        logger.info(f"CHECKPOINT 3 [{col}]: starting lexsort, len={len(factor_f)}")
         sort_keys = np.lexsort((factor_f, inverse_f))
         inverse_sorted = inverse_f[sort_keys]
         perf_sorted = perf_f[sort_keys]
-        logger.info(f"CHECKPOINT 4 [{col}]: lexsort done")
+        del sort_keys, factor_f, perf_f, inverse_f
 
         # Compute period boundaries
         group_starts = np.zeros(n_dates + 1, dtype=np.int64)
@@ -215,17 +212,21 @@ def analyze_factors(
         # get position of each row within its period
         rank_in_group = np.arange(len(inverse_sorted)) - group_starts[inverse_sorted]
         group_sizes = counts[inverse_sorted]
-        group_sizes_f = group_sizes.astype(np.float64)
-        # calculate percentile rank of each row within its period. +0.5 to get the middle of the range - e.g. 1/3 => 1.5/3=0.5. 
+        group_sizes_f = group_sizes.astype(np.float32)
+        del group_sizes
+        # calculate percentile rank of each row within its period
         f_rank = (rank_in_group + 0.5) / group_sizes_f
 
         # sort by (date, perf)
         perf_order_within_date = np.lexsort((perf_sorted, inverse_sorted))
         perf_rank_pos = np.empty_like(perf_order_within_date)
         perf_rank_pos[perf_order_within_date] = np.arange(len(perf_order_within_date))
+        del perf_order_within_date 
         # Adjust to within-group position
         perf_rank_in_group = perf_rank_pos - group_starts[inverse_sorted]
+        del perf_rank_pos
         r_rank = (perf_rank_in_group + 0.5) / group_sizes_f
+        del perf_rank_in_group, group_sizes_f, rank_in_group
 
         # Tail weights: w = 1 + alpha * |rank - 0.5|
         alpha = 4.0
@@ -243,20 +244,22 @@ def analyze_factors(
         # center ranks by subtracting their date's mean
         f_centered = f_rank - mean_f[inverse_sorted]
         r_centered = r_rank - mean_r[inverse_sorted]
+        del f_rank, r_rank, mean_f, mean_r
 
         # weighted covariance and variances per date
         cov_fr = np.bincount(inverse_sorted, weights=weights * f_centered * r_centered, minlength=n_dates) / w_sum
         var_f = np.bincount(inverse_sorted, weights=weights * f_centered ** 2, minlength=n_dates) / w_sum
         var_r = np.bincount(inverse_sorted, weights=weights * r_centered ** 2, minlength=n_dates) / w_sum
+        del f_centered, r_centered, weights, w_sum
 
         # IC = cov / (std_f * std_r), require at least 4 stocks
-        logger.info(f"CHECKPOINT 5 [{col}]: starting IC calculation")
         denom = np.sqrt(var_f * var_r)
+        del var_f, var_r
         # to avoid division by zero
         valid_denom = (denom > 0) & (counts >= 4)
         ic_per_date = np.full(n_dates, np.nan)
         np.divide(cov_fr, denom, out=ic_per_date, where=valid_denom)
-        logger.info(f"CHECKPOINT 6 [{col}]: IC calculation done")
+        del cov_fr, denom, valid_denom
 
         # aggregate: mean IC across all valid dates
         valid_ic_mask = (counts >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
@@ -371,7 +374,6 @@ def analyze_factors(
         valid_results = valid_date_mask & ~np.isnan(ret)
         valid_indices_arr = np.where(valid_results)[0]
 
-        logger.info(f"THREAD COMPLETE [{col}]: returning {len(valid_indices_arr)} results")
         return (
             unique_dates[valid_indices_arr],
             np.full(len(valid_indices_arr), col, dtype=object),
@@ -380,8 +382,9 @@ def analyze_factors(
         )
 
     logger.info("analyze_factors: entering ThreadPoolExecutor")
-    with ThreadPoolExecutor() as executor:
-        logger.info("analyze_factors: ThreadPoolExecutor started")
+    max_workers = min(8, os.cpu_count() or 4)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        logger.info(f"analyze_factors: ThreadPoolExecutor started with max_workers={max_workers}")
         completed_count = 0
         last_progress_time = 0.0
         progress_interval = 1.0  # throttle progress updates to every 1 second
