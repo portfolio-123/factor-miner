@@ -92,17 +92,17 @@ def calculate_future_performance(
     df = raw_data[["Date", "Ticker", price_column]].copy()
     df = df.sort_values(["Ticker", "Date"]).reset_index(drop=True)
 
-    # Treat price=0 as missing data (invalid price)
+    next_price = df.groupby("Ticker")[price_column].shift(-1)
+
+    # Set current price=0 to NaN
     df.loc[df[price_column] == 0, price_column] = np.nan
 
-    # calculate return as (next_price - current_price) / current_price
-    next_price = df.groupby("Ticker")[price_column].shift(-1)
+    # Calculate return - if 0, capture -100% return
     df[INTERNAL_FUTURE_PERF_COL] = (next_price - df[price_column]) / df[price_column]
 
     # Replace inf with nan (happens when price = 0) and warn
     inf_mask = np.isinf(df[INTERNAL_FUTURE_PERF_COL])
     if inf_mask.any():
-        # Log details: Date, Ticker, current_price, next_price
         df["_next_price"] = next_price
         bad_df = df[inf_mask][["Date", "Ticker", price_column, "_next_price"]].head(5)
         logger.warning(f"Found {inf_mask.sum()} inf values in future perf (division by zero):")
@@ -263,7 +263,7 @@ def analyze_factors(
         # aggregate: mean IC across all valid dates
         valid_ic_mask = (counts >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
         valid_ic = ic_per_date[valid_ic_mask]
-        n_ic = len(valid_ic)
+        n_ic = len(valid_ic),
         mean_ic = np.mean(valid_ic) if n_ic > 0 else np.nan
 
         # IC t-statistic: mean(IC) / (std(IC) / sqrt(n))

@@ -76,8 +76,8 @@ class AnalysisRunner:
             price_column_friday = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA_FRIDAY)
             required_columns = BASE_REQUIRED_COLUMNS + [price_column, price_column_friday]
 
-            start_dt = pd.to_datetime(dataset_info.startDt) - pd.Timedelta(days=7)
-            end_dt = dataset_info.endDt
+            start_dt = pd.to_datetime(dataset_info.startDt)
+            end_dt = pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=14)
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
