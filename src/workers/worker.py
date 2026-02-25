@@ -77,7 +77,11 @@ class AnalysisRunner:
             required_columns = BASE_REQUIRED_COLUMNS + [price_column, price_column_friday]
 
             start_dt = pd.to_datetime(dataset_info.startDt)
-            end_dt = pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=14)
+            # capped to today, can't fetch into the future
+            end_dt = min(
+                pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=14),
+                pd.Timestamp.today()
+            )
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
