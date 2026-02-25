@@ -56,11 +56,63 @@ def calculate_benchmark_returns(
     # Forward-looking: get position of next period's date
     next_positions = date_positions + forward_trading_days
 
-    valid_mask = (date_positions < len(close_prices)) & (next_positions < len(close_prices))
+    # Valid if current position is within range (we'll handle incomplete forward periods)
+    valid_curr_mask = date_positions < len(close_prices)
 
-    # get prices at positions, or NaN if invalid
-    curr_prices = np.where(valid_mask, close_prices[np.clip(date_positions, 0, len(close_prices) - 1)], np.nan)
-    next_prices = np.where(valid_mask, close_prices[np.clip(next_positions, 0, len(close_prices) - 1)], np.nan)
+    # For in-progress periods: use last available price if next_position exceeds data
+    # Clip next_positions to the last available index
+    last_idx = len(close_prices) - 1
+    next_positions_clipped = np.clip(next_positions, 0, last_idx)
+
+    # Track which periods are "in-progress" (don't have full forward data)
+    in_progress_mask = (next_positions > last_idx) & valid_curr_mask
+
+    # DEBUG: Log searchsorted mapping for first few dates
+    logger.info(f"\n=== BENCHMARK DATE MAPPING DEBUG ===")
+    logger.info(f"Dataset unique dates: {len(unique_date_values)}")
+    logger.info(f"Benchmark trading days: {len(close_prices)}")
+    logger.info(f"Forward trading days: {forward_trading_days}")
+    logger.info(f"Benchmark date range: {benchmark_df['dt'].min()} to {benchmark_df['dt'].max()}")
+    logger.info(f"\n{'DatasetDate':<12} {'BenchPos':>8} {'NextPos':>8} {'Clipped':>8} {'InProg':>7} {'BenchDateAtPos':<12}")
+    logger.info("-" * 70)
+    for i in range(min(10, len(unique_date_values))):
+        dataset_date = unique_date_values[i]
+        pos = date_positions[i]
+        next_pos = next_positions[i]
+        next_pos_clip = next_positions_clipped[i]
+        is_in_progress = in_progress_mask[i]
+        # Get the benchmark date at this position (if valid)
+        if pos < len(benchmark_df):
+            bench_date_at_pos = benchmark_df["dt"].iloc[pos]
+        else:
+            bench_date_at_pos = "OUT_OF_RANGE"
+        logger.info(f"{str(dataset_date)[:10]:<12} {pos:>8} {next_pos:>8} {next_pos_clip:>8} {str(is_in_progress):>7} {str(bench_date_at_pos)[:10]:<12}")
+
+    # Also log the LAST few dates (most likely to be in-progress)
+    logger.info(f"\n--- Last 5 dates (checking for in-progress periods) ---")
+    for i in range(max(0, len(unique_date_values) - 5), len(unique_date_values)):
+        dataset_date = unique_date_values[i]
+        pos = date_positions[i]
+        next_pos = next_positions[i]
+        next_pos_clip = next_positions_clipped[i]
+        is_in_progress = in_progress_mask[i]
+        if pos < len(benchmark_df):
+            bench_date_at_pos = benchmark_df["dt"].iloc[pos]
+            end_date_at_pos = benchmark_df["dt"].iloc[next_pos_clip]
+        else:
+            bench_date_at_pos = "OUT_OF_RANGE"
+            end_date_at_pos = "OUT_OF_RANGE"
+        logger.info(f"{str(dataset_date)[:10]:<12} {pos:>8} {next_pos:>8} {next_pos_clip:>8} {str(is_in_progress):>7} start={str(bench_date_at_pos)[:10]} end={str(end_date_at_pos)[:10]}")
+
+    # Show how many dates are in-progress
+    in_progress_count = in_progress_mask.sum()
+    invalid_count = (~valid_curr_mask).sum()
+    logger.info(f"\nIn-progress periods (partial forward data): {in_progress_count}/{len(unique_date_values)}")
+    logger.info(f"Invalid dates (no benchmark match): {invalid_count}/{len(unique_date_values)}")
+
+    # get prices at positions - use clipped positions for next_prices to handle in-progress periods
+    curr_prices = np.where(valid_curr_mask, close_prices[np.clip(date_positions, 0, last_idx)], np.nan)
+    next_prices = np.where(valid_curr_mask, close_prices[next_positions_clipped], np.nan)
 
     # Forward return: (next_price - curr_price) / curr_price
     benchmark_returns = (next_prices - curr_prices) / curr_prices
@@ -77,6 +129,7 @@ def calculate_benchmark_returns(
 def calculate_future_performance(
     raw_data: pd.DataFrame,
     price_column: str,
+    current_price_column: str | None = None,
 ) -> pd.DataFrame:
     """
     Add a column for future performance to the dataframe, which is the return of the next period for that same stock.
@@ -84,15 +137,87 @@ def calculate_future_performance(
 
     Args:
         raw_data: DataFrame with Date, Ticker, price columns
-        price_column: Name of the price column
+        price_column: Name of the price column (next period's price, e.g. Close(-1))
+        current_price_column: Name of the current price column for in-progress periods (e.g. Close(0))
 
     Returns:
         DataFrame with Date, Ticker, and internal future perf column
     """
-    df = raw_data[["Date", "Ticker", price_column]].copy()
+    columns_to_use = ["Date", "Ticker", price_column]
+    if current_price_column and current_price_column in raw_data.columns:
+        columns_to_use.append(current_price_column)
+        has_current_price = True
+    else:
+        has_current_price = False
+
+    df = raw_data[columns_to_use].copy()
     df = df.sort_values(["Ticker", "Date"]).reset_index(drop=True)
 
     next_price = df.groupby("Ticker")[price_column].shift(-1)
+
+    # Identify in-progress periods (last date per ticker has no next price)
+    is_in_progress = next_price.isna()
+    in_progress_count = is_in_progress.sum()
+    if in_progress_count > 0:
+        max_date = df["Date"].max()
+        logger.info(f"\n=== IN-PROGRESS PERIODS (stock returns) ===")
+        logger.info(f"Found {in_progress_count} in-progress period rows (last date per ticker: {max_date})")
+
+        if has_current_price:
+            # Use current price (Close(0)) for in-progress periods
+            logger.info(f"Using {current_price_column} for in-progress period returns")
+            next_price = next_price.fillna(df[current_price_column])
+            filled_count = is_in_progress.sum() - next_price.isna().sum()
+            logger.info(f"Filled {filled_count} in-progress returns with current prices")
+
+            # Log ALL in-progress period calculations
+            in_progress_df = df[is_in_progress].copy()
+            in_progress_df["_start_price"] = in_progress_df[price_column]
+            in_progress_df["_end_price"] = in_progress_df[current_price_column]
+            in_progress_df["_return"] = (in_progress_df["_end_price"] - in_progress_df["_start_price"]) / in_progress_df["_start_price"]
+            logger.info(f"\nIn-progress periods (ALL) using {current_price_column}:")
+            logger.info(f"{'Date':<12} {'Ticker':<10} {'Close(-1)':>12} {'Close(0)':>12} {'Return%':>10} {'Same?':>6}")
+            logger.info("-" * 70)
+            for _, row in in_progress_df.iterrows():
+                is_same = "YES" if abs(row['_start_price'] - row['_end_price']) < 0.01 else "NO"
+                logger.info(f"{str(row['Date'])[:10]:<12} {row['Ticker']:<10} {row['_start_price']:>12.4f} {row['_end_price']:>12.4f} {row['_return']*100:>10.4f} {is_same:>6}")
+        else:
+            logger.info("No current price column available - in-progress periods will have NaN returns")
+
+    # DEBUG: Log sample of price transitions
+    logger.info(f"\n=== PRICE TRANSITIONS DEBUG (calculate_future_performance) ===")
+    logger.info(f"Total rows: {len(df)}, Price column: {price_column}")
+    logger.info(f"Unique tickers: {df['Ticker'].nunique()}, Unique dates: {df['Date'].nunique()}")
+
+    # Log first 20 rows (sorted by ticker, date)
+    sample_df = df.head(20).copy()
+    sample_df["_next_price"] = next_price.head(20)
+    sample_df["_return"] = (sample_df["_next_price"] - sample_df[price_column]) / sample_df[price_column]
+    logger.info(f"\n{'Date':<12} {'Ticker':<10} {'StartPrice':>12} {'EndPrice':>12} {'Return%':>10}")
+    logger.info("-" * 60)
+    for _, row in sample_df.iterrows():
+        logger.info(f"{str(row['Date'])[:10]:<12} {row['Ticker']:<10} {row[price_column]:>12.4f} {row['_next_price']:>12.4f} {row['_return']*100:>10.4f}")
+
+    # DEBUG: Log price history for ALL tickers with both price columns
+    logger.info(f"\n=== PRICE HISTORY BY TICKER (all tickers) ===")
+    logger.info(f"Price column (Close(-1)): {price_column}")
+    if has_current_price:
+        logger.info(f"Current price column (Close(0)): {current_price_column}")
+    unique_tickers = df['Ticker'].unique()
+    for ticker in unique_tickers:
+        ticker_df = df[df['Ticker'] == ticker].copy()
+        ticker_df["_next_price"] = next_price[df['Ticker'] == ticker].values
+        ticker_df["_return"] = (ticker_df["_next_price"] - ticker_df[price_column]) / ticker_df[price_column]
+        logger.info(f"\n--- {ticker} ({len(ticker_df)} periods) ---")
+        if has_current_price:
+            logger.info(f"{'Date':<12} {'Close(-1)':>12} {'NextClose(-1)':>14} {'Close(0)':>12} {'Return%':>10}")
+            for _, row in ticker_df.iterrows():
+                close0_val = row[current_price_column] if current_price_column in row else 0
+                logger.info(f"{str(row['Date'])[:10]:<12} {row[price_column]:>12.4f} {row['_next_price']:>14.4f} {close0_val:>12.4f} {row['_return']*100:>10.4f}")
+        else:
+            logger.info(f"{'Date':<12} {'StartPrice':>12} {'EndPrice':>12} {'Return%':>10}")
+            for _, row in ticker_df.iterrows():
+                logger.info(f"{str(row['Date'])[:10]:<12} {row[price_column]:>12.4f} {row['_next_price']:>12.4f} {row['_return']*100:>10.4f}")
 
     # Set current price=0 to NaN
     df.loc[df[price_column] == 0, price_column] = np.nan
@@ -111,7 +236,38 @@ def calculate_future_performance(
         df = df.drop(columns=["_next_price"])
         df[INTERNAL_FUTURE_PERF_COL] = df[INTERNAL_FUTURE_PERF_COL].replace([np.inf, -np.inf], np.nan)
 
-    df = df.drop(columns=[price_column])
+    # DEBUG: Log summary statistics (before dropping columns)
+    logger.info(f"\n=== FUTURE PERFORMANCE SUMMARY ===")
+    valid_returns = df[INTERNAL_FUTURE_PERF_COL].dropna()
+    logger.info(f"Total rows: {len(df)}, Valid returns: {len(valid_returns)}")
+    logger.info(f"Return stats: min={valid_returns.min()*100:.2f}%, max={valid_returns.max()*100:.2f}%, mean={valid_returns.mean()*100:.2f}%, median={valid_returns.median()*100:.2f}%")
+    logger.info(f"Unique dates: {df['Date'].nunique()}, Unique tickers: {df['Ticker'].nunique()}")
+
+    # DEBUG: Compare prices for key tickers on LAST 3 dates (to compare with P123)
+    logger.info(f"\n=== PRICE COMPARISON FOR P123 (last 3 dates, key tickers) ===")
+    key_tickers = ['AAPL', 'MSFT', 'AMZN', 'JPM', 'GOOGL', 'GOOG']
+    available_key_tickers = [t for t in key_tickers if t in df['Ticker'].values]
+    last_3_dates = sorted(df['Date'].unique())[-3:]
+
+    logger.info(f"Last 3 dates: {[str(d)[:10] for d in last_3_dates]}")
+    if has_current_price:
+        logger.info(f"\n{'Date':<12} {'Ticker':<8} {'Close(-1)':>12} {'Close(0)':>12} {'Diff%':>8}")
+        logger.info("-" * 55)
+        for date in last_3_dates:
+            for ticker in available_key_tickers:
+                mask = (df['Date'] == date) & (df['Ticker'] == ticker)
+                if mask.any():
+                    row = df[mask].iloc[0]
+                    close_minus1 = row[price_column]
+                    close_0 = row[current_price_column]
+                    diff_pct = ((close_0 - close_minus1) / close_minus1) * 100 if close_minus1 != 0 else 0
+                    logger.info(f"{str(date)[:10]:<12} {ticker:<8} {close_minus1:>12.4f} {close_0:>12.4f} {diff_pct:>8.2f}%")
+
+    # Drop price columns after debug logging
+    columns_to_drop = [price_column]
+    if has_current_price and current_price_column in df.columns:
+        columns_to_drop.append(current_price_column)
+    df = df.drop(columns=columns_to_drop)
 
     return df
 
@@ -145,6 +301,18 @@ def analyze_factors(
     logger.info(f"analyze_factors: starting with {len(factor_columns)} factors")
     total_factors = len(factor_columns)
 
+    # DEBUG: Log date information from future_perf_df
+    perf_dates = future_perf_df["Date"].sort_values().unique()
+    logger.info(f"\n=== ANALYZE_FACTORS DATE DEBUG ===")
+    logger.info(f"Dates from future_perf_df: {len(perf_dates)} unique")
+    logger.info(f"First date: {perf_dates[0]} ({pd.Timestamp(perf_dates[0]).day_name()})")
+    logger.info(f"Last date: {perf_dates[-1]} ({pd.Timestamp(perf_dates[-1]).day_name()})")
+    logger.info(f"First 5 dates: {[str(d)[:10] for d in perf_dates[:5]]}")
+    # Check date intervals
+    if len(perf_dates) > 1:
+        intervals = pd.Series(perf_dates).diff().dropna()
+        logger.info(f"Date intervals (days): min={intervals.min()}, max={intervals.max()}, median={intervals.median()}")
+
     all_dates: List[np.ndarray] = []
     all_factors: List[np.ndarray] = []
     all_rets: List[np.ndarray] = []
@@ -168,12 +336,17 @@ def analyze_factors(
     unique_dates, date_inverse = np.unique(merged_base["Date"], return_inverse=True)
     perf_valid = ~np.isnan(perf_arr)
 
+    # Preserve ticker array for debugging in process_factor
+    ticker_arr = merged_base["Ticker"].to_numpy()
+
     n_dates = len(unique_dates)
     logger.info(f"analyze_factors: {n_dates} unique dates")
     del base_df, merged_base
 
     def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
         factor_arr = batch_df[col].to_numpy()[valid_indices]
+        # Get tickers for valid indices for debugging
+        tickers_for_factor = ticker_arr
 
         # Calculate NA stats
         total_values = len(factor_arr)
@@ -186,6 +359,8 @@ def analyze_factors(
         inverse_f = date_inverse[valid_mask]
         factor_f = factor_arr[valid_mask].astype(np.float32)
         perf_f = perf_arr[valid_mask].astype(np.float32)
+        # Preserve tickers for the valid rows
+        tickers_f = tickers_for_factor[valid_mask]
         del factor_arr, valid_mask
 
         # Check for inf in source data
@@ -204,7 +379,9 @@ def analyze_factors(
         sort_keys = np.lexsort((factor_f, inverse_f))
         inverse_sorted = inverse_f[sort_keys]
         perf_sorted = perf_f[sort_keys]
-        del sort_keys, factor_f, perf_f, inverse_f
+        tickers_sorted = tickers_f[sort_keys]
+        factor_sorted = factor_f[sort_keys]  # Keep for debugging
+        del sort_keys, factor_f, perf_f, inverse_f, tickers_f
 
         # Compute period boundaries
         group_starts = np.zeros(n_dates + 1, dtype=np.int64)
@@ -263,7 +440,7 @@ def analyze_factors(
         # aggregate: mean IC across all valid dates
         valid_ic_mask = (counts >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
         valid_ic = ic_per_date[valid_ic_mask]
-        n_ic = len(valid_ic),
+        n_ic = len(valid_ic)
         mean_ic = np.mean(valid_ic) if n_ic > 0 else np.nan
 
         # IC t-statistic: mean(IC) / (std(IC) / sqrt(n))
@@ -290,6 +467,86 @@ def analyze_factors(
         # genereates array of bools. True if stock is in bottom x%, false if not.
         is_bottom = rank_in_group < bottom_n_expanded
         is_top = rank_in_group >= (group_sizes - top_n_expanded)
+
+        # DEBUG: Log top N stocks for first and last few dates
+        logger.info(f"\n=== TOP STOCKS DEBUG for factor {col} ===")
+        # Get indices of top stocks
+        top_indices_in_sorted = np.where(is_top)[0]
+        if len(top_indices_in_sorted) > 0:
+            # Log first 3 dates worth of top stocks
+            logger.info(f"\n--- FIRST 3 DATES ---")
+            dates_logged = 0
+            current_date_idx = -1
+            logger.info(f"{'Date':<12} {'Ticker':<10} {'FactorVal':>12} {'PerfRet%':>10} {'RankInGrp':>10} {'GrpSize':>8} {'TopN':>6}")
+            logger.info("-" * 80)
+
+            for idx in top_indices_in_sorted:
+                date_idx = inverse_sorted[idx]
+                if date_idx != current_date_idx:
+                    if dates_logged >= 3:
+                        break
+                    current_date_idx = date_idx
+                    dates_logged += 1
+                    logger.info(f"\n--- Date: {str(unique_dates[date_idx])[:10]} (TopN={top_n[date_idx]}, TotalStocks={counts[date_idx]}) ---")
+
+                ticker_val = tickers_sorted[idx]
+                factor_val = factor_sorted[idx]
+                perf_val = perf_sorted[idx]
+                rank_val = rank_in_group[idx]
+                group_size_val = group_sizes[idx]
+                top_n_val = top_n[date_idx]
+
+                logger.info(f"{str(unique_dates[date_idx])[:10]:<12} {ticker_val:<10} {factor_val:>12.4f} {perf_val*100:>10.4f} {rank_val:>10} {group_size_val:>8} {top_n_val:>6}")
+
+            # Log LAST 3 dates worth of top stocks
+            logger.info(f"\n--- LAST 3 DATES ---")
+            logger.info(f"{'Date':<12} {'Ticker':<10} {'FactorVal':>12} {'PerfRet%':>10} {'RankInGrp':>10} {'GrpSize':>8} {'TopN':>6}")
+            logger.info("-" * 80)
+
+            # Get unique date indices for top stocks and take last 3
+            top_date_indices = np.unique(inverse_sorted[top_indices_in_sorted])
+            last_3_date_indices = top_date_indices[-3:] if len(top_date_indices) >= 3 else top_date_indices
+
+            for date_idx in last_3_date_indices:
+                logger.info(f"\n--- Date: {str(unique_dates[date_idx])[:10]} (TopN={top_n[date_idx]}, TotalStocks={counts[date_idx]}) ---")
+                # Get all top stocks for this date
+                date_mask = (inverse_sorted == date_idx) & is_top
+                date_indices = np.where(date_mask)[0]
+                for idx in date_indices:
+                    ticker_val = tickers_sorted[idx]
+                    factor_val = factor_sorted[idx]
+                    perf_val = perf_sorted[idx]
+                    rank_val = rank_in_group[idx]
+                    group_size_val = group_sizes[idx]
+                    top_n_val = top_n[date_idx]
+                    logger.info(f"{str(unique_dates[date_idx])[:10]:<12} {ticker_val:<10} {factor_val:>12.4f} {perf_val*100:>10.4f} {rank_val:>10} {group_size_val:>8} {top_n_val:>6}")
+
+        # DEBUG: Log bottom N stocks for first few dates
+        logger.info(f"\n=== BOTTOM STOCKS DEBUG for factor {col} ===")
+        bottom_indices_in_sorted = np.where(is_bottom)[0]
+        if len(bottom_indices_in_sorted) > 0:
+            dates_logged = 0
+            current_date_idx = -1
+            logger.info(f"{'Date':<12} {'Ticker':<10} {'FactorVal':>12} {'PerfRet%':>10} {'RankInGrp':>10} {'GrpSize':>8} {'BotN':>6}")
+            logger.info("-" * 80)
+
+            for idx in bottom_indices_in_sorted:
+                date_idx = inverse_sorted[idx]
+                if date_idx != current_date_idx:
+                    if dates_logged >= 3:
+                        break
+                    current_date_idx = date_idx
+                    dates_logged += 1
+                    logger.info(f"\n--- Date: {str(unique_dates[date_idx])[:10]} (BottomN={bottom_n[date_idx]}, TotalStocks={counts[date_idx]}) ---")
+
+                ticker_val = tickers_sorted[idx]
+                factor_val = factor_sorted[idx]
+                perf_val = perf_sorted[idx]
+                rank_val = rank_in_group[idx]
+                group_size_val = group_sizes[idx]
+                bottom_n_val = bottom_n[date_idx]
+
+                logger.info(f"{str(unique_dates[date_idx])[:10]:<12} {ticker_val:<10} {factor_val:>12.4f} {perf_val*100:>10.4f} {rank_val:>10} {group_size_val:>8} {bottom_n_val:>6}")
 
         # np.where so we only keep returns from top/bottom stocks. else add 0. np.bincount to sum values per date.
         top_sums = np.bincount(
@@ -469,12 +726,43 @@ def calculate_factor_metrics(
     # get unique benchmark values per date
     benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
 
+    # DEBUG: Log benchmark coverage before merge
+    logger.info(f"\n=== FACTOR METRICS DATE FILTERING DEBUG ===")
+    logger.info(f"Results dates: {results_df['Date'].nunique()}")
+    logger.info(f"Benchmark dates with valid values: {benchmark[INTERNAL_BENCHMARK_COL].notna().sum()}/{len(benchmark)}")
+    benchmark_valid = benchmark[benchmark[INTERNAL_BENCHMARK_COL].notna()]
+    if len(benchmark_valid) > 0:
+        logger.info(f"First valid benchmark date: {benchmark_valid['Date'].min()}")
+        logger.info(f"Last valid benchmark date: {benchmark_valid['Date'].max()}")
+
     # merge benchmark with factor returns
     merged_data = results_df.merge(benchmark, on="Date", how="inner")
 
     # filter invalid values upfront
+    # For complete periods: need both stock return and benchmark
+    # For in-progress periods: benchmark is valid, stock return may be NaN
     valid_mask = np.isfinite(merged_data["ret"]) & np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])
+
+    # DEBUG: Log what gets filtered out
+    invalid_ret_count = (~np.isfinite(merged_data["ret"])).sum()
+    invalid_bench_count = (~np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])).sum()
+    invalid_count = (~valid_mask).sum()
+    logger.info(f"Rows after merge: {len(merged_data)}")
+    logger.info(f"Rows with invalid stock return: {invalid_ret_count}")
+    logger.info(f"Rows with invalid benchmark: {invalid_bench_count}")
+    logger.info(f"Total rows filtered out: {invalid_count}")
+    if invalid_count > 0:
+        invalid_dates = merged_data[~valid_mask]["Date"].unique()
+        logger.info(f"Dates being filtered out: {[str(d)[:10] for d in invalid_dates[:10]]}")
+        # Show if any dates have valid benchmark but invalid stock returns (in-progress)
+        in_progress_mask = (~np.isfinite(merged_data["ret"])) & np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])
+        in_progress_dates = merged_data[in_progress_mask]["Date"].unique()
+        if len(in_progress_dates) > 0:
+            logger.info(f"In-progress dates (valid benchmark, no stock return): {[str(d)[:10] for d in in_progress_dates]}")
+            logger.info("To include these, add current stock prices to your dataset")
+
     merged_data = merged_data[valid_mask]
+    logger.info(f"Final rows for metrics: {len(merged_data)}, unique dates: {merged_data['Date'].nunique()}")
 
     # pivot to get factors as columns: (n_dates, n_factors)
     pivot = merged_data.pivot_table(index="Date", columns="factor", values="ret", aggfunc="first")

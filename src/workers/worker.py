@@ -77,27 +77,41 @@ class AnalysisRunner:
             required_columns = BASE_REQUIRED_COLUMNS + [price_column, price_column_friday]
 
             start_dt = pd.to_datetime(dataset_info.startDt)
-            # capped to today, can't fetch into the future
+            # Extend by full rebalance period + buffer to calculate forward returns for all dates
+            # capped to yesterday, can't fetch into the future
+            forward_days = dataset_info.frequency.weeks * 7 + 7  # full period + 1 week buffer
             end_dt = min(
-                pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=14),
-                pd.Timestamp.today()
+                pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=forward_days),
+                pd.Timestamp.today().normalize()
             )
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
             stderr_logger.info(f"Fetching benchmark data for {benchmark_ticker}")
+            stderr_logger.info(f"Benchmark fetch: dataset endDt={dataset_info.endDt}, extended by {forward_days} days to {end_dt.strftime('%Y-%m-%d')}")
             try:
                 benchmark_data = fetch_benchmark_data(
                     benchmark_ticker=benchmark_ticker,
                     access_token=params.access_token,
                     start_date=start_dt.strftime("%Y-%m-%d"),
-                    end_date=end_dt,
+                    end_date=end_dt.strftime("%Y-%m-%d"),
                 )
             finally:
                 self.analysis = self.service.clear_credentials(self.analysis)
 
             self.log("Benchmark data fetched successfully")
             stderr_logger.info("Benchmark data fetched")
+
+            # DEBUG: Log what benchmark API returned
+            stderr_logger.info(f"\n=== BENCHMARK API RESPONSE DEBUG ===")
+            stderr_logger.info(f"Requested range: {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')}")
+            stderr_logger.info(f"Benchmark rows returned: {len(benchmark_data)}")
+            if len(benchmark_data) > 0:
+                bm_dates = pd.to_datetime(benchmark_data["dt"]).sort_values()
+                stderr_logger.info(f"Benchmark first date: {bm_dates.iloc[0]} ({bm_dates.iloc[0].day_name()})")
+                stderr_logger.info(f"Benchmark last date: {bm_dates.iloc[-1]} ({bm_dates.iloc[-1].day_name()})")
+                stderr_logger.info(f"First 10 benchmark dates: {[str(d)[:10] for d in bm_dates.head(10).values]}")
+                stderr_logger.info(f"Benchmark close prices (first 5): {benchmark_data['close'].head(5).tolist()}")
 
             def on_progress(completed: int, total: int) -> None:
                 percent = (completed * 100) // total
@@ -127,9 +141,43 @@ class AnalysisRunner:
 
             self.log("Calculating future performance...")
             stderr_logger.info("Reading price columns for future performance")
-            perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column])
+            # Read both price columns: Close(-1) for normal periods, Close(0) for in-progress periods
+            perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column, price_column_friday])
+
+            # DEBUG: Log raw dataset values for key tickers on ALL dates
+            stderr_logger.info(f"\n=== RAW DATASET VALUES (from parquet) ===")
+            stderr_logger.info(f"Close(-1) column: {price_column}")
+            stderr_logger.info(f"Close(0) column: {price_column_friday}")
+            key_tickers = ['AAPL', 'MSFT', 'AMZN']
+            all_dates = sorted(perf_core['Date'].unique())
+            stderr_logger.info(f"Total dates in dataset: {len(all_dates)}")
+            stderr_logger.info(f"First date: {all_dates[0]}, Last date: {all_dates[-1]}")
+            stderr_logger.info(f"\n{'Date':<12} {'Ticker':<8} {'Close(-1)':>12} {'Close(0)':>12} {'Same?':>6}")
+            stderr_logger.info("-" * 55)
+            for ticker in key_tickers:
+                ticker_data = perf_core[perf_core['Ticker'] == ticker].sort_values('Date')
+                for _, row in ticker_data.iterrows():
+                    close_m1 = row[price_column]
+                    close_0 = row[price_column_friday]
+                    is_same = "YES" if abs(close_m1 - close_0) < 0.01 else "NO"
+                    stderr_logger.info(f"{str(row['Date'])[:10]:<12} {ticker:<8} {close_m1:>12.4f} {close_0:>12.4f} {is_same:>6}")
+
+            # DEBUG: Compare metadata dates vs actual data dates
+            actual_dates = perf_core["Date"].sort_values().unique()
+            stderr_logger.info(f"\n=== DATE OFFSET DEBUG ===")
+            stderr_logger.info(f"Metadata startDt: {dataset_info.startDt}")
+            stderr_logger.info(f"Metadata endDt: {dataset_info.endDt}")
+            stderr_logger.info(f"Actual first date in data: {actual_dates[0]}")
+            stderr_logger.info(f"Actual last date in data: {actual_dates[-1]}")
+            stderr_logger.info(f"Total unique dates in data: {len(actual_dates)}")
+            stderr_logger.info(f"Frequency: {dataset_info.frequency} ({dataset_info.frequency.weeks} weeks)")
+            stderr_logger.info(f"First 5 dates in data: {[str(d)[:10] for d in actual_dates[:5]]}")
+            stderr_logger.info(f"Day of week for first date: {pd.Timestamp(actual_dates[0]).day_name()}")
+
             stderr_logger.info(" Calculating future performance")
-            future_perf_df = calculate_future_performance(perf_core, price_column)
+            future_perf_df = calculate_future_performance(
+                perf_core, price_column, current_price_column=price_column_friday
+            )
 
             self.log("Analyzing factors...")
             stderr_logger.info("Starting analyze_factors")
@@ -153,6 +201,7 @@ class AnalysisRunner:
                 benchmark_data,
                 frequency=dataset_info.frequency,
             )
+            stderr_logger.info(f"benchmark returns complete, {len(raw_data)} rows")
             if results_df.empty:
                 raise ValueError("No results from factor analysis")
 
