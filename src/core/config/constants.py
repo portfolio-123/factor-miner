@@ -3,8 +3,7 @@ from typing import Final
 from src.core.types.models import DatasetType, Frequency, ScalingMethod
 
 
-PRICE_FORMULA: Final[str] = "Close(-1)"
-PRICE_FORMULA_FRIDAY: Final[str] = "Close(0)"
+PRICE_FORMULA: Final[str] = "Close(-1) * FutureDivSplitFactor"
 BASE_REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID"]
 
 INTERNAL_FUTURE_PERF_COL: Final[str] = "__future_perf__"

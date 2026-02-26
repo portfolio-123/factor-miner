@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.core.config.constants import PRICE_FORMULA, PRICE_FORMULA_FRIDAY, BASE_REQUIRED_COLUMNS
+from src.core.config.constants import PRICE_FORMULA, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
     Analysis,
     AnalysisStatus,
@@ -73,8 +73,7 @@ class AnalysisRunner:
                 raise ValueError("single-date")
 
             price_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
-            price_column_friday = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA_FRIDAY)
-            required_columns = BASE_REQUIRED_COLUMNS + [price_column, price_column_friday]
+            required_columns = BASE_REQUIRED_COLUMNS + [price_column]
 
             start_dt = pd.to_datetime(dataset_info.startDt)
             # Extend by full rebalance period + buffer to calculate forward returns for all dates
@@ -140,44 +139,10 @@ class AnalysisRunner:
             )
 
             self.log("Calculating future performance...")
-            stderr_logger.info("Reading price columns for future performance")
-            # Read both price columns: Close(-1) for normal periods, Close(0) for in-progress periods
-            perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column, price_column_friday])
+            perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column])
 
-            # DEBUG: Log raw dataset values for key tickers on ALL dates
-            stderr_logger.info(f"\n=== RAW DATASET VALUES (from parquet) ===")
-            stderr_logger.info(f"Close(-1) column: {price_column}")
-            stderr_logger.info(f"Close(0) column: {price_column_friday}")
-            key_tickers = ['AAPL', 'MSFT', 'AMZN']
-            all_dates = sorted(perf_core['Date'].unique())
-            stderr_logger.info(f"Total dates in dataset: {len(all_dates)}")
-            stderr_logger.info(f"First date: {all_dates[0]}, Last date: {all_dates[-1]}")
-            stderr_logger.info(f"\n{'Date':<12} {'Ticker':<8} {'Close(-1)':>12} {'Close(0)':>12} {'Same?':>6}")
-            stderr_logger.info("-" * 55)
-            for ticker in key_tickers:
-                ticker_data = perf_core[perf_core['Ticker'] == ticker].sort_values('Date')
-                for _, row in ticker_data.iterrows():
-                    close_m1 = row[price_column]
-                    close_0 = row[price_column_friday]
-                    is_same = "YES" if abs(close_m1 - close_0) < 0.01 else "NO"
-                    stderr_logger.info(f"{str(row['Date'])[:10]:<12} {ticker:<8} {close_m1:>12.4f} {close_0:>12.4f} {is_same:>6}")
-
-            # DEBUG: Compare metadata dates vs actual data dates
-            actual_dates = perf_core["Date"].sort_values().unique()
-            stderr_logger.info(f"\n=== DATE OFFSET DEBUG ===")
-            stderr_logger.info(f"Metadata startDt: {dataset_info.startDt}")
-            stderr_logger.info(f"Metadata endDt: {dataset_info.endDt}")
-            stderr_logger.info(f"Actual first date in data: {actual_dates[0]}")
-            stderr_logger.info(f"Actual last date in data: {actual_dates[-1]}")
-            stderr_logger.info(f"Total unique dates in data: {len(actual_dates)}")
-            stderr_logger.info(f"Frequency: {dataset_info.frequency} ({dataset_info.frequency.weeks} weeks)")
-            stderr_logger.info(f"First 5 dates in data: {[str(d)[:10] for d in actual_dates[:5]]}")
-            stderr_logger.info(f"Day of week for first date: {pd.Timestamp(actual_dates[0]).day_name()}")
-
-            stderr_logger.info(" Calculating future performance")
-            future_perf_df = calculate_future_performance(
-                perf_core, price_column, current_price_column=price_column_friday
-            )
+            stderr_logger.info("Calculating future performance")
+            future_perf_df = calculate_future_performance(perf_core, price_column)
 
             self.log("Analyzing factors...")
             stderr_logger.info("Starting analyze_factors")
