@@ -1,19 +1,21 @@
 import json
 from typing import Any
 
-import streamlit as st
-from streamlit_js import st_js, st_js_blocking
+from streamlit_local_storage import LocalStorage
 
 
 def get_local_storage(key: str) -> str | None:
-    return st_js_blocking(f"return localStorage.getItem('{key}')")
+    ls = LocalStorage()
+    return ls.getItem(key)
 
 
 def set_local_storage(key: str, value: Any) -> None:
+    ls = LocalStorage()
     if not isinstance(value, str):
         value = json.dumps(value)
-    st_js(f"localStorage.setItem('{key}', '{value}')")
+    ls.setItem(key, value)
 
 
 def clear_local_storage(key: str) -> None:
-    st_js(f"localStorage.removeItem('{key}')")
+    ls = LocalStorage()
+    ls.deleteItem(key)

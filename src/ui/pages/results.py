@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from src.core.types.models import AnalysisStatus
 from src.core.config.environment import P123_BASE_URL
+from src.core.config.constants import SETTINGS_STORAGE_KEY
+from src.core.utils.local_storage_utils import set_local_storage
 from src.ui.components.common import render_info_item, get_card_header_html
 from src.ui.components.tables import render_results_table, render_correlation_matrix
 from src.ui.components.datasets import render_dataset_card
@@ -20,6 +22,10 @@ from src.services.dataset_service import BackupDatasetService
 
 
 def results() -> None:
+    # Check for pending settings save from create page
+    if pending_settings := st.session_state.pop("_pending_settings_save", None):
+        set_local_storage(SETTINGS_STORAGE_KEY, pending_settings)
+
     fl_id = st.query_params.get("fl_id")
     if not (analysis_id := st.query_params.get("id")):
         st.error("Missing analysis id")
@@ -55,15 +61,17 @@ def results() -> None:
 
     if analysis.status == AnalysisStatus.FAILED:
         error_msg = (analysis.error or "Analysis failed").split("\n")[0]
-        st.error(f"Analysis failed: {error_msg}")
 
         if "No column found with formula:" in error_msg:
             factors_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/factors"
             generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
-            st.info(
+            st.error(
+                f"{error_msg}\n\n"
                 f"Click on [Add Missing]({factors_url}) to add the required formulas. "
                 f"If you have already added them, make sure to [generate a new dataset]({generate_url})."
             )
+        else:
+            st.error(f"Analysis failed: {error_msg}")
         return
 
     if analysis.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
