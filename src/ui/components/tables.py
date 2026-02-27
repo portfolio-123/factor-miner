@@ -145,55 +145,35 @@ def render_results_table(
         }
     )
 
-    # Conditionally include columns based on rank_by selection
-    if rank_by == "IC":
-        display = display[
-            ["Rank", "Factor", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"]
-        ]
-    else:
-        display = display[
-            ["Rank", "Factor", "Ann. Alpha %", "Ann. Long %", "Ann. Short %", "Beta", "T-Stat", "NA %"]
-        ]
+    display = display[
+        ["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"]
+    ]
 
     factor_names = display["Factor"].tolist()
 
-    # format numeric columns as strings based on rank_by selection
-    if rank_by == "IC":
-        formatters = {
-            "NA %": lambda x: f"{x:.1f}%",
-            "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
-            "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
-            "Ann. Long %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-            "Ann. Short %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-        }
-        column_config = build_column_config([
-            ("Rank", "number", "small"),
-            ("Factor", "text", "large"),
-            ("IC", "text", "small"),
-            ("IC t-stat", "text", "small"),
-            ("Ann. Long %", "text", "small"),
-            ("Ann. Short %", "text", "small"),
-            ("NA %", "text", "small"),
-        ])
-    else:
-        formatters = {
-            "NA %": lambda x: f"{x:.1f}%",
-            "Ann. Alpha %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-            "Ann. Long %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-            "Ann. Short %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-            "Beta": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
-            "T-Stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
-        }
-        column_config = build_column_config([
-            ("Rank", "number", "small"),
-            ("Factor", "text", "large"),
-            ("Ann. Alpha %", "text", "small"),
-            ("Ann. Long %", "text", "small"),
-            ("Ann. Short %", "text", "small"),
-            ("Beta", "text", "small"),
-            ("T-Stat", "text", "small"),
-            ("NA %", "text", "small"),
-        ])
+    # Format all numeric columns
+    formatters = {
+        "NA %": lambda x: f"{x:.1f}%",
+        "Ann. Alpha %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
+        "Ann. Long %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
+        "Ann. Short %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
+        "Beta": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
+        "T-Stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
+        "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
+        "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
+    }
+    column_config = build_column_config([
+        ("Rank", "number", "small"),
+        ("Factor", "text", "large"),
+        ("Ann. Alpha %", "text", "small"),
+        ("Beta", "text", "small"),
+        ("T-Stat", "text", "small"),
+        ("IC", "text", "small"),
+        ("IC t-stat", "text", "small"),
+        ("Ann. Long %", "text", "small"),
+        ("Ann. Short %", "text", "small"),
+        ("NA %", "text", "small"),
+    ])
     for col, fmt in formatters.items():
         display[col] = display[col].apply(fmt)
 
@@ -202,10 +182,16 @@ def render_results_table(
 
         excluded_classification = "below_ic" if rank_by == "Alpha" else "below_alpha"
 
+        classification_counts = {}
+        for classification in factor_classifications.values():
+            classification_counts[classification] = classification_counts.get(classification, 0) + 1
+
         legend_html = '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">'
         for key, (color, label) in CLASSIFICATION_COLORS.items():
             if key == excluded_classification:
                 continue
+            count = classification_counts.get(key, 0)
+            label_with_count = f"{label} ({count})"
             legend_html += f"""
             <div style="display: flex; align-items: center; gap: 6px;">
                 <span style="
@@ -216,7 +202,7 @@ def render_results_table(
                     border: 1px solid #ccc;
                     border-radius: 3px;
                 "></span>
-                <span style="font-size: 13px; color: #555;">{label}</span>
+                <span style="font-size: 13px; color: #555;">{label_with_count}</span>
             </div>
             """
         legend_html += "</div>"

@@ -212,8 +212,8 @@ def analyze_factors(
 
         # filter to valid rows only
         inverse_f = date_inverse[valid_mask]
-        factor_f = factor_arr[valid_mask].astype(np.float32)
-        perf_f = perf_arr[valid_mask].astype(np.float32)
+        factor_f = factor_arr[valid_mask]
+        perf_f = perf_arr[valid_mask]
         # Preserve tickers for the valid rows
         tickers_f = tickers_for_factor[valid_mask]
         del factor_arr, valid_mask

@@ -25,12 +25,14 @@ When configuring a new analysis, you can adjust the following parameters:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| **Benchmark Ticker** | SPY:USA | The ticker symbol used for benchmark comparison when calculating alpha and beta |
+| **Rank By** | Alpha | Metric to rank factors by (Alpha or IC) |
+| **Top X (%)** | 10.0 | Percentage of top-ranked stocks to include in the long portfolio |
+| **Bottom X (%)** | 10.0 | Percentage of bottom-ranked stocks to include in the short portfolio |
 | **Min Absolute Alpha (%)** | 0.5 | Minimum alpha threshold - factors with absolute alpha below this are filtered out |
-| **Top X (%)** | 20.0 | Percentage of top-ranked stocks to include in the long portfolio |
-| **Bottom X (%)** | 20.0 | Percentage of bottom-ranked stocks to include in the short portfolio |
-| **Correlation Threshold** | 0.5 | Maximum allowed correlation between selected factors to ensure diversification |
+| **Min IC** | 0.015 | Minimum information coefficient threshold for factor selection |
 | **Max. Factors** | 10 | Maximum number of factors to select in the final result set |
+| **Max NA (%)** | 40.0 | Maximum percentage of missing values allowed before a factor is excluded |
+| **Correlation Threshold** | 0.5 | Maximum allowed correlation between selected factors to ensure diversification |
 """
     )
 
