@@ -26,7 +26,7 @@ def calculate_benchmark_returns(
 ) -> pd.DataFrame:
     """
     Calculate forward-looking benchmark returns for each date in the dataset.
-    Returns the benchmark return from current date to next period date.
+    Returns the benchmark return from current period's transaction date to next period's transaction date.
 
     Args:
         raw_data: Dataset with 'Date' column
@@ -37,37 +37,67 @@ def calculate_benchmark_returns(
         DataFrame with 'benchmark' column added
     """
     benchmark_data["dt"] = pd.to_datetime(benchmark_data["dt"])
-    benchmark_df = benchmark_data.dropna(subset=["dt", "close"])
+    benchmark_df = benchmark_data.dropna(subset=["dt", "close"]).sort_values("dt").reset_index(drop=True)
 
     # benchmark_df only contains trading days
+    benchmark_dates = benchmark_df["dt"].values
     close_prices = benchmark_df["close"].values
 
-    # 5 trading days per week
-    forward_trading_days = frequency.weeks * 5
+    # get unique dates from raw_data (these are Saturday rebalance dates)
+    unique_date_values = pd.to_datetime(raw_data["Date"].unique())
+    unique_date_values = np.sort(unique_date_values)
 
-    # get unique dates from raw_data
-    unique_date_values = raw_data["Date"].unique()
+    # For each dataset date, find the next trading day (transaction date, typically Monday)
+    # side="left" finds first trading day >= the Saturday date
+    start_positions = np.searchsorted(benchmark_dates, unique_date_values, side="left")
 
-    # for each date, find the next trading day (Monday for Saturday dates)
-    date_positions = np.searchsorted(benchmark_df["dt"].values, unique_date_values, side="left")
+    # For end date, use the NEXT dataset date's transaction date
+    # This matches P123's behavior: hold until next rebalance
+    n_dates = len(unique_date_values)
+    end_positions = np.zeros(n_dates, dtype=int)
 
-    # Forward-looking: get position of next period's date
-    next_positions = date_positions + forward_trading_days
+    for i in range(n_dates - 1):
+        # End position is the start position of the next period
+        next_dataset_date = unique_date_values[i + 1]
+        end_positions[i] = np.searchsorted(benchmark_dates, next_dataset_date, side="left")
 
-    # Valid if current position is within range (we'll handle incomplete forward periods)
-    valid_curr_mask = date_positions < len(close_prices)
+    # For the last date, estimate using frequency (no next dataset date available)
+    if n_dates > 0:
+        forward_trading_days = frequency.weeks * 5
+        end_positions[-1] = start_positions[-1] + forward_trading_days
 
-    # For in-progress periods: use last available price if next_position exceeds data
-    # Clip next_positions to the last available index
+    # Valid if start position is within range
+    valid_mask = start_positions < len(close_prices)
+
+    # Clip positions to valid range
     last_idx = len(close_prices) - 1
-    next_positions_clipped = np.clip(next_positions, 0, last_idx)
+    start_positions_clipped = np.clip(start_positions, 0, last_idx)
+    end_positions_clipped = np.clip(end_positions, 0, last_idx)
 
-    # get prices at positions - use clipped positions for next_prices to handle in-progress periods
-    curr_prices = np.where(valid_curr_mask, close_prices[np.clip(date_positions, 0, last_idx)], np.nan)
-    next_prices = np.where(valid_curr_mask, close_prices[next_positions_clipped], np.nan)
+    # Get prices at positions
+    curr_prices = np.where(valid_mask, close_prices[start_positions_clipped], np.nan)
+    next_prices = np.where(valid_mask, close_prices[end_positions_clipped], np.nan)
 
     # Forward return: (next_price - curr_price) / curr_price
     benchmark_returns = (next_prices - curr_prices) / curr_prices
+
+    # DEBUG: Log detailed benchmark calculation for first 15 dates
+    logger.info("\n" + "="*120)
+    logger.info("BENCHMARK CALCULATION DEBUG (first 15 rows)")
+    logger.info("="*120)
+    logger.info(f"{'Dataset Date':<14} {'Start Date':<14} {'End Date':<14} {'Start Price':>12} {'End Price':>12} {'Return':>10}")
+    logger.info("-"*90)
+    for i in range(min(15, len(unique_date_values))):
+        ds_date = str(unique_date_values[i])[:10]
+        start_pos = start_positions_clipped[i]
+        end_pos = end_positions_clipped[i]
+        start_date = str(benchmark_dates[start_pos])[:10] if start_pos < len(benchmark_dates) else "N/A"
+        end_date = str(benchmark_dates[end_pos])[:10] if end_pos < len(benchmark_dates) else "N/A"
+        start_price = curr_prices[i]
+        end_price = next_prices[i]
+        ret = benchmark_returns[i] * 100 if not np.isnan(benchmark_returns[i]) else float('nan')
+        logger.info(f"{ds_date:<14} {start_date:<14} {end_date:<14} {start_price:>12.4f} {end_price:>12.4f} {ret:>9.4f}%")
+    logger.info("="*120 + "\n")
 
     bench_df = pd.DataFrame({
         "Date": unique_date_values,
@@ -429,6 +459,37 @@ def analyze_factors(
         valid_bottom_mask = bottom_n > 0
         long_ret[valid_top_mask] = top_sums[valid_top_mask] / top_n[valid_top_mask]
         short_ret[valid_bottom_mask] = bottom_sums[valid_bottom_mask] / bottom_n[valid_bottom_mask]
+
+        # DEBUG: Log ALL stocks with factor values for mismatched dates
+        debug_dates = ["2021-09-04", "2022-01-22", "2024-02-17"]
+        if col == "Market Capitalization":  # Only for Market Cap factor
+            for debug_date_str in debug_dates:
+                debug_date = pd.Timestamp(debug_date_str)
+                date_matches = [i for i, d in enumerate(unique_dates) if pd.Timestamp(d) == debug_date]
+                if date_matches:
+                    date_idx = date_matches[0]
+                    # Get ALL stocks for this date
+                    date_mask = inverse_sorted == date_idx
+                    date_indices = np.where(date_mask)[0]
+
+                    logger.info(f"\n{'='*100}")
+                    logger.info(f"ALL STOCKS for {debug_date_str} - MktCap (sorted high to low)")
+                    logger.info(f"Total stocks: {counts[date_idx]}, TopN: {top_n[date_idx]}, BottomN: {bottom_n[date_idx]}")
+                    logger.info(f"LongRet: {long_ret[date_idx]*100:.4f}%, TopSum: {top_sums[date_idx]*100:.4f}%")
+                    logger.info(f"{'='*100}")
+                    logger.info(f"{'Rank':<6} {'Ticker':<10} {'MktCap':>18} {'Return%':>12} {'InTop':>8} {'InBottom':>10}")
+                    logger.info("-"*70)
+
+                    # Sort by factor value descending (highest market cap first)
+                    sorted_indices = date_indices[np.argsort(-factor_sorted[date_indices])]
+                    for rank, idx in enumerate(sorted_indices, 1):
+                        ticker = tickers_sorted[idx]
+                        mktcap = factor_sorted[idx]
+                        ret = perf_sorted[idx] * 100
+                        in_top = "YES" if is_top[idx] else ""
+                        in_bot = "YES" if is_bottom[idx] else ""
+                        logger.info(f"{rank:<6} {ticker:<10} {mktcap:>18,.2f} {ret:>12.4f} {in_top:>8} {in_bot:>10}")
+                    logger.info("="*100)
 
         # Calculate cumulative long/short returns (for CAGR)
         # Use log returns to avoid overflow: sum(log(1+r)) then exp() - 1

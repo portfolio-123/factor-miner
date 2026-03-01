@@ -25,7 +25,11 @@ from src.core.types.models import (
     AnalysisResults,
     DatasetType,
 )
-from src.core.utils.common import serialize_dataframe, find_column_by_formula, extract_benchmark_ticker
+from src.core.utils.common import (
+    serialize_dataframe,
+    find_column_by_formula,
+    extract_benchmark_ticker,
+)
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
 from src.services.p123_client import fetch_benchmark_data
@@ -78,20 +82,26 @@ class AnalysisRunner:
             start_dt = pd.to_datetime(dataset_info.startDt)
             # Extend by full rebalance period + buffer to calculate forward returns for all dates
             # capped to yesterday, can't fetch into the future
-            forward_days = dataset_info.frequency.weeks * 7 + 7  # full period + 1 week buffer
+            forward_days = (
+                dataset_info.frequency.weeks * 7 + 7
+            )  # full period + 1 week buffer
             end_dt = min(
                 pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=forward_days),
-                pd.Timestamp.today().normalize()
+                pd.Timestamp.today().normalize(),
             )
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
             stderr_logger.info(f"Fetching benchmark data for {benchmark_ticker}")
-            stderr_logger.info(f"Benchmark fetch: dataset endDt={dataset_info.endDt}, extended by {forward_days} days to {end_dt.strftime('%Y-%m-%d')}")
+            stderr_logger.info(
+                f"Benchmark fetch: dataset endDt={dataset_info.endDt}, extended by {forward_days} days to {end_dt.strftime('%Y-%m-%d')}"
+            )
+            # Save token before clearing credentials (needed for debug AAPL comparison later)
+            saved_access_token = params.access_token
             try:
                 benchmark_data = fetch_benchmark_data(
                     benchmark_ticker=benchmark_ticker,
-                    access_token=params.access_token,
+                    access_token=saved_access_token,
                     start_date=start_dt.strftime("%Y-%m-%d"),
                     end_date=end_dt.strftime("%Y-%m-%d"),
                 )
@@ -103,21 +113,33 @@ class AnalysisRunner:
 
             # DEBUG: Log what benchmark API returned
             stderr_logger.info(f"\n=== BENCHMARK API RESPONSE DEBUG ===")
-            stderr_logger.info(f"Requested range: {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')}")
+            stderr_logger.info(
+                f"Requested range: {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')}"
+            )
             stderr_logger.info(f"Benchmark rows returned: {len(benchmark_data)}")
             if len(benchmark_data) > 0:
                 bm_dates = pd.to_datetime(benchmark_data["dt"]).sort_values()
-                stderr_logger.info(f"Benchmark first date: {bm_dates.iloc[0]} ({bm_dates.iloc[0].day_name()})")
-                stderr_logger.info(f"Benchmark last date: {bm_dates.iloc[-1]} ({bm_dates.iloc[-1].day_name()})")
-                stderr_logger.info(f"First 10 benchmark dates: {[str(d)[:10] for d in bm_dates.head(10).values]}")
-                stderr_logger.info(f"Benchmark close prices (first 5): {benchmark_data['close'].head(5).tolist()}")
+                stderr_logger.info(
+                    f"Benchmark first date: {bm_dates.iloc[0]} ({bm_dates.iloc[0].day_name()})"
+                )
+                stderr_logger.info(
+                    f"Benchmark last date: {bm_dates.iloc[-1]} ({bm_dates.iloc[-1].day_name()})"
+                )
+                stderr_logger.info(
+                    f"First 10 benchmark dates: {[str(d)[:10] for d in bm_dates.head(10).values]}"
+                )
+                stderr_logger.info(
+                    f"Benchmark close prices (first 5): {benchmark_data['close'].head(5).tolist()}"
+                )
 
             def on_progress(completed: int, total: int) -> None:
                 percent = (completed * 100) // total
                 prev_percent = ((completed - 1) * 100) // total if completed > 1 else -1
                 if percent // 10 > prev_percent // 10 or completed == total:
                     self.log(f"Progress: {percent}% ({completed}/{total} factors)")
-                    stderr_logger.info(f"PROGRESS: {percent}% ({completed}/{total} factors)")
+                    stderr_logger.info(
+                        f"PROGRESS: {percent}% ({completed}/{total} factors)"
+                    )
                 self.update(
                     status=AnalysisStatus.RUNNING,
                     progress=AnalysisProgress(
@@ -127,9 +149,7 @@ class AnalysisRunner:
                 )
 
             factor_columns = [
-                col
-                for col in dataset_svc.column_names
-                if col not in required_columns
+                col for col in dataset_svc.column_names if col not in required_columns
             ]
             stderr_logger.info(f"Found {len(factor_columns)} factor columns")
 
@@ -140,6 +160,109 @@ class AnalysisRunner:
 
             self.log("Calculating future performance...")
             perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column])
+
+            # DEBUG: Also find Close(-1) column for comparison
+            close_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
+            if close_column:
+                close_data = dataset_svc.read_columns(["Date", "Ticker", close_column])
+                aapl_dataset = perf_core[perf_core["Ticker"] == "AAPL"][
+                    ["Date", price_column]
+                ].copy()
+                aapl_close = close_data[close_data["Ticker"] == "AAPL"][
+                    ["Date", close_column]
+                ]
+                aapl_dataset = aapl_dataset.merge(aapl_close, on="Date", how="left")
+            else:
+                aapl_dataset = perf_core[perf_core["Ticker"] == "AAPL"][
+                    ["Date", price_column]
+                ].copy()
+            if len(aapl_dataset) > 0:
+                try:
+                    aapl_api = fetch_benchmark_data(
+                        benchmark_ticker="AAPL",
+                        access_token=saved_access_token,
+                        start_date=start_dt.strftime("%Y-%m-%d"),
+                        end_date=end_dt.strftime("%Y-%m-%d"),
+                    )
+                    aapl_api["dt"] = pd.to_datetime(aapl_api["dt"])
+                    aapl_dataset["Date"] = pd.to_datetime(aapl_dataset["Date"])
+
+                    # Use merge_asof to match dataset dates to nearest trading day (forward)
+                    # Dataset has Saturday rebalance dates, API has trading days only
+                    # Look forward to Monday (next trading day after Saturday)
+                    merged = pd.merge_asof(
+                        aapl_dataset.sort_values("Date"),
+                        aapl_api.sort_values("dt"),
+                        left_on="Date",
+                        right_on="dt",
+                        direction="forward",  # Use next trading day >= dataset date (Monday)
+                    )
+
+                    stderr_logger.info("\n" + "=" * 100)
+                    stderr_logger.info(
+                        "AAPL PRICE COMPARISON: Dataset vs API (nearest trading day)"
+                    )
+                    stderr_logger.info("=" * 100)
+                    if close_column:
+                        stderr_logger.info(
+                            f"{'DS Date':<12} {'API Date':<12} {'Close(-1)':>12} {'Adj Price':>12} {'API':>12} {'Close Diff%':>12} {'Adj Diff%':>12}"
+                        )
+                        stderr_logger.info("-" * 96)
+                        for _, row in merged.iterrows():
+                            ds_date = str(row["Date"])[:10]
+                            api_date = (
+                                str(row["dt"])[:10] if pd.notna(row["dt"]) else "N/A"
+                            )
+                            close_price = row.get(close_column, float("nan"))
+                            adj_price = row[price_column]
+                            api_price = row["close"]
+                            close_diff_pct = (
+                                ((close_price - api_price) / api_price * 100)
+                                if pd.notna(close_price)
+                                and pd.notna(api_price)
+                                and api_price != 0
+                                else float("nan")
+                            )
+                            adj_diff_pct = (
+                                ((adj_price - api_price) / api_price * 100)
+                                if pd.notna(adj_price)
+                                and pd.notna(api_price)
+                                and api_price != 0
+                                else float("nan")
+                            )
+                            stderr_logger.info(
+                                f"{ds_date:<12} {api_date:<12} {close_price:>12.4f} {adj_price:>12.4f} {api_price:>12.4f} {close_diff_pct:>11.2f}% {adj_diff_pct:>11.2f}%"
+                            )
+                    else:
+                        stderr_logger.info(
+                            f"{'Dataset Date':<14} {'API Date':<14} {'Adj Price':>12} {'API':>12} {'Diff':>10} {'Diff%':>8}"
+                        )
+                        stderr_logger.info("-" * 72)
+                        for _, row in merged.iterrows():
+                            ds_date = str(row["Date"])[:10]
+                            api_date = (
+                                str(row["dt"])[:10] if pd.notna(row["dt"]) else "N/A"
+                            )
+                            ds_price = row[price_column]
+                            api_price = row["close"]
+                            diff = (
+                                ds_price - api_price
+                                if pd.notna(ds_price) and pd.notna(api_price)
+                                else float("nan")
+                            )
+                            diff_pct = (
+                                (diff / api_price * 100)
+                                if pd.notna(diff) and api_price != 0
+                                else float("nan")
+                            )
+                            stderr_logger.info(
+                                f"{ds_date:<14} {api_date:<14} {ds_price:>12.4f} {api_price:>12.4f} {diff:>10.4f} {diff_pct:>7.2f}%"
+                            )
+                    stderr_logger.info("=" * 100 + "\n")
+                except Exception as e:
+                    stderr_logger.warning(
+                        f"Could not fetch AAPL API data for comparison: {e}"
+                    )
 
             stderr_logger.info("Calculating future performance")
             future_perf_df = calculate_future_performance(perf_core, price_column)

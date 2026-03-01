@@ -54,21 +54,23 @@ def render_analysis_notes(analysis: Analysis) -> None:
 
 def _render_failure_message(fl_id: str, error: str | None) -> None:
     error_msg = (error or "Analysis failed").split("\n")[0]
-    st.error(error_msg)
-
     generate_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
 
     if "No column found with formula:" in error_msg:
         factors_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/factors"
         st.error(
+            f"{error_msg}\n\n"
             f"Click on [Add Missing]({factors_url}) to add the required formulas. "
             f"If you have already added them, make sure to [generate a new dataset]({generate_url})."
         )
     elif "single-date" in error_msg:
         st.error(
+            f"{error_msg}\n\n"
             f"Datasets of type Single Date are not supported. "
             f"Please [generate a new dataset]({generate_url}) using Period."
         )
+    else:
+        st.error(f"Analysis failed: {error_msg}")
 
 
 def _render_progress_bar(progress: AnalysisProgress | None) -> None:
