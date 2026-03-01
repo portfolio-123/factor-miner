@@ -342,8 +342,9 @@ def analyze_factors(
         }
 
         # considering how many stocks per date (counts), calculate what topx% and bottomx% translate to.
-        top_n = (counts * (top_pct / 100.0)).astype(np.int64)
-        bottom_n = (counts * (bottom_pct / 100.0)).astype(np.int64)
+        # Use round() instead of truncation so 2.9 -> 3, 2.4 -> 2
+        top_n = np.round(counts * (top_pct / 100.0)).astype(np.int64)
+        bottom_n = np.round(counts * (bottom_pct / 100.0)).astype(np.int64)
 
         # expand top/bottom counts per stock
         top_n_expanded = top_n[inverse_sorted]
@@ -485,10 +486,10 @@ def analyze_factors(
                     for rank, idx in enumerate(sorted_indices, 1):
                         ticker = tickers_sorted[idx]
                         mktcap = factor_sorted[idx]
-                        ret = perf_sorted[idx] * 100
+                        ret_pct = perf_sorted[idx] * 100
                         in_top = "YES" if is_top[idx] else ""
                         in_bot = "YES" if is_bottom[idx] else ""
-                        logger.info(f"{rank:<6} {ticker:<10} {mktcap:>18,.2f} {ret:>12.4f} {in_top:>8} {in_bot:>10}")
+                        logger.info(f"{rank:<6} {ticker:<10} {mktcap:>18,.2f} {ret_pct:>12.4f} {in_top:>8} {in_bot:>10}")
                     logger.info("="*100)
 
         # Calculate cumulative long/short returns (for CAGR)
@@ -721,16 +722,26 @@ def calculate_factor_metrics(
     years_bench = n_bench_periods / periods_per_year
     annualized_bench = 100 * ((1 + cumulative_bench) ** (1 / years_bench) - 1) if years_bench > 0 else np.nan
 
-    logger.info(f"DEBUG: Benchmark CAGR - cumulative: {cumulative_bench*100:.2f}%, periods: {n_bench_periods}, years: {years_bench:.2f}, annualized: {annualized_bench:.2f}%")
-
-    # DEBUG: Log ALL benchmark returns for comparison with P123 (use log equity)
+    # DEBUG: Combined benchmark and MktCap comparison table
     bench_dates = pivot.index.tolist()
-    logger.info(f"DEBUG: All benchmark returns (compare with P123 Bench%):")
-    log_bench_equity = np.log(100.0)
+    mktcap_col = "Market Capitalization"
+    mktcap_returns = pivot[mktcap_col].values if mktcap_col in pivot.columns else None
+
+    logger.info(f"DEBUG: Benchmark vs MktCap returns (compare with P123):")
+    logger.info(f"  {'Date':<12} {'Bench%':>10} {'BenchEq':>10} {'MktCap%':>10} {'MktCapEq':>10}")
+    logger.info(f"  {'-'*54}")
+    bench_equity = 100.0
+    mktcap_equity = 100.0
     for i in range(len(bench_dates)):
         if not np.isnan(bench_returns[i]):
-            log_bench_equity += np.log1p(bench_returns[i])
-        logger.info(f"  {str(bench_dates[i])[:10]}: bench={bench_returns[i]*100:.4f}%, log_eq={log_bench_equity:.4f}")
+            bench_equity *= (1 + bench_returns[i])
+        mktcap_ret = mktcap_returns[i] if mktcap_returns is not None else np.nan
+        if not np.isnan(mktcap_ret):
+            mktcap_equity *= (1 + mktcap_ret)
+        logger.info(f"  {str(bench_dates[i])[:10]:<12} {bench_returns[i]*100:>10.4f} {bench_equity:>10.4f} {mktcap_ret*100:>10.4f} {mktcap_equity:>10.4f}")
+
+    mktcap_cumulative = (mktcap_equity / 100.0) - 1
+    logger.info(f"DEBUG: Final - Bench cumulative: {cumulative_bench*100:.2f}% (eq: {bench_equity:.2f}), MktCap cumulative: {mktcap_cumulative*100:.2f}% (eq: {mktcap_equity:.2f}), periods: {n_bench_periods}, years: {years_bench:.2f}")
 
     # t-statistic (based on factor returns)
     y_var = (y_centered ** 2).sum(axis=0) / (n_valid - 1)
