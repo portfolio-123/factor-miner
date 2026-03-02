@@ -329,8 +329,6 @@ def analyze_factors(
         short_ret[valid_bottom_mask] = bottom_sums[valid_bottom_mask] / bottom_n[valid_bottom_mask]
 
         # Calculate cumulative long/short returns (for CAGR)
-        # Use log returns to avoid overflow: sum(log(1+r)) then exp() - 1
-        # Also filter out inf values (bad data)
         inf_long_count = np.isinf(long_ret).sum()
         inf_short_count = np.isinf(short_ret).sum()
         if inf_long_count > 0 or inf_short_count > 0:
@@ -550,13 +548,13 @@ def calculate_factor_metrics(
         result["annualized long %"] = 100 * ((1 + cumulative_long) ** (1 / years_long) - 1)
         result["annualized short %"] = 100 * ((1 + cumulative_short) ** (1 / years_short) - 1)
 
-        # Regression Alpha: intercept of the regression line, annualized
-        # alpha_per_period = mean(factor_returns) - beta * mean(benchmark_returns)
-        # We need to get the per-period means from earlier calculation
         factor_mean_per_period = y_mean[valid_factors]  # mean per-period return for each factor
         bench_mean_per_period = x_mean[valid_factors].flatten()  # mean per-period benchmark return
+
+
+        # alpha calculation
         alpha_per_period = factor_mean_per_period - result["beta"].values * bench_mean_per_period
-        result["annualized alpha %"] = alpha_per_period * periods_per_year * 100
+        result["annualized alpha %"] = 100 * ((1 + alpha_per_period) ** periods_per_year - 1)
 
         # Data quality: % of dates with enough stocks for valid long/short portfolios
         result["valid dates %"] = result["column"].map(
