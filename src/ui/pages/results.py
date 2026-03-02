@@ -57,7 +57,7 @@ def results() -> None:
     with header_right:
         if is_complete or analysis.status == AnalysisStatus.FAILED:
             if st.button("Logs", type="primary", key="header_logs", width="stretch"):
-                show_analysis_logs_modal(analysis.logs)
+                show_analysis_logs_modal(fl_id, analysis_id)
 
     if analysis.status == AnalysisStatus.FAILED:
         error_msg = (analysis.error or "Analysis failed").split("\n")[0]

@@ -101,6 +101,17 @@ class AnalysisService:
         logs.append(message)
         return self.save(analysis, logs=logs)
 
+    def get_logs(self, fl_id: str, analysis_id: str) -> list[str]:
+        """Read logs from the stderr.log file for an analysis."""
+        log_path = self.base_dir / fl_id / "logs" / f"{analysis_id}.stderr.log"
+        if not log_path.exists():
+            return []
+        try:
+            content = log_path.read_text()
+            return content.splitlines()
+        except Exception:
+            return []
+
     def clear_credentials(self, analysis: Analysis) -> Analysis:
         updated_params = analysis.params.model_copy(update={"access_token": None})
         return self.save(analysis, params=updated_params)

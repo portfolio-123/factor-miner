@@ -81,24 +81,6 @@ def calculate_benchmark_returns(
     # Forward return: (next_price - curr_price) / curr_price
     benchmark_returns = (next_prices - curr_prices) / curr_prices
 
-    # DEBUG: Log detailed benchmark calculation for first 15 dates
-    logger.info("\n" + "="*120)
-    logger.info("BENCHMARK CALCULATION DEBUG (first 15 rows)")
-    logger.info("="*120)
-    logger.info(f"{'Dataset Date':<14} {'Start Date':<14} {'End Date':<14} {'Start Price':>12} {'End Price':>12} {'Return':>10}")
-    logger.info("-"*90)
-    for i in range(min(15, len(unique_date_values))):
-        ds_date = str(unique_date_values[i])[:10]
-        start_pos = start_positions_clipped[i]
-        end_pos = end_positions_clipped[i]
-        start_date = str(benchmark_dates[start_pos])[:10] if start_pos < len(benchmark_dates) else "N/A"
-        end_date = str(benchmark_dates[end_pos])[:10] if end_pos < len(benchmark_dates) else "N/A"
-        start_price = curr_prices[i]
-        end_price = next_prices[i]
-        ret = benchmark_returns[i] * 100 if not np.isnan(benchmark_returns[i]) else float('nan')
-        logger.info(f"{ds_date:<14} {start_date:<14} {end_date:<14} {start_price:>12.4f} {end_price:>12.4f} {ret:>9.4f}%")
-    logger.info("="*120 + "\n")
-
     bench_df = pd.DataFrame({
         "Date": unique_date_values,
         INTERNAL_BENCHMARK_COL: benchmark_returns
@@ -145,13 +127,6 @@ def calculate_future_performance(
         df = df.drop(columns=["_next_price"])
         df[INTERNAL_FUTURE_PERF_COL] = df[INTERNAL_FUTURE_PERF_COL].replace([np.inf, -np.inf], np.nan)
 
-    # DEBUG: Log summary statistics (before dropping columns)
-    logger.info(f"\n=== FUTURE PERFORMANCE SUMMARY ===")
-    valid_returns = df[INTERNAL_FUTURE_PERF_COL].dropna()
-    logger.info(f"Total rows: {len(df)}, Valid returns: {len(valid_returns)}")
-    logger.info(f"Return stats: min={valid_returns.min()*100:.2f}%, max={valid_returns.max()*100:.2f}%, mean={valid_returns.mean()*100:.2f}%, median={valid_returns.median()*100:.2f}%")
-    logger.info(f"Unique dates: {df['Date'].nunique()}, Unique tickers: {df['Ticker'].nunique()}")
-
     df = df.drop(columns=[price_column])
 
     return df
@@ -183,20 +158,7 @@ def analyze_factors(
     Returns:
         Tuple of (DataFrame with factor analysis results, dict of factor stats per factor including NA%, IC, IC t-stat)
     """
-    logger.info(f"analyze_factors: starting with {len(factor_columns)} factors")
     total_factors = len(factor_columns)
-
-    # DEBUG: Log date information from future_perf_df
-    perf_dates = future_perf_df["Date"].sort_values().unique()
-    logger.info(f"\n=== ANALYZE_FACTORS DATE DEBUG ===")
-    logger.info(f"Dates from future_perf_df: {len(perf_dates)} unique")
-    logger.info(f"First date: {perf_dates[0]} ({pd.Timestamp(perf_dates[0]).day_name()})")
-    logger.info(f"Last date: {perf_dates[-1]} ({pd.Timestamp(perf_dates[-1]).day_name()})")
-    logger.info(f"First 5 dates: {[str(d)[:10] for d in perf_dates[:5]]}")
-    # Check date intervals
-    if len(perf_dates) > 1:
-        intervals = pd.Series(perf_dates).diff().dropna()
-        logger.info(f"Date intervals (days): min={intervals.min()}, max={intervals.max()}, median={intervals.median()}")
 
     all_dates: List[np.ndarray] = []
     all_factors: List[np.ndarray] = []
@@ -204,34 +166,23 @@ def analyze_factors(
     factor_stats_dict: Dict[str, dict] = {}
 
     # read date/ticker once and track row indices
-    logger.info("analyze_factors: reading Date/Ticker columns")
     base_df = dataset_svc.read_columns(["Date", "Ticker"])
-    logger.info(f"analyze_factors: read {len(base_df)} rows")
-
     base_df["_row_idx"] = np.arange(len(base_df))
 
-    # add future performance column to base dataframe. TODO: determine how to handle missing values, or stocks exiting/entering the universe
-    logger.info("analyze_factors: merging with future_perf_df")
+    # add future performance column to base dataframe
     merged_base = base_df.merge(future_perf_df, on=["Date", "Ticker"], how="inner")
     valid_indices = merged_base["_row_idx"].to_numpy()
     perf_arr = merged_base[INTERNAL_FUTURE_PERF_COL].to_numpy()
-    logger.info(f"analyze_factors: merged, {len(merged_base)} rows")
 
-    # the inverse checks the row and maps it to an index. all the rows with the first date of the period will be index 0, and so on.
+    # the inverse checks the row and maps it to an index
     unique_dates, date_inverse = np.unique(merged_base["Date"], return_inverse=True)
     perf_valid = ~np.isnan(perf_arr)
 
-    # Preserve ticker array for debugging in process_factor
-    ticker_arr = merged_base["Ticker"].to_numpy()
-
     n_dates = len(unique_dates)
-    logger.info(f"analyze_factors: {n_dates} unique dates")
     del base_df, merged_base
 
     def process_factor(col: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
         factor_arr = batch_df[col].to_numpy()[valid_indices]
-        # Get tickers for valid indices for debugging
-        tickers_for_factor = ticker_arr
 
         # Calculate NA stats
         total_values = len(factor_arr)
@@ -244,8 +195,6 @@ def analyze_factors(
         inverse_f = date_inverse[valid_mask]
         factor_f = factor_arr[valid_mask]
         perf_f = perf_arr[valid_mask]
-        # Preserve tickers for the valid rows
-        tickers_f = tickers_for_factor[valid_mask]
         del factor_arr, valid_mask
 
         # Check for inf in source data
@@ -264,9 +213,7 @@ def analyze_factors(
         sort_keys = np.lexsort((factor_f, inverse_f))
         inverse_sorted = inverse_f[sort_keys]
         perf_sorted = perf_f[sort_keys]
-        tickers_sorted = tickers_f[sort_keys]
-        factor_sorted = factor_f[sort_keys]  # Keep for debugging
-        del sort_keys, factor_f, perf_f, inverse_f, tickers_f
+        del sort_keys, factor_f, perf_f, inverse_f
 
         # Compute period boundaries
         group_starts = np.zeros(n_dates + 1, dtype=np.int64)
@@ -354,86 +301,6 @@ def analyze_factors(
         is_bottom = rank_in_group < bottom_n_expanded
         is_top = rank_in_group >= (group_sizes - top_n_expanded)
 
-        # DEBUG: Log top N stocks for first and last few dates
-        logger.info(f"\n=== TOP STOCKS DEBUG for factor {col} ===")
-        # Get indices of top stocks
-        top_indices_in_sorted = np.where(is_top)[0]
-        if len(top_indices_in_sorted) > 0:
-            # Log first 3 dates worth of top stocks
-            logger.info(f"\n--- FIRST 3 DATES ---")
-            dates_logged = 0
-            current_date_idx = -1
-            logger.info(f"{'Date':<12} {'Ticker':<10} {'FactorVal':>12} {'PerfRet%':>10} {'RankInGrp':>10} {'GrpSize':>8} {'TopN':>6}")
-            logger.info("-" * 80)
-
-            for idx in top_indices_in_sorted:
-                date_idx = inverse_sorted[idx]
-                if date_idx != current_date_idx:
-                    if dates_logged >= 3:
-                        break
-                    current_date_idx = date_idx
-                    dates_logged += 1
-                    logger.info(f"\n--- Date: {str(unique_dates[date_idx])[:10]} (TopN={top_n[date_idx]}, TotalStocks={counts[date_idx]}) ---")
-
-                ticker_val = tickers_sorted[idx]
-                factor_val = factor_sorted[idx]
-                perf_val = perf_sorted[idx]
-                rank_val = rank_in_group[idx]
-                group_size_val = group_sizes[idx]
-                top_n_val = top_n[date_idx]
-
-                logger.info(f"{str(unique_dates[date_idx])[:10]:<12} {ticker_val:<10} {factor_val:>12.4f} {perf_val*100:>10.4f} {rank_val:>10} {group_size_val:>8} {top_n_val:>6}")
-
-            # Log LAST 3 dates worth of top stocks
-            logger.info(f"\n--- LAST 3 DATES ---")
-            logger.info(f"{'Date':<12} {'Ticker':<10} {'FactorVal':>12} {'PerfRet%':>10} {'RankInGrp':>10} {'GrpSize':>8} {'TopN':>6}")
-            logger.info("-" * 80)
-
-            # Get unique date indices for top stocks and take last 3
-            top_date_indices = np.unique(inverse_sorted[top_indices_in_sorted])
-            last_3_date_indices = top_date_indices[-3:] if len(top_date_indices) >= 3 else top_date_indices
-
-            for date_idx in last_3_date_indices:
-                logger.info(f"\n--- Date: {str(unique_dates[date_idx])[:10]} (TopN={top_n[date_idx]}, TotalStocks={counts[date_idx]}) ---")
-                # Get all top stocks for this date
-                date_mask = (inverse_sorted == date_idx) & is_top
-                date_indices = np.where(date_mask)[0]
-                for idx in date_indices:
-                    ticker_val = tickers_sorted[idx]
-                    factor_val = factor_sorted[idx]
-                    perf_val = perf_sorted[idx]
-                    rank_val = rank_in_group[idx]
-                    group_size_val = group_sizes[idx]
-                    top_n_val = top_n[date_idx]
-                    logger.info(f"{str(unique_dates[date_idx])[:10]:<12} {ticker_val:<10} {factor_val:>12.4f} {perf_val*100:>10.4f} {rank_val:>10} {group_size_val:>8} {top_n_val:>6}")
-
-        # DEBUG: Log bottom N stocks for first few dates
-        logger.info(f"\n=== BOTTOM STOCKS DEBUG for factor {col} ===")
-        bottom_indices_in_sorted = np.where(is_bottom)[0]
-        if len(bottom_indices_in_sorted) > 0:
-            dates_logged = 0
-            current_date_idx = -1
-            logger.info(f"{'Date':<12} {'Ticker':<10} {'FactorVal':>12} {'PerfRet%':>10} {'RankInGrp':>10} {'GrpSize':>8} {'BotN':>6}")
-            logger.info("-" * 80)
-
-            for idx in bottom_indices_in_sorted:
-                date_idx = inverse_sorted[idx]
-                if date_idx != current_date_idx:
-                    if dates_logged >= 3:
-                        break
-                    current_date_idx = date_idx
-                    dates_logged += 1
-                    logger.info(f"\n--- Date: {str(unique_dates[date_idx])[:10]} (BottomN={bottom_n[date_idx]}, TotalStocks={counts[date_idx]}) ---")
-
-                ticker_val = tickers_sorted[idx]
-                factor_val = factor_sorted[idx]
-                perf_val = perf_sorted[idx]
-                rank_val = rank_in_group[idx]
-                group_size_val = group_sizes[idx]
-                bottom_n_val = bottom_n[date_idx]
-
-                logger.info(f"{str(unique_dates[date_idx])[:10]:<12} {ticker_val:<10} {factor_val:>12.4f} {perf_val*100:>10.4f} {rank_val:>10} {group_size_val:>8} {bottom_n_val:>6}")
-
         # np.where so we only keep returns from top/bottom stocks. else add 0. np.bincount to sum values per date.
         top_sums = np.bincount(
             inverse_sorted, weights=np.where(is_top, perf_sorted, 0.0), minlength=n_dates
@@ -461,37 +328,6 @@ def analyze_factors(
         long_ret[valid_top_mask] = top_sums[valid_top_mask] / top_n[valid_top_mask]
         short_ret[valid_bottom_mask] = bottom_sums[valid_bottom_mask] / bottom_n[valid_bottom_mask]
 
-        # DEBUG: Log ALL stocks with factor values for mismatched dates
-        debug_dates = ["2021-09-04", "2022-01-22", "2024-02-17"]
-        if col == "Market Capitalization":  # Only for Market Cap factor
-            for debug_date_str in debug_dates:
-                debug_date = pd.Timestamp(debug_date_str)
-                date_matches = [i for i, d in enumerate(unique_dates) if pd.Timestamp(d) == debug_date]
-                if date_matches:
-                    date_idx = date_matches[0]
-                    # Get ALL stocks for this date
-                    date_mask = inverse_sorted == date_idx
-                    date_indices = np.where(date_mask)[0]
-
-                    logger.info(f"\n{'='*100}")
-                    logger.info(f"ALL STOCKS for {debug_date_str} - MktCap (sorted high to low)")
-                    logger.info(f"Total stocks: {counts[date_idx]}, TopN: {top_n[date_idx]}, BottomN: {bottom_n[date_idx]}")
-                    logger.info(f"LongRet: {long_ret[date_idx]*100:.4f}%, TopSum: {top_sums[date_idx]*100:.4f}%")
-                    logger.info(f"{'='*100}")
-                    logger.info(f"{'Rank':<6} {'Ticker':<10} {'MktCap':>18} {'Return%':>12} {'InTop':>8} {'InBottom':>10}")
-                    logger.info("-"*70)
-
-                    # Sort by factor value descending (highest market cap first)
-                    sorted_indices = date_indices[np.argsort(-factor_sorted[date_indices])]
-                    for rank, idx in enumerate(sorted_indices, 1):
-                        ticker = tickers_sorted[idx]
-                        mktcap = factor_sorted[idx]
-                        ret_pct = perf_sorted[idx] * 100
-                        in_top = "YES" if is_top[idx] else ""
-                        in_bot = "YES" if is_bottom[idx] else ""
-                        logger.info(f"{rank:<6} {ticker:<10} {mktcap:>18,.2f} {ret_pct:>12.4f} {in_top:>8} {in_bot:>10}")
-                    logger.info("="*100)
-
         # Calculate cumulative long/short returns (for CAGR)
         # Use log returns to avoid overflow: sum(log(1+r)) then exp() - 1
         # Also filter out inf values (bad data)
@@ -517,31 +353,12 @@ def analyze_factors(
         else:
             cumulative_short_ret = np.nan
 
-        # DEBUG: Log rebalance statistics (use log equity to avoid overflow)
-        logger.info(f"\n=== REBALANCE STATISTICS for {col} ===")
-        logger.info(f"{'Date':<12} {'LongRet%':>10} {'LogEq':>10} {'TopN':>6} {'BotN':>6}")
-        logger.info("-" * 50)
-        log_equity = np.log(100.0)
-        valid_date_indices = np.where(valid_long)[0]
-        for i in valid_date_indices:
-            period_ret = long_ret[i]
-            log_equity += np.log1p(period_ret)
-            date_str = str(unique_dates[i])[:10]
-            logger.info(f"{date_str:<12} {period_ret*100:>10.4f} {log_equity:>10.4f} {top_n[i]:>6} {bottom_n[i]:>6}")
-        logger.info("-" * 50)
-        final_equity = np.exp(log_equity)
-        logger.info(f"Final Equity: {final_equity:.4f} (Total Return: {(final_equity/100 - 1)*100:.2f}%)")
-
         # Add to factor_stats
         factor_stats['cumulative_long_ret'] = cumulative_long_ret
         factor_stats['cumulative_short_ret'] = cumulative_short_ret
         factor_stats['n_long_periods'] = n_long_periods
         factor_stats['n_short_periods'] = n_short_periods
         factor_stats['valid_dates_pct'] = round(100 * n_long_periods / n_dates, 1) if n_dates > 0 else 0.0
-
-        # Log data quality info
-        logger.info(f"Factor {col}: valid_dates={n_long_periods}/{n_dates} ({factor_stats['valid_dates_pct']}%), "
-                    f"stocks_per_date: min={counts.min()}, max={counts.max()}, median={int(np.median(counts))}")
 
         # build results as arrays instead of dicts
         valid_results = valid_date_mask & ~np.isnan(ret)
@@ -554,10 +371,8 @@ def analyze_factors(
             factor_stats,
         )
 
-    logger.info("analyze_factors: entering ThreadPoolExecutor")
     max_workers = min(8, os.cpu_count() or 4)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        logger.info(f"analyze_factors: ThreadPoolExecutor started with max_workers={max_workers}")
         completed_count = 0
         last_progress_time = 0.0
         progress_interval = 1.0  # throttle progress updates to every 1 second
@@ -565,10 +380,7 @@ def analyze_factors(
         # Process factors in batches
         for batch_start in range(0, total_factors, batch_size):
             batch_cols = factor_columns[batch_start : batch_start + batch_size]
-            logger.info(f"analyze_factors: reading batch {batch_start}, {len(batch_cols)} columns")
-
             batch_df = dataset_svc.read_columns(batch_cols)
-            logger.info(f"analyze_factors: batch read complete, {len(batch_df)} rows")
 
             # executor.submit() schedules process_factor(col) to run in a background thread.
             # It returns a Future object immediately (non-blocking).
@@ -624,7 +436,7 @@ def analyze_factors(
 def calculate_factor_metrics(
     results_df: pd.DataFrame,
     raw_data: pd.DataFrame,
-    periods_per_year: int = 52,
+    periods_per_year: float = 52.0,
     factor_stats: Optional[Dict[str, dict]] = None,
 ) -> pd.DataFrame:
     """
@@ -634,7 +446,7 @@ def calculate_factor_metrics(
     Args:
         results_df: DataFrame with factor returns (Date, factor, ret)
         raw_data: DataFrame with benchmark data from p123 api
-        periods_per_year: Number of periods per year for annualization (default: 52 for weekly)
+        periods_per_year: Number of periods per year for annualization (e.g., 365/28=13.036 for 4-week)
         factor_stats: Optional dict mapping factor names to their statistics (NA%, IC, IC t-stat)
 
     Returns:
@@ -643,43 +455,12 @@ def calculate_factor_metrics(
     # get unique benchmark values per date
     benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
 
-    # DEBUG: Log benchmark coverage before merge
-    logger.info(f"\n=== FACTOR METRICS DATE FILTERING DEBUG ===")
-    logger.info(f"Results dates: {results_df['Date'].nunique()}")
-    logger.info(f"Benchmark dates with valid values: {benchmark[INTERNAL_BENCHMARK_COL].notna().sum()}/{len(benchmark)}")
-    benchmark_valid = benchmark[benchmark[INTERNAL_BENCHMARK_COL].notna()]
-    if len(benchmark_valid) > 0:
-        logger.info(f"First valid benchmark date: {benchmark_valid['Date'].min()}")
-        logger.info(f"Last valid benchmark date: {benchmark_valid['Date'].max()}")
-
     # merge benchmark with factor returns
     merged_data = results_df.merge(benchmark, on="Date", how="inner")
 
     # filter invalid values upfront
-    # For complete periods: need both stock return and benchmark
-    # For in-progress periods: benchmark is valid, stock return may be NaN
     valid_mask = np.isfinite(merged_data["ret"]) & np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])
-
-    # DEBUG: Log what gets filtered out
-    invalid_ret_count = (~np.isfinite(merged_data["ret"])).sum()
-    invalid_bench_count = (~np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])).sum()
-    invalid_count = (~valid_mask).sum()
-    logger.info(f"Rows after merge: {len(merged_data)}")
-    logger.info(f"Rows with invalid stock return: {invalid_ret_count}")
-    logger.info(f"Rows with invalid benchmark: {invalid_bench_count}")
-    logger.info(f"Total rows filtered out: {invalid_count}")
-    if invalid_count > 0:
-        invalid_dates = merged_data[~valid_mask]["Date"].unique()
-        logger.info(f"Dates being filtered out: {[str(d)[:10] for d in invalid_dates[:10]]}")
-        # Show if any dates have valid benchmark but invalid stock returns (in-progress)
-        in_progress_mask = (~np.isfinite(merged_data["ret"])) & np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])
-        in_progress_dates = merged_data[in_progress_mask]["Date"].unique()
-        if len(in_progress_dates) > 0:
-            logger.info(f"In-progress dates (valid benchmark, no stock return): {[str(d)[:10] for d in in_progress_dates]}")
-            logger.info("To include these, add current stock prices to your dataset")
-
     merged_data = merged_data[valid_mask]
-    logger.info(f"Final rows for metrics: {len(merged_data)}, unique dates: {merged_data['Date'].nunique()}")
 
     # pivot to get factors as columns: (n_dates, n_factors)
     pivot = merged_data.pivot_table(index="Date", columns="factor", values="ret", aggfunc="first")
@@ -721,27 +502,6 @@ def calculate_factor_metrics(
         cumulative_bench = np.nan
     years_bench = n_bench_periods / periods_per_year
     annualized_bench = 100 * ((1 + cumulative_bench) ** (1 / years_bench) - 1) if years_bench > 0 else np.nan
-
-    # DEBUG: Combined benchmark and MktCap comparison table
-    bench_dates = pivot.index.tolist()
-    mktcap_col = "Market Capitalization"
-    mktcap_returns = pivot[mktcap_col].values if mktcap_col in pivot.columns else None
-
-    logger.info(f"DEBUG: Benchmark vs MktCap returns (compare with P123):")
-    logger.info(f"  {'Date':<12} {'Bench%':>10} {'BenchEq':>10} {'MktCap%':>10} {'MktCapEq':>10}")
-    logger.info(f"  {'-'*54}")
-    bench_equity = 100.0
-    mktcap_equity = 100.0
-    for i in range(len(bench_dates)):
-        if not np.isnan(bench_returns[i]):
-            bench_equity *= (1 + bench_returns[i])
-        mktcap_ret = mktcap_returns[i] if mktcap_returns is not None else np.nan
-        if not np.isnan(mktcap_ret):
-            mktcap_equity *= (1 + mktcap_ret)
-        logger.info(f"  {str(bench_dates[i])[:10]:<12} {bench_returns[i]*100:>10.4f} {bench_equity:>10.4f} {mktcap_ret*100:>10.4f} {mktcap_equity:>10.4f}")
-
-    mktcap_cumulative = (mktcap_equity / 100.0) - 1
-    logger.info(f"DEBUG: Final - Bench cumulative: {cumulative_bench*100:.2f}% (eq: {bench_equity:.2f}), MktCap cumulative: {mktcap_cumulative*100:.2f}% (eq: {mktcap_equity:.2f}), periods: {n_bench_periods}, years: {years_bench:.2f}")
 
     # t-statistic (based on factor returns)
     y_var = (y_centered ** 2).sum(axis=0) / (n_valid - 1)
@@ -790,8 +550,13 @@ def calculate_factor_metrics(
         result["annualized long %"] = 100 * ((1 + cumulative_long) ** (1 / years_long) - 1)
         result["annualized short %"] = 100 * ((1 + cumulative_short) ** (1 / years_short) - 1)
 
-        # Alpha = Annualized Long Return - Annualized Benchmark Return
-        result["annualized alpha %"] = result["annualized long %"] - annualized_bench
+        # Regression Alpha: intercept of the regression line, annualized
+        # alpha_per_period = mean(factor_returns) - beta * mean(benchmark_returns)
+        # We need to get the per-period means from earlier calculation
+        factor_mean_per_period = y_mean[valid_factors]  # mean per-period return for each factor
+        bench_mean_per_period = x_mean[valid_factors].flatten()  # mean per-period benchmark return
+        alpha_per_period = factor_mean_per_period - result["beta"].values * bench_mean_per_period
+        result["annualized alpha %"] = alpha_per_period * periods_per_year * 100
 
         # Data quality: % of dates with enough stocks for valid long/short portfolios
         result["valid dates %"] = result["column"].map(
@@ -808,7 +573,8 @@ def calculate_factor_metrics(
             logger.info(f"  years_long: {years_long.iloc[idx]:.4f}")
             logger.info(f"  annualized_long: {result['annualized long %'].iloc[idx]:.2f}%")
             logger.info(f"  annualized_bench: {annualized_bench:.2f}%")
-            logger.info(f"  annualized_alpha: {result['annualized alpha %'].iloc[idx]:.2f}%")
+            logger.info(f"  beta: {result['beta'].iloc[idx]:.4f}")
+            logger.info(f"  alpha: {result['annualized alpha %'].iloc[idx]:.2f}%")
     else:
         result["NA %"] = 0.0
         result["IC"] = np.nan

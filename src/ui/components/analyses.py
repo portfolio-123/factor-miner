@@ -7,9 +7,10 @@ from src.ui.components.common import section_header
 from src.workers.analysis_service import analysis_service
 
 
-def show_analysis_logs_modal(logs: list[str] | None) -> None:
+def show_analysis_logs_modal(fl_id: str, analysis_id: str) -> None:
     @st.dialog("Analysis Logs", width="large")
     def _render() -> None:
+        logs = analysis_service.get_logs(fl_id, analysis_id)
         if not logs:
             st.info("No logs available for this analysis.")
             return

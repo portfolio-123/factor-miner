@@ -86,8 +86,8 @@ class Frequency(IntEnum):
         return self.weeks * 5
 
     @property
-    def periods_per_year(self) -> int:
-        return 52 // self.weeks
+    def periods_per_year(self) -> float:
+        return 365.0 / (self.weeks * 7)
 
 
 class SettingsForm(BaseModel):
