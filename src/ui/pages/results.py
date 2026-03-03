@@ -17,7 +17,7 @@ from src.core.utils.common import (
     format_runtime,
     format_timestamp,
 )
-from src.workers.analysis_service import analysis_service
+from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import BackupDatasetService
 
 
@@ -27,17 +27,19 @@ def results() -> None:
         set_local_storage(SETTINGS_STORAGE_KEY, pending_settings)
 
     fl_id = st.query_params.get("fl_id")
+    user_uid = st.session_state.get("user_uid")
     if not (analysis_id := st.query_params.get("id")):
         st.error("Missing analysis id")
         return
 
+    analysis_service = AnalysisService(user_uid)
     analysis = analysis_service.get(fl_id, analysis_id)
     if not analysis:
         st.error("Analysis not found")
         return
 
     try:
-        dataset_metadata = BackupDatasetService(fl_id).get_metadata(
+        dataset_metadata = BackupDatasetService(user_uid, fl_id).get_metadata(
             analysis.dataset_version
         )
         st.session_state.formulas_data = dataset_metadata.formulas_df

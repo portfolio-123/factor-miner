@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from src.core.config.environment import FACTORMINER_DIR
+from src.core.config.environment import FACTOR_LIST_DIR
 from src.core.types.models import (
     Analysis,
     AnalysisParams,
@@ -23,8 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisService:
-    def __init__(self):
-        self.base_dir = FACTORMINER_DIR
+    def __init__(self, user_uid: str):
+        self.user_uid = user_uid
+        self.base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_path(self, fl_id: str, analysis_id: str) -> Path:
@@ -68,7 +69,7 @@ class AnalysisService:
         fl_dir.mkdir(parents=True, exist_ok=True)
 
         # Create backup of dataset metadata if it doesn't exist
-        dest_path = BackupDatasetService(fl_id).get_backup_path(dataset_version)
+        dest_path = BackupDatasetService(self.user_uid, fl_id).get_backup_path(dataset_version)
         if not dest_path.exists():
             with DatasetService(fl_id) as dataset_svc:
                 dataset_svc.backup_metadata(dest_path)
@@ -147,7 +148,7 @@ class AnalysisService:
 
         stderr_file = open(stderr_path, "w")
         subprocess.Popen(
-            [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id],
+            [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id, self.user_uid],
             cwd=str(project_root),
             start_new_session=True,
             stdout=subprocess.DEVNULL,
@@ -156,5 +157,15 @@ class AnalysisService:
 
         return analysis
 
+    @staticmethod
+    def list_factor_lists(user_uid: str) -> list[str]:
+        user_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
+        if not user_dir.exists():
+            return []
 
-analysis_service = AnalysisService()
+        fl_ids = []
+        for item in user_dir.iterdir():
+            if item.is_dir() and any(item.glob("*.json")):
+                fl_ids.append(item.name)
+
+        return sorted(fl_ids)

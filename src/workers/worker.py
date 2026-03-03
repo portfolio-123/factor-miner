@@ -43,10 +43,11 @@ from src.core.calculations import (
 
 
 class AnalysisRunner:
-    def __init__(self, fl_id: str, analysis_id: str):
+    def __init__(self, fl_id: str, analysis_id: str, user_uid: str):
         self.fl_id = fl_id
         self.analysis_id = analysis_id
-        self.service = AnalysisService()
+        self.user_uid = user_uid
+        self.service = AnalysisService(user_uid)
         self.analysis: Analysis | None = None
 
     def log(self, message: str) -> None:
@@ -218,7 +219,8 @@ class AnalysisRunner:
 def main():
     fl_id = sys.argv[1]
     analysis_id = sys.argv[2]
-    runner = AnalysisRunner(fl_id, analysis_id)
+    user_uid = sys.argv[3]
+    runner = AnalysisRunner(fl_id, analysis_id, user_uid)
     runner.execute()
 
 

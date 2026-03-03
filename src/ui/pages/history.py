@@ -1,6 +1,6 @@
 import streamlit as st
 from src.ui.components.tables import render_history_table
-from src.workers.analysis_service import analysis_service
+from src.workers.analysis_service import AnalysisService
 
 
 def history() -> None:
@@ -13,7 +13,8 @@ def history() -> None:
 
     st.title("Your Results")
 
-    all_analyses = analysis_service.list_all(st.query_params.get("fl_id"))
+    user_uid = st.session_state.get("user_uid")
+    all_analyses = AnalysisService(user_uid).list_all(st.query_params.get("fl_id"))
 
     if not all_analyses:
         fl_id = st.query_params.get("fl_id")

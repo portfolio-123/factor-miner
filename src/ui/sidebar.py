@@ -5,6 +5,7 @@ from src.ui.pages.about import about
 from src.ui.pages.history import history
 from src.ui.pages.create import create_form
 from src.ui.pages.results import results
+from src.workers.analysis_service import AnalysisService
 
 
 def sidebar() -> st.navigation:
@@ -37,6 +38,27 @@ def sidebar() -> st.navigation:
             f"<a href='{fl_url}' target='_blank' style='text-decoration: underline;'>{fl_name}</a>",
             unsafe_allow_html=True,
         )
+
+        user_uid = st.session_state.get("user_uid")
+        if user_uid:
+            available_fl_ids = AnalysisService.list_factor_lists(user_uid)
+            if len(available_fl_ids) > 1:
+                current_fl_id = fl_id or ""
+                try:
+                    current_index = available_fl_ids.index(current_fl_id)
+                except ValueError:
+                    current_index = 0
+
+                selected_fl_id = st.selectbox(
+                    "Switch Factor List",
+                    options=available_fl_ids,
+                    index=current_index,
+                    key="fl_selector",
+                    label_visibility="collapsed",
+                )
+                if selected_fl_id and selected_fl_id != fl_id:
+                    st.query_params["fl_id"] = selected_fl_id
+                    st.rerun()
 
         st.divider()
 

@@ -4,13 +4,14 @@ import streamlit as st
 from src.core.types.models import Analysis, AnalysisProgress, AnalysisStatus
 from src.core.config.environment import P123_BASE_URL
 from src.ui.components.common import section_header
-from src.workers.analysis_service import analysis_service
+from src.workers.analysis_service import AnalysisService
 
 
 def show_analysis_logs_modal(fl_id: str, analysis_id: str) -> None:
     @st.dialog("Analysis Logs", width="large")
     def _render() -> None:
-        logs = analysis_service.get_logs(fl_id, analysis_id)
+        user_uid = st.session_state.get("user_uid")
+        logs = AnalysisService(user_uid).get_logs(fl_id, analysis_id)
         if not logs:
             st.info("No logs available for this analysis.")
             return
@@ -50,7 +51,8 @@ def render_analysis_notes(analysis: Analysis) -> None:
             submitted = st.form_submit_button("Save", width="stretch")
 
         if submitted and notes_value != (analysis.notes or ""):
-            analysis_service.save(analysis, notes=notes_value)
+            user_uid = st.session_state.get("user_uid")
+            AnalysisService(user_uid).save(analysis, notes=notes_value)
 
 
 def _render_failure_message(fl_id: str, error: str | None) -> None:
@@ -91,7 +93,8 @@ def _render_progress_bar(progress: AnalysisProgress | None) -> None:
 
 @st.fragment(run_every="0.5s")
 def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
-    analysis = analysis_service.get(fl_id, analysis_id)
+    user_uid = st.session_state.get("user_uid")
+    analysis = AnalysisService(user_uid).get(fl_id, analysis_id)
 
     if analysis and analysis.status == AnalysisStatus.SUCCESS:
         st.rerun(scope="app")

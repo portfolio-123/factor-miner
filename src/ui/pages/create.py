@@ -19,7 +19,7 @@ from src.core.utils.local_storage_utils import get_local_storage
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
-from src.workers.analysis_service import analysis_service
+from src.workers.analysis_service import AnalysisService
 
 
 
@@ -52,6 +52,7 @@ def _apply_settings_if_triggered() -> None:
 
 def _submit_analysis() -> None:
     fl_id = st.query_params.get("fl_id")
+    user_uid = st.session_state.get("user_uid")
     dataset_version = DatasetService(fl_id).current_version
     analysis_id = uuid.uuid4().hex[:8]
 
@@ -68,7 +69,7 @@ def _submit_analysis() -> None:
             rank_by=rank_by,
             access_token=st.session_state.get("access_token"),
         )
-        analysis_service.start(fl_id, analysis_id, dataset_version, params)
+        AnalysisService(user_uid).start(fl_id, analysis_id, dataset_version, params)
         
         # Store settings to be saved in the next page (results)
         # This avoids race conditions with st.switch_page

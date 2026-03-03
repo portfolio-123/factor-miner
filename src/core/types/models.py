@@ -37,10 +37,11 @@ class AnalysisResults(BaseModel):
 
 
 class TokenPayload(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     apiId: int
     apiKey: str
+    user_uid: str = Field(alias="sub")
 
 
 class ScalingMethod(StrEnum):

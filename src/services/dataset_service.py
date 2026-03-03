@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 from src.core.types.models import DatasetConfig
 from src.services.readers import ParquetDataReader
 
-from src.core.config.environment import FACTOR_LIST_DIR, FACTORMINER_DIR
+from src.core.config.environment import FACTOR_LIST_DIR
 
 
 class DatasetService:
@@ -84,12 +84,13 @@ class DatasetService:
             pq.write_table(table, dest_path)
 
 class BackupDatasetService:
-    def __init__(self, fl_id: str):
+    def __init__(self, user_uid: str, fl_id: str):
+        self.user_uid = user_uid
         self.fl_id = fl_id
 
     @property
     def backup_dir(self) -> Path:
-        return FACTORMINER_DIR / self.fl_id
+        return FACTOR_LIST_DIR / self.user_uid / "FactorMiner" / self.fl_id
 
     def get_backup_path(self, version: str) -> Path:
         return self.backup_dir / f"{version}.parquet"
