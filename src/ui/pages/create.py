@@ -18,7 +18,6 @@ from src.core.config.constants import (
     SETTINGS_STORAGE_KEY,
 )
 from src.core.types.models import AnalysisParams, SettingsForm
-from src.core.utils.local_storage_utils import get_local_storage, set_local_storage
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
@@ -101,18 +100,15 @@ def _submit_analysis() -> None:
         
         # Trigger save settings flow
         st.session_state["_save_settings_triggered"] = True
-        st.session_state["_pending_redirect"] = analysis_id
+        st.session_state["_redirect_to_results"] = analysis_id
         
     except Exception as e:
         st.toast(f"Error starting analysis: {e}")
 
 
 def create_form() -> None:
-    # Instantiate LocalStorage once per render to ensure stability
-    # Use a unique key to avoid conflicts
-    ls = LocalStorage(key="create_page_ls")
+    ls = LocalStorage(key=SETTINGS_STORAGE_KEY)
     
-    # Handle saving settings if triggered
     if st.session_state.get("_save_settings_triggered"):
         try:
             defaults = _get_default_settings()
@@ -123,28 +119,15 @@ def create_form() -> None:
                     val = defaults.get(key)
                 current_settings[key] = val
             
-            # Debugging: Show what we are trying to save
-            # st.toast(f"Saving settings: {current_settings}")
             ls.setItem(SETTINGS_STORAGE_KEY, json.dumps(current_settings))
             
-            # Mark as saved so we can proceed to redirect in the next run
-            st.session_state["_settings_saved"] = True
-            
-            # Give the component a moment to process the message
+            # have to sleep otherwise the settings are not saved
             time.sleep(0.1)
         except Exception as e:
             st.toast(f"Error saving settings: {e}")
         finally:
             del st.session_state["_save_settings_triggered"]
-            # Force a rerun to process the redirect after the component has had a chance to render
             st.rerun()
-
-    # Handle redirect after save
-    if st.session_state.get("_settings_saved"):
-        if pending := st.session_state.pop("_pending_redirect", None):
-             del st.session_state["_settings_saved"]
-             st.session_state["_redirect_to_results"] = pending
-             st.rerun()
 
     if analysis_id := st.session_state.pop("_redirect_to_results", None):
         st.switch_page(
