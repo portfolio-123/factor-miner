@@ -20,7 +20,8 @@ def _request(
 
 def authenticate(payload: TokenPayload) -> str:
     try:
-        response = _request("POST", "/auth", json=payload.model_dump(), timeout=10)
+        auth_data = {"apiId": payload.apiId, "apiKey": payload.apiKey}
+        response = _request("POST", "/auth", json=auth_data, timeout=10)
         return response.text.strip('"')
     except Exception:
         raise PermissionError("Authentication failed")

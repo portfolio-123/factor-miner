@@ -138,7 +138,7 @@ def _render_settings() -> None:
     with col1:
         st.radio(
             "Rank By",
-            options=["Alpha", "IC"],
+            options=["Alpha", "Information Coefficient (IC)"],
             index=0 if st.session_state["rank_by"] == "Alpha" else 1,
             key="rank_by",
             horizontal=True,

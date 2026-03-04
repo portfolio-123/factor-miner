@@ -256,7 +256,7 @@ def _format_params_json(params) -> str:
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
-    datasets = BackupDatasetService(fl_id).load_all_versions()
+    datasets = BackupDatasetService(st.session_state.get("user_uid"), fl_id).load_all_versions()
 
     # Build rows data with version for alternating colors
     rows = []

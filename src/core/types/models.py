@@ -41,7 +41,7 @@ class TokenPayload(BaseModel):
 
     apiId: int
     apiKey: str
-    user_uid: str = Field(alias="sub")
+    user_uid: str | None = Field(default=None, alias="sub")
 
 
 class ScalingMethod(StrEnum):

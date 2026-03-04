@@ -26,7 +26,6 @@ class AnalysisService:
     def __init__(self, user_uid: str):
         self.user_uid = user_uid
         self.base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
-        self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_path(self, fl_id: str, analysis_id: str) -> Path:
         return self.base_dir / fl_id / f"{analysis_id}.json"
