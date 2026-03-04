@@ -3,7 +3,6 @@ import pandas as pd
 from src.core.types.models import AnalysisStatus
 from src.core.config.environment import P123_BASE_URL
 from src.core.config.constants import SETTINGS_STORAGE_KEY
-from src.core.utils.local_storage_utils import set_local_storage
 from src.ui.components.common import render_info_item, get_card_header_html
 from src.ui.components.tables import render_results_table, render_correlation_matrix
 from src.ui.components.datasets import render_dataset_card
@@ -22,10 +21,6 @@ from src.services.dataset_service import BackupDatasetService
 
 
 def results() -> None:
-    # Check for pending settings save from create page
-    if pending_settings := st.session_state.pop("_pending_settings_save", None):
-        set_local_storage(SETTINGS_STORAGE_KEY, pending_settings)
-
     fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
     if not (analysis_id := st.query_params.get("id")):

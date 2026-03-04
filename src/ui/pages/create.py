@@ -1,8 +1,11 @@
+import time
 import json
 import uuid
 
 import streamlit as st
 from pydantic import ValidationError
+
+from streamlit_local_storage import LocalStorage
 
 from src.core.config.constants import (
     DEFAULT_MIN_ALPHA,
@@ -15,7 +18,7 @@ from src.core.config.constants import (
     SETTINGS_STORAGE_KEY,
 )
 from src.core.types.models import AnalysisParams, SettingsForm
-from src.core.utils.local_storage_utils import get_local_storage
+from src.core.utils.local_storage_utils import get_local_storage, set_local_storage
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
 from src.ui.components.datasets import load_active_dataset, render_dataset_card
@@ -24,12 +27,22 @@ from src.workers.analysis_service import AnalysisService
 
 
 
+def _get_default_settings() -> dict:
+    return {
+        "rank_by": "Alpha",
+        "top_pct": DEFAULT_TOP_PCT,
+        "bottom_pct": DEFAULT_BOTTOM_PCT,
+        "min_alpha": DEFAULT_MIN_ALPHA,
+        "min_ic": DEFAULT_MIN_IC,
+        "n_factors": DEFAULT_N_FACTORS,
+        "max_na_pct": DEFAULT_MAX_NA_PCT,
+        "correlation_threshold": DEFAULT_CORRELATION_THRESHOLD,
+    }
 
-def _apply_settings_if_triggered() -> None:
+
+def _apply_settings_if_triggered(saved: str | None) -> None:
     if not st.session_state.get("_load_settings_triggered"):
         return
-
-    saved = get_local_storage(SETTINGS_STORAGE_KEY)
     
     if not saved:
         del st.session_state["_load_settings_triggered"]
@@ -37,6 +50,21 @@ def _apply_settings_if_triggered() -> None:
 
     try:
         data = json.loads(saved)
+        # Handle potential nested JSON from local storage quirks
+        if isinstance(data, dict) and SETTINGS_STORAGE_KEY in data:
+            inner = data[SETTINGS_STORAGE_KEY]
+            if isinstance(inner, str):
+                data = json.loads(inner)
+            else:
+                data = inner
+        
+        # If data is still just a single key (like min_ic), try to merge with defaults
+        if isinstance(data, dict):
+             defaults = _get_default_settings()
+             for key in SettingsForm.model_fields:
+                 if key not in data:
+                     data[key] = defaults.get(key)
+                
         settings = SettingsForm(**data)
         
         for key, value in settings.model_dump().items():
@@ -45,9 +73,9 @@ def _apply_settings_if_triggered() -> None:
         del st.session_state["_load_settings_triggered"]
         st.rerun()
         
-    except (json.JSONDecodeError, TypeError, ValueError, ValidationError):
+    except (json.JSONDecodeError, TypeError, ValueError, ValidationError) as e:
+        # st.toast(f"Error loading settings: {e}")
         del st.session_state["_load_settings_triggered"]
-
 
 
 def _submit_analysis() -> None:
@@ -71,17 +99,53 @@ def _submit_analysis() -> None:
         )
         AnalysisService(user_uid).start(fl_id, analysis_id, dataset_version, params)
         
-        # Store settings to be saved in the next page (results)
-        # This avoids race conditions with st.switch_page
-        settings_to_save = {key: st.session_state.get(key) for key in SettingsForm.model_fields}
-        st.session_state["_pending_settings_save"] = settings_to_save
+        # Trigger save settings flow
+        st.session_state["_save_settings_triggered"] = True
+        st.session_state["_pending_redirect"] = analysis_id
         
-        st.session_state["_redirect_to_results"] = analysis_id
     except Exception as e:
         st.toast(f"Error starting analysis: {e}")
 
 
 def create_form() -> None:
+    # Instantiate LocalStorage once per render to ensure stability
+    # Use a unique key to avoid conflicts
+    ls = LocalStorage(key="create_page_ls")
+    
+    # Handle saving settings if triggered
+    if st.session_state.get("_save_settings_triggered"):
+        try:
+            defaults = _get_default_settings()
+            current_settings = {}
+            for key in SettingsForm.model_fields:
+                val = st.session_state.get(key)
+                if val is None:
+                    val = defaults.get(key)
+                current_settings[key] = val
+            
+            # Debugging: Show what we are trying to save
+            # st.toast(f"Saving settings: {current_settings}")
+            ls.setItem(SETTINGS_STORAGE_KEY, json.dumps(current_settings))
+            
+            # Mark as saved so we can proceed to redirect in the next run
+            st.session_state["_settings_saved"] = True
+            
+            # Give the component a moment to process the message
+            time.sleep(0.1)
+        except Exception as e:
+            st.toast(f"Error saving settings: {e}")
+        finally:
+            del st.session_state["_save_settings_triggered"]
+            # Force a rerun to process the redirect after the component has had a chance to render
+            st.rerun()
+
+    # Handle redirect after save
+    if st.session_state.get("_settings_saved"):
+        if pending := st.session_state.pop("_pending_redirect", None):
+             del st.session_state["_settings_saved"]
+             st.session_state["_redirect_to_results"] = pending
+             st.rerun()
+
     if analysis_id := st.session_state.pop("_redirect_to_results", None):
         st.switch_page(
             st.session_state["pages"]["results"],
@@ -97,7 +161,9 @@ def create_form() -> None:
     st.title("Create Analysis")
     render_dataset_card(active_dataset_metadata)
 
-    _apply_settings_if_triggered()
+    # Load settings early to ensure component is mounted and syncing
+    saved_settings = ls.getItem(SETTINGS_STORAGE_KEY)
+    _apply_settings_if_triggered(saved_settings)
     _render_settings()
 
     _, col_last_settings, col_run = st.columns([3, 1, 1])
@@ -118,16 +184,7 @@ def create_form() -> None:
 
 
 def _render_settings() -> None:
-    defaults = {
-        "rank_by": "Alpha",
-        "top_pct": DEFAULT_TOP_PCT,
-        "bottom_pct": DEFAULT_BOTTOM_PCT,
-        "min_alpha": DEFAULT_MIN_ALPHA,
-        "min_ic": DEFAULT_MIN_IC,
-        "n_factors": DEFAULT_N_FACTORS,
-        "max_na_pct": DEFAULT_MAX_NA_PCT,
-        "correlation_threshold": DEFAULT_CORRELATION_THRESHOLD,
-    }
+    defaults = _get_default_settings()
 
     for key, default_value in defaults.items():
         if key not in st.session_state:
