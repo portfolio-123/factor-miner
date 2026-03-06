@@ -43,25 +43,24 @@ def calculate_benchmark_returns(
     benchmark_dates = benchmark_df["dt"].values
     close_prices = benchmark_df["close"].values
 
-    # get unique dates from raw_data (these are Saturday rebalance dates)
+    # get unique dates from raw_data (saturday rebalance dates)
     unique_date_values = pd.to_datetime(raw_data["Date"].unique())
     unique_date_values = np.sort(unique_date_values)
 
-    # For each dataset date, find the next trading day (transaction date, typically Monday)
+    # find the next trading day
     # side="left" finds first trading day >= the Saturday date
     start_positions = np.searchsorted(benchmark_dates, unique_date_values, side="left")
 
-    # For end date, use the NEXT dataset date's transaction date
-    # This matches P123's behavior: hold until next rebalance
+    # For end date, use the start date of the next period
     n_dates = len(unique_date_values)
     end_positions = np.zeros(n_dates, dtype=int)
 
     for i in range(n_dates - 1):
-        # End position is the start position of the next period
+        # end position is the start position of the next period
         next_dataset_date = unique_date_values[i + 1]
         end_positions[i] = np.searchsorted(benchmark_dates, next_dataset_date, side="left")
 
-    # For the last date, estimate using frequency (no next dataset date available)
+    # for the last date, estimate using frequency (no next dataset date available)
     if n_dates > 0:
         forward_trading_days = frequency.weeks * 5
         end_positions[-1] = start_positions[-1] + forward_trading_days

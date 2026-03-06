@@ -5,14 +5,14 @@ import traceback
 import pandas as pd
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     stream=sys.stderr,
 )
 stderr_logger = logging.getLogger("worker")
 
 from src.core.config.environment import INTERNAL_MODE
-from src.core.config.constants import PRICE_FORMULA, BASE_REQUIRED_COLUMNS
+from src.core.config.constants import PRICE_COLUMN_NAMES, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
     Analysis,
     AnalysisStatus,
@@ -22,7 +22,7 @@ from src.core.types.models import (
 )
 from src.core.utils.common import (
     serialize_dataframe,
-    find_column_by_formula,
+    find_price_column,
     extract_benchmark_ticker,
 )
 from src.workers.analysis_service import AnalysisService
@@ -66,8 +66,9 @@ class AnalysisRunner:
             if dataset_info.type == DatasetType.DATE:
                 raise ValueError("[single-date]")
 
-            price_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
-            required_columns = BASE_REQUIRED_COLUMNS + [price_column]
+            price_column = find_price_column(dataset_svc.column_names, PRICE_COLUMN_NAMES)
+            # Exclude all price column names from analysis (never analyze them)
+            required_columns = BASE_REQUIRED_COLUMNS + PRICE_COLUMN_NAMES
 
             start_dt = pd.to_datetime(dataset_info.startDt)
             # extend by full rebalance period + 7 days buffer
@@ -223,7 +224,7 @@ class AnalysisRunner:
 def main():
     fl_id = sys.argv[1]
     analysis_id = sys.argv[2]
-    user_uid = sys.argv[3]
+    user_uid = sys.argv[3] or None
     runner = AnalysisRunner(fl_id, analysis_id, user_uid)
     runner.execute()
 

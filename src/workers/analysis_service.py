@@ -150,7 +150,7 @@ class AnalysisService:
 
         stderr_file = open(stderr_path, "w")
         subprocess.Popen(
-            [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id, self.user_uid],
+            [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id, self.user_uid or ""],
             cwd=str(project_root),
             start_new_session=True,
             stdout=subprocess.DEVNULL,

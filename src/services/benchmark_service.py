@@ -3,7 +3,8 @@ import yfinance as yf
 
 
 def fetch_benchmark_external(ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
-    data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+    yf_ticker = ticker.split(":")[0] if ":" in ticker else ticker
+    data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
 
     if data.empty:
         raise ValueError(f"No data found for ticker {ticker} between {start_date} and {end_date}")
