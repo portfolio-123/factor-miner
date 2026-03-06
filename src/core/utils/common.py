@@ -75,14 +75,13 @@ def deserialize_dataframe(*data: str) -> pd.DataFrame | tuple[pd.DataFrame, ...]
     return results[0] if len(results) == 1 else tuple(results)
 
 
-def find_column_by_formula(formulas: list[dict], formula_pattern: str) -> str:
-    # stop immediately when it finds a match
-    match = next((f["name"] for f in formulas if f["formula"] == formula_pattern), None)
-    
-    if match:
-        return match
-    
-    raise ValueError(f"No column found with formula: {formula_pattern}")
+def find_price_column(column_names: list[str], price_column_names: list[str]) -> str:
+    for name in price_column_names:
+        if name in column_names:
+            return name
+    raise ValueError(
+        f"[price-column-not-found] Dataset must include one of: {', '.join(price_column_names)}"
+    )
 
 def add_formula_and_tag_columns(
     download_df: pd.DataFrame,

@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 from src.core.types.models import DatasetConfig
 from src.services.readers import ParquetDataReader
 
-from src.core.config.environment import FACTOR_LIST_DIR
+from src.core.config.environment import FACTOR_LIST_DIR, INTERNAL_MODE
 
 
 class DatasetService:
@@ -27,7 +27,20 @@ class DatasetService:
 
     @property
     def base_path(self) -> Path:
-        return FACTOR_LIST_DIR / self.fl_id
+        # In internal mode, files are named by fl_id without extension
+        # In external mode, datasets are .parquet files directly in FACTOR_LIST_DIR
+        if INTERNAL_MODE:
+            return FACTOR_LIST_DIR / self.fl_id
+        return FACTOR_LIST_DIR / f"{self.fl_id}.parquet"
+
+    @staticmethod
+    def list_available_datasets() -> list[str]:
+        if not FACTOR_LIST_DIR.exists():
+            return []
+        datasets = []
+        for f in FACTOR_LIST_DIR.glob("*.parquet"):
+            datasets.append(f.stem)  # filename without extension
+        return sorted(datasets)
 
     @property
     def exists(self) -> bool:
@@ -84,13 +97,15 @@ class DatasetService:
             pq.write_table(table, dest_path)
 
 class BackupDatasetService:
-    def __init__(self, user_uid: str, fl_id: str):
+    def __init__(self, user_uid: str | None, fl_id: str):
         self.user_uid = user_uid
         self.fl_id = fl_id
 
     @property
     def backup_dir(self) -> Path:
-        return FACTOR_LIST_DIR / self.user_uid / "FactorMiner" / self.fl_id
+        if INTERNAL_MODE and self.user_uid:
+            return FACTOR_LIST_DIR / self.user_uid / "FactorMiner" / self.fl_id
+        return FACTOR_LIST_DIR / "FactorMiner" / self.fl_id
 
     def get_backup_path(self, version: str) -> Path:
         return self.backup_dir / f"{version}.parquet"
