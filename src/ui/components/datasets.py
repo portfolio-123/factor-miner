@@ -7,7 +7,8 @@ from src.core.config.constants import (
     PIT_METHOD_LABELS,
     SCALING_LABELS,
 )
-from src.core.config.environment import P123_BASE_URL, FACTOR_LIST_DIR
+from src.core.config.environment import FACTOR_LIST_DIR, INTERNAL_MODE
+from src.internal.links import p123_link
 from src.core.types.models import DatasetConfig, DatasetType, ScalingMethod, ScopeType
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import (
@@ -21,11 +22,18 @@ from src.core.utils.common import format_date, format_timestamp
 
 def load_active_dataset() -> DatasetConfig | None:
     fl_id = st.query_params.get("fl_id")
-    dataset_path = Path(FACTOR_LIST_DIR) / fl_id
+
+    # Build the dataset path based on mode
+    if not INTERNAL_MODE:
+        dataset_path = Path(FACTOR_LIST_DIR) / f"{fl_id}.parquet"
+    else:
+        dataset_path = Path(FACTOR_LIST_DIR) / fl_id
 
     if not dataset_path.is_file():
-        download_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}/generate"
-        st.warning(f"No dataset found for this Factor List. [Generate]({download_url})")
+        if link := p123_link(fl_id, "generate"):
+            st.warning(f"No dataset found for this Factor List. [Generate]({link})")
+        else:
+            st.warning("No dataset found. Please select a valid .parquet file.")
         return None
 
     try:
@@ -90,10 +98,14 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             header_left, _, header_formulas, header_status = st.columns(
                 [3, 0.9, 0.9, 0.15], vertical_alignment="center"
             )
-        fl_link = f"{P123_BASE_URL}/sv/factorList/{fl_id}"
         with header_left:
+            fl_name = st.session_state.get("fl_name", fl_id)
+            if fl_link := p123_link(fl_id):  # internal
+                subtitle = f'Generated using <a href="{fl_link}" target="_blank" style="color: #666;">{fl_name}</a>'
+            else:  # external
+                subtitle = fl_name
             st.html(
-                f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">Generated using <a href="{fl_link}" target="_blank" style="color: #666;">{st.session_state.get("fl_name")}</a></span></p>'
+                f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{subtitle}</span></p>'
             )
 
         formula_count = len(dataset_metadata.formulas) if dataset_metadata.formulas else 0

@@ -11,11 +11,7 @@ logging.basicConfig(
 )
 stderr_logger = logging.getLogger("worker")
 
-
-from dotenv import load_dotenv
-
-load_dotenv()
-
+from src.core.config.environment import INTERNAL_MODE
 from src.core.config.constants import PRICE_FORMULA, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
     Analysis,
@@ -31,7 +27,8 @@ from src.core.utils.common import (
 )
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
-from src.services.p123_client import fetch_benchmark_data
+from src.internal.p123_client import fetch_benchmark_data
+from src.services.benchmark_service import fetch_benchmark_external
 from src.core.calculations import (
     calculate_benchmark_returns,
     calculate_future_performance,
@@ -51,7 +48,6 @@ class AnalysisRunner:
         self.analysis: Analysis | None = None
 
     def log(self, message: str) -> None:
-        """Log message to stderr (captured to stderr.log file)."""
         stderr_logger.info(message)
 
     def update(self, **updates) -> None:
@@ -68,13 +64,13 @@ class AnalysisRunner:
             dataset_info = dataset_svc.get_metadata()
 
             if dataset_info.type == DatasetType.DATE:
-                raise ValueError("single-date")
+                raise ValueError("[single-date]")
 
             price_column = find_column_by_formula(dataset_info.formulas, PRICE_FORMULA)
             required_columns = BASE_REQUIRED_COLUMNS + [price_column]
 
             start_dt = pd.to_datetime(dataset_info.startDt)
-            # Extend by full rebalance period + buffer to calculate forward returns for all dates
+            # extend by full rebalance period + 7 days buffer
             forward_days = dataset_info.frequency.weeks * 7 + 7
             end_dt = min(
                 pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=forward_days),
@@ -84,12 +80,20 @@ class AnalysisRunner:
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
             try:
-                benchmark_data = fetch_benchmark_data(
-                    benchmark_ticker=benchmark_ticker,
-                    access_token=params.access_token,
-                    start_date=start_dt.strftime("%Y-%m-%d"),
-                    end_date=end_dt.strftime("%Y-%m-%d"),
-                )
+                date_range = (start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"))
+                if INTERNAL_MODE:  # internal
+                    benchmark_data = fetch_benchmark_data(
+                        benchmark_ticker=benchmark_ticker,
+                        access_token=params.access_token,
+                        start_date=date_range[0],
+                        end_date=date_range[1],
+                    )
+                else:  # external
+                    benchmark_data = fetch_benchmark_external(
+                        ticker=benchmark_ticker,
+                        start_date=date_range[0],
+                        end_date=date_range[1],
+                    )
             finally:
                 self.analysis = self.service.clear_credentials(self.analysis)
 

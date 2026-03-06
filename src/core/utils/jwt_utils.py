@@ -3,7 +3,7 @@ import json
 from jose import jwe, JWTError
 from pydantic import ValidationError
 
-from src.core.config.environment import JWT_SECRET
+from src.internal.config import JWT_SECRET
 from src.core.types.models import TokenPayload
 
 

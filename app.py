@@ -1,7 +1,11 @@
-from src.core.auth import login
+from src.core.config.environment import INTERNAL_MODE
 from src.core.init import init
 from src.ui.sidebar import sidebar
+from src.internal.auth import login
 
 init()
-login()
+
+if INTERNAL_MODE:
+    login()
+
 sidebar().run()

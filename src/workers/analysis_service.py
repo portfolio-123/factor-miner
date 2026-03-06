@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from src.core.config.environment import FACTOR_LIST_DIR
+from src.core.config.environment import FACTOR_LIST_DIR, INTERNAL_MODE
 from src.core.types.models import (
     Analysis,
     AnalysisParams,
@@ -23,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisService:
-    def __init__(self, user_uid: str):
+    def __init__(self, user_uid: str | None = None):
         self.user_uid = user_uid
-        self.base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
+        if INTERNAL_MODE and user_uid:
+            self.base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
+        else:
+            self.base_dir = FACTOR_LIST_DIR / "FactorMiner"
 
     def _get_path(self, fl_id: str, analysis_id: str) -> Path:
         return self.base_dir / fl_id / f"{analysis_id}.json"
@@ -157,13 +160,17 @@ class AnalysisService:
         return analysis
 
     @staticmethod
-    def list_factor_lists(user_uid: str) -> list[str]:
-        user_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
-        if not user_dir.exists():
+    def list_factor_lists(user_uid: str | None = None) -> list[str]:
+        if INTERNAL_MODE and user_uid:
+            base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
+        else:
+            base_dir = FACTOR_LIST_DIR / "FactorMiner"
+
+        if not base_dir.exists():
             return []
 
         fl_ids = []
-        for item in user_dir.iterdir():
+        for item in base_dir.iterdir():
             if item.is_dir() and any(item.glob("*.json")):
                 fl_ids.append(item.name)
 

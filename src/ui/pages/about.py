@@ -1,23 +1,29 @@
 import streamlit as st
 
-from src.core.config.environment import P123_BASE_URL
+from src.internal.content import get_about_intro
+from src.internal.links import p123_link
 
 
 def about() -> None:
     st.title("FactorMiner")
 
     fl_id = st.query_params.get("fl_id")
-    st.markdown(
-        f"""
-FactorMiner is tightly coupled to Portfolio 123's [Factor List]({P123_BASE_URL}/sv/factorList/{fl_id}) feature—you need to generate a dataset there before running any analysis here.
 
-FactorMiner is a Portfolio123 tool designed to run analyses over datasets and identify the factors with highest returns relative to a benchmark. It automates the process of analyzing factor performance,
-determining alpha and beta, and selecting
-uncorrelated factors in your portfolio.
+    if link := p123_link(fl_id):  # internal
+        st.markdown(get_about_intro(fl_id, link))
+    else:  # external
+        st.markdown(
+            f"""
+FactorMiner is a tool designed to run analyses over datasets and identify the factors with highest returns relative to a benchmark. It automates the process of analyzing factor performance, determining alpha and beta, and selecting uncorrelated factors in your portfolio.
 
-You can start in the [New Analysis](/create?fl_id={fl_id}) page. It will run using your current generated dataset and you'll be able to modify the following params:
+**Getting Started (External Mode):**
+1. Place your `.parquet` dataset files in the configured data directory
+2. Select a dataset from the sidebar dropdown
+3. Click on [New Analysis](/create?fl_id={fl_id}) to run your analysis
+
+Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas.
 """
-    )
+        )
     st.markdown("### Analysis Parameters")
     st.markdown(
         """

@@ -4,7 +4,7 @@ from src.core.config.constants import AUTH_COOKIE_KEY
 from src.core.types.models import TokenPayload
 from src.core.utils.cookie_utils import clear_cookie, get_cookie, set_cookie
 from src.core.utils.jwt_utils import decrypt_token
-from src.services.p123_client import (
+from src.internal.p123_client import (
     authenticate as get_access_token,
     verify_factor_list_access,
 )
@@ -24,8 +24,7 @@ def login():
     # validate token if existing
     if existing_token := st.session_state.get("access_token"):
         try:
-            fl_id = st.query_params.get("fl_id")
-            verify_factor_list_access(fl_id, existing_token)
+            verify_factor_list_access(st.query_params.get("fl_id"), existing_token)
             return  # token still valid
         except PermissionError:
             # token expired, clear it and continue to re-auth
@@ -53,7 +52,7 @@ def login():
     # otherwise, normal login form
     login_container = st.empty()
     with login_container.container():
-        token = _render_auth_form() 
+        token = _render_auth_form()
 
     if token:
         login_container.empty()
@@ -62,7 +61,6 @@ def login():
             return
         except PermissionError as e:
             st.error(str(e))
-            st.stop()
 
     st.stop()
 

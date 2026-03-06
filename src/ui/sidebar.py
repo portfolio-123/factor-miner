@@ -1,12 +1,13 @@
 import streamlit as st
 
-from src.core.config.environment import P123_BASE_URL
-from src.services.p123_client import verify_factor_list_access
+from src.core.config.environment import INTERNAL_MODE
+from src.internal.links import p123_link
+from src.internal.sidebar import get_selector_options, update_fl_name_on_select
+from src.services.dataset_service import DatasetService
 from src.ui.pages.about import about
 from src.ui.pages.history import history
 from src.ui.pages.create import create_form
 from src.ui.pages.results import results
-from src.workers.analysis_service import AnalysisService
 
 
 def sidebar() -> st.navigation:
@@ -29,51 +30,43 @@ def sidebar() -> st.navigation:
     }
 
     with st.sidebar:
-        fl_name = st.session_state.get("fl_name", "Factor List")
-        fl_url = f"{P123_BASE_URL}/sv/factorList/{fl_id}"
-        st.markdown(
-            "<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f"<a href='{fl_url}' target='_blank' style='text-decoration: underline;'>{fl_name}</a>",
-            unsafe_allow_html=True,
-        )
+        fl_name = st.session_state.get("fl_name", "Dataset")
+        st.markdown("<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>", unsafe_allow_html=True)
 
-        user_uid = st.session_state.get("user_uid")
-        if user_uid:
-            available_fl_ids = AnalysisService.list_factor_lists(user_uid)
-            current_fl_id = fl_id or ""
+        link = p123_link(fl_id)
+        header = f"<a href='{link}' target='_blank' style='text-decoration: underline;'>{fl_name}</a>" if link else f"<span style='color: #666;'>{fl_name}</span>"
+        st.markdown(header, unsafe_allow_html=True)
+
+        # Dataset/Factor List selector
+        if INTERNAL_MODE:  # internal
+            options, label, key = get_selector_options()
+        else:  # external
+            options = DatasetService.list_available_datasets()
+            label, key = "Datasets", "dataset_selector"
+
+        if options:
             try:
-                current_index = available_fl_ids.index(current_fl_id)
+                current_index = options.index(fl_id or "")
             except ValueError:
                 current_index = 0
 
-            selected_fl_id = st.selectbox(
-                "Factor Lists",
-                options=available_fl_ids,
-                index=current_index,
-                key="fl_selector",
-            )
-            if selected_fl_id and selected_fl_id != fl_id:
-                on_results_page = "id" in st.query_params
-                token = st.session_state.get("access_token")
-                if token:
-                    try:
-                        fl_info = verify_factor_list_access(selected_fl_id, token)
-                        st.session_state.fl_name = fl_info.get("name", selected_fl_id)
-                    except PermissionError:
-                        st.session_state.access_token = None
-                
-                if on_results_page:
-                    target_page = st.session_state.get("pages", {}).get("history", history_page)
-                    st.switch_page(
-                        target_page, 
-                        query_params={"fl_id": selected_fl_id}
-                    )
+            selected = st.selectbox(label, options=options, index=current_index, key=key)
+
+            if selected and selected != fl_id:
+                # update fl_name
+                if INTERNAL_MODE:  # internal
+                    update_fl_name_on_select(selected)
+                else:  # external
+                    st.session_state.fl_name = selected
+
+                # navigate
+                if "id" in st.query_params:
+                    st.switch_page(history_page, query_params={"fl_id": selected})
                 else:
-                    st.query_params["fl_id"] = selected_fl_id
+                    st.query_params["fl_id"] = selected
                     st.rerun()
+        elif not INTERNAL_MODE:
+            st.warning("No datasets found. Place .parquet files in the data directory.")
 
         st.session_state["pages"] = new_pages
 

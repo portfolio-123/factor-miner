@@ -82,7 +82,7 @@ def find_column_by_formula(formulas: list[dict], formula_pattern: str) -> str:
     if match:
         return match
     
-    raise ValueError(f"No column found with formula: {formula_pattern}")
+    raise ValueError(f"[column-not-found]")
 
 def add_formula_and_tag_columns(
     download_df: pd.DataFrame,
