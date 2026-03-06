@@ -79,7 +79,9 @@ def find_price_column(column_names: list[str], price_column_names: list[str]) ->
     for name in price_column_names:
         if name in column_names:
             return name
-    raise ValueError("[price-column-not-found]")
+    raise ValueError(
+        f"[price-column-not-found] Dataset must include one of: {', '.join(price_column_names)}"
+    )
 
 def add_formula_and_tag_columns(
     download_df: pd.DataFrame,
