@@ -16,12 +16,10 @@ def about() -> None:
             f"""
 FactorMiner is a tool designed to run analyses over datasets and identify the factors with highest returns relative to a benchmark. It automates the process of analyzing factor performance, determining alpha and beta, and selecting uncorrelated factors in your portfolio.
 
-**Getting Started (External Mode):**
-1. Place your `.parquet` dataset files in the configured data directory
-2. Select a dataset from the sidebar dropdown
-3. Click on [New Analysis](/create?fl_id={fl_id}) to run your analysis
-
-Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas.
+**Getting Started:**
+1. Select a dataset from the sidebar dropdown
+2. Click on [New Analysis](/create?fl_id={fl_id}) to run your analysis
+3. View your results in **Your Results**
 """
         )
     st.markdown("### Analysis Parameters")

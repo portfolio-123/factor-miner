@@ -1,5 +1,9 @@
 ## FactorMiner
 
+FactorMiner is a tool designed to run analyses over datasets and identify the factors with highest returns relative to a benchmark.
+
+### Installation
+
 ```bash
 python -m venv venv
 source venv/bin/activate      # Linux/macOS
@@ -7,14 +11,34 @@ venv\Scripts\Activate.ps1     # Windows
 pip install -r requirements.txt
 ```
 
-Create a `.env` file:
+### Configuration
+
+Create a `.env` file with the following variables:
+
 ```env
-FACTOR_LIST_DIR=
-JWT_SECRET=
-P123_BASE_URL=
-API_BASE_URL=
+FACTOR_LIST_DIR=/path/to/your/data
 ```
+
+| Variable | Description |
+|----------|-------------|
+| `FACTOR_LIST_DIR` | Directory containing your `.parquet` dataset files. |
+
+### Usage
 
 ```bash
 streamlit run app.py
 ```
+
+1. Place your `.parquet` dataset files in the `FACTOR_LIST_DIR` directory
+2. Select a dataset from the sidebar dropdown
+3. Click on **New Analysis** to run your analysis
+
+### Data Format
+
+Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas. A factor called "Next Close" or "Future Return" is required
+
+### Results Storage
+
+Analysis results are stored in `{FACTOR_LIST_DIR}/FactorMiner/`. A directory is created for each dataset, containing:
+- JSON files with analysis results (one per analysis)
+- A `logs/` folder with execution logs
