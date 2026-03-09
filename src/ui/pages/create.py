@@ -179,7 +179,6 @@ def _render_settings() -> None:
         st.radio(
             "Rank By",
             options=["Alpha", "Information Coefficient (IC)"],
-            index=0 if st.session_state["rank_by"] == "Alpha" else 1,
             key="rank_by",
             horizontal=True,
             help="Select metric to rank factors by",

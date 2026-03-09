@@ -99,11 +99,6 @@ class AnalysisService:
         self._write(updated)
         return updated
 
-    def append_log(self, analysis: Analysis, message: str) -> Analysis:
-        logs = list(analysis.logs or [])
-        logs.append(message)
-        return self.save(analysis, logs=logs)
-
     def get_logs(self, fl_id: str, analysis_id: str) -> list[str]:
         """Read logs from the stderr.log file for an analysis."""
         log_path = self.base_dir / fl_id / "logs" / f"{analysis_id}.stderr.log"

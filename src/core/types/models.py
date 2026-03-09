@@ -165,4 +165,3 @@ class Analysis(AnalysisSummary):
     results: AnalysisResults | None = None
     error: str | None = None
     progress: AnalysisProgress | None = None
-    logs: list[str] | None = None
