@@ -1,7 +1,9 @@
+from collections import Counter
+
 import streamlit as st
-import pandas as pd
 import polars as pl
 import polars.selectors as cs
+from great_tables import GT, style, loc
 
 from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisSummary, DatasetType
@@ -34,19 +36,15 @@ def render_correlation_matrix(
 
     rounded = corr_matrix_df.with_columns(cs.numeric().round(4))
 
-    # Convert to pandas for display (Streamlit expects pandas for styling)
-    display_df = rounded.to_pandas()
-    if "factor" in display_df.columns:
-        display_df = display_df.set_index("factor")
-
     st.dataframe(
-        display_df,
+        rounded,
         height=min(400, 50 + len(corr_matrix_df) * 35),
         width="stretch",
+        hide_index=True,
     )
 
     file_name = f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"
-    # Use polars for CSV export
+
     csv_content = rounded.write_csv()
     csv_copy = rounded.write_csv(separator="\t")
     render_copy_download_buttons(
@@ -92,14 +90,14 @@ def show_factors_modal(
 
             # Use _row_idx if present, otherwise create Row column
             if "_row_idx" in display_preview.columns:
-                display_df = display_preview.rename({"_row_idx": "Row"}).to_pandas()
+                display_pl = display_preview.rename({"_row_idx": "Row"})
             else:
-                display_df = display_preview.with_row_index("Row").to_pandas()
+                display_pl = display_preview.with_row_index("Row")
 
             st.dataframe(
-                display_df,
+                display_pl,
                 height=500,
-                width="stretch",
+                use_container_width=True,
                 hide_index=True,
                 column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
             )
@@ -108,9 +106,9 @@ def show_factors_modal(
             subset = formulas_df.select(subset_cols)
 
             st.dataframe(
-                subset.to_pandas(),
+                subset,
                 height=400,
-                width="stretch",
+                use_container_width=True,
                 column_config=build_column_config([
                     ("formula", "text", "large"),
                     ("name", "text", "medium"),
@@ -162,89 +160,55 @@ def render_results_table(
         "Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"
     ])
 
-    factor_names = display["Factor"].to_list()
-
-    display_pd = display.to_pandas()
-
-    # Format all numeric columns
-    formatters = {
-        "NA %": lambda x: f"{x:.1f}%",
-        "Ann. Alpha %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-        "Ann. Long %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-        "Ann. Short %": lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A",
-        "Beta": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
-        "T-Stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
-        "IC": lambda x: f"{x:.4f}" if pd.notna(x) else "N/A",
-        "IC t-stat": lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
-    }
-    column_config = build_column_config([
-        ("Rank", "number", "small"),
-        ("Factor", "text", "large"),
-        ("Ann. Alpha %", "text", "small"),
-        ("Beta", "text", "small"),
-        ("T-Stat", "text", "small"),
-        ("IC", "text", "small"),
-        ("IC t-stat", "text", "small"),
-        ("Ann. Long %", "text", "small"),
-        ("Ann. Short %", "text", "small"),
-        ("NA %", "text", "small"),
-    ])
-    for col, fmt in formatters.items():
-        display_pd[col] = display_pd[col].apply(fmt)
-
     if factor_classifications is not None:
-        color_map = {k: v[0] for k, v in CLASSIFICATION_COLORS.items()}
+        classification_series = pl.Series([
+            factor_classifications.get(f, "") for f in display["Factor"].to_list()
+        ])
+        display = display.with_columns(classification_series.alias("_classification"))
 
         excluded_classification = "below_ic" if rank_by == "Alpha" else "below_alpha"
 
-        classification_counts = {}
-        for classification in factor_classifications.values():
-            classification_counts[classification] = classification_counts.get(classification, 0) + 1
+        classification_counts = Counter(factor_classifications.values())
 
-        legend_html = '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">'
-        for key_name, (color, label) in CLASSIFICATION_COLORS.items():
-            if key_name == excluded_classification:
-                continue
-            count = classification_counts.get(key_name, 0)
-            label_with_count = f"{label} ({count})"
-            legend_html += f"""
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="
-                    display: inline-block;
-                    width: 16px;
-                    height: 16px;
-                    background-color: {color};
-                    border: 1px solid #ccc;
-                    border-radius: 3px;
-                "></span>
-                <span style="font-size: 13px; color: #555;">{label_with_count}</span>
-            </div>
-            """
-        legend_html += "</div>"
-        st.html(legend_html)
+        legend_items = [
+            (badge_color, f"{label} ({classification_counts.get(key_name, 0)})")
+            for key_name, (_, badge_color, label) in CLASSIFICATION_COLORS.items()
+            if key_name != excluded_classification
+        ]
+        cols = st.columns(len(legend_items))
+        for col, (badge_color, label_text) in zip(cols, legend_items):
+            with col:
+                st.badge(label_text, color=badge_color)
 
-        def style_fn(row: pd.Series) -> list[str]:
-            factor = factor_names[row.name]
-            classification = factor_classifications.get(factor, "")
-            color = color_map.get(classification, "")
-            if color:
-                return [f"background-color: {color}"] * len(row)
-            return [""] * len(row)
-    else:
-        def style_fn(row: pd.Series) -> list[str]:
-            color = "#f8f9fa" if row.name % 2 == 1 else "#ffffff"
-            return [f"background-color: {color}"] * len(row)
 
-    st.dataframe(
-        display_pd.style.apply(style_fn, axis=1),
-        height=500,
-        width="stretch",
-        hide_index=True,
-        column_config=column_config,
+    gt = (
+        GT(display)
+        .fmt_integer(columns="Rank")
+        .fmt_number(columns=["Ann. Alpha %", "Ann. Long %", "Ann. Short %"], decimals=2)
+        .fmt_number(columns="NA %", decimals=1)
+        .fmt_number(columns=["Beta", "IC"], decimals=4)
+        .fmt_number(columns=["T-Stat", "IC t-stat"], decimals=2)
+        .sub_missing(missing_text="N/A")
+        .cols_align(align="right", columns=cs.numeric())
+        .cols_align(align="left", columns="Factor")
     )
 
-    display_pl = pl.from_pandas(display_pd)
-    enriched_df = add_formula_and_tag_columns(display_pl, formulas_data)
+    if factor_classifications is not None:
+        for classification, (hex_color, _, _) in CLASSIFICATION_COLORS.items():
+            gt = gt.tab_style(
+                style=style.fill(color=hex_color),
+                locations=loc.body(rows=pl.col("_classification") == classification),
+            )
+        gt = gt.cols_hide(columns="_classification")
+    else:
+        # zebra striping for best factors table
+        gt = gt.opt_row_striping()
+
+    st.html(gt.as_raw_html())
+
+
+    export_display = display.drop("_classification") if "_classification" in display.columns else display
+    enriched_df = add_formula_and_tag_columns(export_display, formulas_data)
     csv_download = enriched_df.write_csv()
 
     file_name = f"{fl_id}_factors.csv" if fl_id else "factors.csv"
