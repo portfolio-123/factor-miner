@@ -80,7 +80,7 @@ def _apply_settings_if_triggered(saved: str | None) -> None:
 def _submit_analysis() -> None:
     fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
-    dataset_version = DatasetService(fl_id).current_version
+    dataset_version = DatasetService(fl_id, user_uid).current_version
     analysis_id = uuid.uuid4().hex[:8]
 
     try:

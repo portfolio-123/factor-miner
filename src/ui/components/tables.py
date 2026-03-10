@@ -342,7 +342,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
             color: #666;
         }
     </style>
-    <div style="max-height: 400px; overflow-y: auto;">
+    <div style="max-height: 70vh; overflow-y: auto;">
     <table class="history-table">
         <thead>
             <tr>

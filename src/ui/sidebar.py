@@ -44,7 +44,7 @@ def sidebar() -> st.navigation:
             options = [fl_id for fl_id, _ in datasets]
             name_map = {fl_id: name for fl_id, name in datasets}
             label = "Factor Lists"
-            format_func = lambda x: f"{name_map.get(x, x)} ({x})" if name_map.get(x, x) != x else x
+            format_func = lambda x: f"{name_map.get(x)} ({x})" if name_map.get(x) and str(name_map.get(x)) != str(x) else str(x)
         else:
             options = DatasetService.list_datasets()
             label = "Datasets"
