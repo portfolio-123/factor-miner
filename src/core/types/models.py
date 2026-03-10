@@ -1,6 +1,6 @@
 from enum import IntEnum, StrEnum
 
-import pandas as pd
+import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
 class AnalysisStatus(StrEnum):
@@ -140,10 +140,10 @@ class DatasetConfig(BaseModel):
 
     # for when tag is missing completely
     @property
-    def formulas_df(self) -> pd.DataFrame:
-        df = pd.DataFrame(self.formulas)
+    def formulas_df(self) -> pl.DataFrame:
+        df = pl.DataFrame(self.formulas)
         if "tag" not in df.columns:
-            df["tag"] = ""
+            df = df.with_columns(pl.lit("").alias("tag"))
         return df
 
 

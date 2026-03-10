@@ -2,7 +2,7 @@ import logging
 import os
 import traceback
 import numpy as np
-import pandas as pd
+import polars as pl
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple
 
@@ -191,7 +191,6 @@ def _process_factor(
     factor_stats['cumulative_short_ret'] = cumulative_short_ret
     factor_stats['n_long_periods'] = n_long_periods
     factor_stats['n_short_periods'] = n_short_periods
-    factor_stats['valid_dates_pct'] = round(100 * n_long_periods / n_dates, 1) if n_dates > 0 else 0.0
 
     # build results as arrays instead of dicts
     valid_results = valid_date_mask & ~np.isnan(ret)
@@ -206,14 +205,14 @@ def _process_factor(
 
 
 def analyze_factors(
-    future_perf_df: pd.DataFrame,
+    future_perf_df: pl.DataFrame,
     dataset_svc: DatasetService,
     *,
     factor_columns: List[str],
     top_pct: float = 10.0,
     bottom_pct: float = 10.0,
     batch_size: int = 50,
-) -> Tuple[pd.DataFrame, Dict[str, dict]]:
+) -> Tuple[pl.DataFrame, Dict[str, dict]]:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
     Reads factors in batches from Parquet.
@@ -238,15 +237,15 @@ def analyze_factors(
 
     # read date/ticker once and track row indices
     base_df = dataset_svc.read_columns(["Date", "Ticker"])
-    base_df["_row_idx"] = np.arange(len(base_df))
+    base_df = base_df.with_row_index("_row_idx")
 
     # add future performance column to base dataframe
-    merged_base = base_df.merge(future_perf_df, on=["Date", "Ticker"], how="inner")
+    merged_base = base_df.join(future_perf_df, on=["Date", "Ticker"], how="inner")
     valid_indices = merged_base["_row_idx"].to_numpy()
     perf_arr = merged_base[INTERNAL_FUTURE_PERF_COL].to_numpy()
 
     # the inverse checks the row and maps it to an index
-    unique_dates, date_inverse = np.unique(merged_base["Date"], return_inverse=True)
+    unique_dates, date_inverse = np.unique(merged_base["Date"].to_numpy(), return_inverse=True)
     perf_valid = ~np.isnan(perf_arr)
 
     n_dates = len(unique_dates)
@@ -297,7 +296,7 @@ def analyze_factors(
     # concatenate all arrays and build DataFrame once
     if all_dates:
         return (
-            pd.DataFrame({
+            pl.DataFrame({
                 "Date": np.concatenate(all_dates),
                 "factor": np.concatenate(all_factors),
                 "ret": np.concatenate(all_rets),
@@ -305,15 +304,15 @@ def analyze_factors(
             factor_stats_dict,
         )
     else:
-        return pd.DataFrame(columns=["Date", "factor", "ret"]), factor_stats_dict
+        return pl.DataFrame(schema={"Date": pl.Utf8, "factor": pl.Utf8, "ret": pl.Float64}), factor_stats_dict
 
 
 def calculate_factor_metrics(
-    results_df: pd.DataFrame,
-    raw_data: pd.DataFrame,
+    results_df: pl.DataFrame,
+    raw_data: pl.DataFrame,
     factor_stats: Dict[str, dict],
     periods_per_year: float = 52.0,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """
     Calculate statistical metrics for each factor.
 
@@ -327,23 +326,27 @@ def calculate_factor_metrics(
         DataFrame with factor metrics (T-Stat, beta, NA %, IC, annualized returns, alpha)
     """
     # get unique benchmark values per date
-    benchmark = raw_data[["Date", INTERNAL_BENCHMARK_COL]].drop_duplicates()
+    benchmark = raw_data.select(["Date", INTERNAL_BENCHMARK_COL]).unique()
 
     # merge benchmark with factor returns
-    merged_data = results_df.merge(benchmark, on="Date", how="inner")
+    merged_data = results_df.join(benchmark, on="Date", how="inner")
 
     # filter invalid values upfront
-    valid_mask = np.isfinite(merged_data["ret"]) & np.isfinite(merged_data[INTERNAL_BENCHMARK_COL])
-    merged_data = merged_data[valid_mask]
+    merged_data = merged_data.filter(
+        pl.col("ret").is_finite() & pl.col(INTERNAL_BENCHMARK_COL).is_finite()
+    )
 
     # pivot to get factors as columns: (n_dates, n_factors)
-    pivot = merged_data.pivot_table(index="Date", columns="factor", values="ret", aggfunc="first")
-    factor_names = pivot.columns.tolist()
-    y = pivot.values  # (n_dates, n_factors)
+    pivot = merged_data.pivot(index="Date", on="factor", values="ret", aggregate_function="first")
+    factor_names = [c for c in pivot.columns if c != "Date"]
+    y = pivot.select(factor_names).to_numpy()  # (n_dates, n_factors)
 
     # get benchmark values aligned with pivot index
-    bench_aligned = benchmark.set_index("Date").reindex(pivot.index)[INTERNAL_BENCHMARK_COL]
-    x = bench_aligned.values[:, np.newaxis]  # (n_dates, 1)
+    pivot_dates = pivot["Date"].to_list()
+    bench_aligned = benchmark.filter(pl.col("Date").is_in(pivot_dates)).sort("Date")
+    # Ensure alignment with pivot order
+    bench_dict = dict(zip(bench_aligned["Date"].to_list(), bench_aligned[INTERNAL_BENCHMARK_COL].to_list()))
+    x = np.array([[bench_dict.get(d, np.nan)] for d in pivot_dates])  # (n_dates, 1)
 
     valid = ~np.isnan(y)
     n_valid = valid.sum(axis=0)  # count per factor
@@ -373,53 +376,50 @@ def calculate_factor_metrics(
 
     # filter factors with insufficient data
     valid_factors = n_valid >= 2
-    valid_factor_names = np.array(factor_names)[valid_factors]
+    valid_factor_names = np.array(factor_names)[valid_factors].tolist()
 
-    result = pd.DataFrame({
+    stats_records = []
+    for k, v in factor_stats.items():
+        stats_records.append({
+            "column": k,
+            "NA %": v.get("na_pct", 0.0),
+            "IC": v.get("ic", np.nan),
+            "IC t-stat": v.get("ic_tstat", np.nan),
+            "cumulative_long_ret": v.get("cumulative_long_ret", np.nan),
+            "cumulative_short_ret": v.get("cumulative_short_ret", np.nan),
+            "n_long_periods": v.get("n_long_periods", 0),
+            "n_short_periods": v.get("n_short_periods", 0),
+        })
+    stats_df = pl.DataFrame(stats_records)
+
+    result = pl.DataFrame({
         "column": valid_factor_names,
         "T-Stat": t_stat[valid_factors],
         "beta": beta[valid_factors],
     })
 
-    result["NA %"] = result["column"].map(
-        {k: v.get("na_pct", 0.0) for k, v in factor_stats.items()}
-    ).fillna(0.0)
-    result["IC"] = result["column"].map(
-        {k: v.get("ic", np.nan) for k, v in factor_stats.items()}
-    ).fillna(np.nan)
-    result["IC t-stat"] = result["column"].map(
-        {k: v.get("ic_tstat", np.nan) for k, v in factor_stats.items()}
-    ).fillna(np.nan)
-
-    # Annualized long/short returns using CAGR
-    cumulative_long = result["column"].map(
-        {k: v.get("cumulative_long_ret", np.nan) for k, v in factor_stats.items()}
-    ).fillna(np.nan)
-    cumulative_short = result["column"].map(
-        {k: v.get("cumulative_short_ret", np.nan) for k, v in factor_stats.items()}
-    ).fillna(np.nan)
-    n_long_periods = result["column"].map(
-        {k: v.get("n_long_periods", 0) for k, v in factor_stats.items()}
-    ).fillna(0)
-    n_short_periods = result["column"].map(
-        {k: v.get("n_short_periods", 0) for k, v in factor_stats.items()}
-    ).fillna(0)
+    # join with stats
+    result = result.join(stats_df, on="column", how="left")
 
     # CAGR = (1 + cumulative_return) ^ (1 / years) - 1
-    years_long = n_long_periods / periods_per_year
-    years_short = n_short_periods / periods_per_year
-    result["annualized long %"] = 100 * ((1 + cumulative_long) ** (1 / years_long) - 1)
-    result["annualized short %"] = 100 * ((1 + cumulative_short) ** (1 / years_short) - 1)
+    result = result.with_columns([
+        (100 * ((1 + pl.col("cumulative_long_ret")) ** (1 / (pl.col("n_long_periods") / periods_per_year)) - 1)).alias("annualized long %"),
+        (100 * ((1 + pl.col("cumulative_short_ret")) ** (1 / (pl.col("n_short_periods") / periods_per_year)) - 1)).alias("annualized short %"),
+    ])
 
     factor_mean_per_period = y_mean[valid_factors]
     bench_mean_per_period = x_mean[valid_factors].flatten()
 
     # alpha calculation
-    alpha_per_period = factor_mean_per_period - result["beta"].values * bench_mean_per_period
-    result["annualized alpha %"] = 100 * ((1 + alpha_per_period) ** periods_per_year - 1)
+    alpha_per_period = factor_mean_per_period - result["beta"].to_numpy() * bench_mean_per_period
+    annualized_alpha = 100 * ((1 + alpha_per_period) ** periods_per_year - 1)
 
-    result["valid dates %"] = result["column"].map(
-        {k: v.get("valid_dates_pct", 0.0) for k, v in factor_stats.items()}
-    ).fillna(0.0)
+    result = result.with_columns(pl.Series("annualized alpha %", annualized_alpha))
+
+    # Select final columns in desired order
+    result = result.select([
+        "column", "T-Stat", "beta", "NA %", "IC", "IC t-stat",
+        "annualized long %", "annualized short %", "annualized alpha %",
+    ])
 
     return result

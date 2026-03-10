@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import polars as pl
+import polars.selectors as cs
 
 from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisSummary, DatasetType
@@ -23,23 +25,33 @@ def build_column_config(specs: list[tuple[str, str, str]]) -> dict:
 
 
 def render_correlation_matrix(
-    corr_matrix_df: pd.DataFrame,
+    corr_matrix_df: pl.DataFrame,
     title: str,
     file_prefix: str | None = None,
     key_suffix: str = "",
 ) -> None:
     st.subheader(title)
-    rounded = corr_matrix_df.round(4)
+
+    rounded = corr_matrix_df.with_columns(cs.numeric().round(4))
+
+    # Convert to pandas for display (Streamlit expects pandas for styling)
+    display_df = rounded.to_pandas()
+    if "factor" in display_df.columns:
+        display_df = display_df.set_index("factor")
+
     st.dataframe(
-        rounded,
+        display_df,
         height=min(400, 50 + len(corr_matrix_df) * 35),
         width="stretch",
     )
 
     file_name = f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"
+    # Use polars for CSV export
+    csv_content = rounded.write_csv()
+    csv_copy = rounded.write_csv(separator="\t")
     render_copy_download_buttons(
-        csv_copy=rounded.to_csv(sep="\t"),
-        csv_download=rounded.to_csv(),
+        csv_copy=csv_copy,
+        csv_download=csv_content,
         file_name=file_name,
         key_prefix=f"corr_matrix{key_suffix}",
         toast_msg="Correlation matrix copied to clipboard",
@@ -47,9 +59,9 @@ def render_correlation_matrix(
 
 
 def show_factors_modal(
-    formulas_df: pd.DataFrame,
+    formulas_df: pl.DataFrame,
     stats: dict | None = None,
-    preview_df: pd.DataFrame | None = None,
+    preview_df: pl.DataFrame | None = None,
     title: str = "Dataset Preview",
 ) -> None:
     @st.dialog(title, width="large")
@@ -72,14 +84,17 @@ def show_factors_modal(
             if len(preview_df) > 20:
                 first_10 = preview_df.head(10)
                 last_10 = preview_df.tail(10)
-                display_preview = pd.concat([first_10, last_10], ignore_index=False)
+                display_preview = pl.concat([first_10, last_10])
             else:
                 display_preview = preview_df
 
             st.caption("Showing first and last 10 rows")
 
-            display_df = display_preview.reset_index()
-            display_df.rename(columns={"index": "Row"}, inplace=True)
+            # Use _row_idx if present, otherwise create Row column
+            if "_row_idx" in display_preview.columns:
+                display_df = display_preview.rename({"_row_idx": "Row"}).to_pandas()
+            else:
+                display_df = display_preview.with_row_index("Row").to_pandas()
 
             st.dataframe(
                 display_df,
@@ -90,10 +105,10 @@ def show_factors_modal(
             )
         else:
             subset_cols = ["formula", "name", "tag"]
-            subset = formulas_df[subset_cols]
+            subset = formulas_df.select(subset_cols)
 
             st.dataframe(
-                subset,
+                subset.to_pandas(),
                 height=400,
                 width="stretch",
                 column_config=build_column_config([
@@ -105,8 +120,8 @@ def show_factors_modal(
             )
 
             render_copy_download_buttons(
-                csv_copy=subset.to_csv(index=False, sep="\t"),
-                csv_download=subset.to_csv(index=False),
+                csv_copy=subset.write_csv(separator="\t"),
+                csv_download=subset.write_csv(),
                 file_name="dataset_factors.csv",
                 key_prefix="factors_modal",
                 toast_msg="Factors copied to clipboard",
@@ -116,7 +131,7 @@ def show_factors_modal(
 
 
 def render_results_table(
-    metrics: pd.DataFrame,
+    metrics: pl.DataFrame,
     factor_classifications: dict[str, str] | None = None,
     key: str = "results",
     rank_by: str = "Alpha",
@@ -125,31 +140,31 @@ def render_results_table(
     formulas_data = st.session_state.get("formulas_data")
 
     sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
-    sorted_metrics = metrics.sort_values(by=sort_col, key=abs, ascending=False).reset_index(drop=True)
+    sorted_metrics = metrics.sort(pl.col(sort_col).abs(), descending=True)
 
     if 'rank' not in sorted_metrics.columns:
-        sorted_metrics['rank'] = range(1, len(sorted_metrics) + 1)
+        sorted_metrics = sorted_metrics.with_row_index("rank", offset=1)
 
-    display = sorted_metrics.rename(
-        columns={
-            "column": "Factor",
-            "annualized alpha %": "Ann. Alpha %",
-            "annualized long %": "Ann. Long %",
-            "annualized short %": "Ann. Short %",
-            "NA %": "NA %",
-            "T-Stat": "T-Stat",
-            "beta": "Beta",
-            "rank": "Rank",
-            "IC": "IC",
-            "IC t-stat": "IC t-stat",
-        }
-    )
+    display = sorted_metrics.rename({
+        "column": "Factor",
+        "annualized alpha %": "Ann. Alpha %",
+        "annualized long %": "Ann. Long %",
+        "annualized short %": "Ann. Short %",
+        "NA %": "NA %",
+        "T-Stat": "T-Stat",
+        "beta": "Beta",
+        "rank": "Rank",
+        "IC": "IC",
+        "IC t-stat": "IC t-stat",
+    })
 
-    display = display[
-        ["Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"]
-    ]
+    display = display.select([
+        "Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"
+    ])
 
-    factor_names = display["Factor"].tolist()
+    factor_names = display["Factor"].to_list()
+
+    display_pd = display.to_pandas()
 
     # Format all numeric columns
     formatters = {
@@ -175,7 +190,7 @@ def render_results_table(
         ("NA %", "text", "small"),
     ])
     for col, fmt in formatters.items():
-        display[col] = display[col].apply(fmt)
+        display_pd[col] = display_pd[col].apply(fmt)
 
     if factor_classifications is not None:
         color_map = {k: v[0] for k, v in CLASSIFICATION_COLORS.items()}
@@ -187,10 +202,10 @@ def render_results_table(
             classification_counts[classification] = classification_counts.get(classification, 0) + 1
 
         legend_html = '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">'
-        for key, (color, label) in CLASSIFICATION_COLORS.items():
-            if key == excluded_classification:
+        for key_name, (color, label) in CLASSIFICATION_COLORS.items():
+            if key_name == excluded_classification:
                 continue
-            count = classification_counts.get(key, 0)
+            count = classification_counts.get(key_name, 0)
             label_with_count = f"{label} ({count})"
             legend_html += f"""
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -221,20 +236,20 @@ def render_results_table(
             return [f"background-color: {color}"] * len(row)
 
     st.dataframe(
-        display.style.apply(style_fn, axis=1),
+        display_pd.style.apply(style_fn, axis=1),
         height=500,
         width="stretch",
         hide_index=True,
         column_config=column_config,
     )
 
-    # Add formula and tag columns for both copy and download operations
-    enriched_df = add_formula_and_tag_columns(display, formulas_data)
-    csv_download = enriched_df.to_csv(index=False)
+    display_pl = pl.from_pandas(display_pd)
+    enriched_df = add_formula_and_tag_columns(display_pl, formulas_data)
+    csv_download = enriched_df.write_csv()
 
     file_name = f"{fl_id}_factors.csv" if fl_id else "factors.csv"
     render_copy_download_buttons(
-        csv_copy=enriched_df.to_csv(index=False, sep="\t"),
+        csv_copy=enriched_df.write_csv(separator="\t"),
         csv_download=csv_download,
         file_name=file_name,
         key_prefix=key,

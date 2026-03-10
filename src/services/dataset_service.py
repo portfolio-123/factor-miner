@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Self
 
-import pandas as pd
+import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -62,7 +62,7 @@ class DatasetService:
         metadata.active = True
         return metadata
 
-    def get_review_data(self) -> tuple[pd.DataFrame, dict]:
+    def get_review_data(self) -> tuple[pl.DataFrame, dict]:
         preview_df = self._reader.read_preview(num_rows=10)
         metadata = self._reader.get_review_metadata()
 
@@ -73,7 +73,7 @@ class DatasetService:
         }
         return preview_df, stats
 
-    def read_columns(self, columns: list) -> pd.DataFrame:
+    def read_columns(self, columns: list) -> pl.DataFrame:
         return self._reader.read_columns(columns)
 
     def backup_metadata(self, dest_path: Path) -> None:

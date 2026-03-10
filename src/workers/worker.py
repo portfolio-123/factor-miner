@@ -1,8 +1,7 @@
 import logging
 import sys
 import traceback
-
-import pandas as pd
+from datetime import datetime, timedelta
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,13 +73,11 @@ class AnalysisRunner:
             # Exclude all price column names from analysis (never analyze them)
             required_columns = BASE_REQUIRED_COLUMNS + PRICE_COLUMN_NAMES
 
-            start_dt = pd.to_datetime(dataset_info.startDt)
+            start_dt = datetime.strptime(dataset_info.startDt[:10], "%Y-%m-%d")
             # extend by full rebalance period + 7 days buffer
             forward_days = dataset_info.frequency.weeks * 7 + 7
-            end_dt = min(
-                pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=forward_days),
-                pd.Timestamp.today().normalize(),
-            )
+            end_dt_raw = datetime.strptime(dataset_info.endDt[:10], "%Y-%m-%d") + timedelta(days=forward_days)
+            end_dt = min(end_dt_raw, datetime.today().replace(hour=0, minute=0, second=0, microsecond=0))
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")

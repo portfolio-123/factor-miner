@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 import yfinance as yf
 
 
@@ -29,7 +29,7 @@ def convert_to_yfinance_ticker(ticker_with_market: str) -> str:
     return f"{ticker}{MARKET_SUFFIX_MAP[market]}"
 
 
-def fetch_benchmark_external(ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
+def fetch_benchmark_external(ticker: str, start_date: str, end_date: str) -> pl.DataFrame:
     yf_ticker = convert_to_yfinance_ticker(ticker)
     data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
 
@@ -40,8 +40,13 @@ def fetch_benchmark_external(ticker: str, start_date: str, end_date: str) -> pd.
             f"Ticker may not exist on yfinance or may be delisted."
         )
 
-    df = data[["Close"]].reset_index()
-    df.columns = ["dt", "close"]
-    df["dt"] = pd.to_datetime(df["dt"]).dt.strftime("%Y-%m-%d")
+    # yfinance returns pandas, convert
+    pandas_df = data[["Close"]].reset_index()
+    pandas_df.columns = ["dt", "close"]
+
+    df = pl.from_pandas(pandas_df)
+    df = df.with_columns(
+        pl.col("dt").dt.strftime("%Y-%m-%d").alias("dt")
+    )
 
     return df

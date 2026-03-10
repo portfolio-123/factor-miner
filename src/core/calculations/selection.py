@@ -1,5 +1,5 @@
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from src.core.config.constants import (
     DEFAULT_CORRELATION_THRESHOLD,
@@ -10,7 +10,7 @@ from src.core.config.constants import (
 )
 
 
-def calculate_correlation_matrix(results_df: pd.DataFrame) -> pd.DataFrame:
+def calculate_correlation_matrix(results_df: pl.DataFrame) -> pl.DataFrame:
     """
     Calculate correlation matrix between factors.
 
@@ -20,15 +20,15 @@ def calculate_correlation_matrix(results_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         Correlation matrix DataFrame
     """
-    pivot_df = results_df.pivot(index="Date", columns="factor", values="ret")
-    corr_matrix = pivot_df.corr()
-
-    return corr_matrix
+    pivot_df = results_df.pivot(index="Date", on="factor", values="ret")
+    factor_df = pivot_df.select(pl.exclude("Date"))
+    corr_df = factor_df.pearson_corr()
+    return corr_df.insert_column(0, pl.Series("factor", factor_df.columns))
 
 
 def select_best_features(
-    metrics_df: pd.DataFrame,
-    correlation_matrix: pd.DataFrame,
+    metrics_df: pl.DataFrame,
+    correlation_matrix: pl.DataFrame,
     N: int = DEFAULT_N_FACTORS,
     correlation_threshold: float = DEFAULT_CORRELATION_THRESHOLD,
     a_min: float = DEFAULT_MIN_ALPHA,
@@ -58,11 +58,13 @@ def select_best_features(
     selected_features = []
     selected_indices = []
 
-    corr_arr = correlation_matrix.values
-    col_to_idx = {c: i for i, c in enumerate(correlation_matrix.columns)}
+
+    factor_names = correlation_matrix["factor"].to_list()
+    corr_arr = correlation_matrix.select(pl.exclude("factor")).to_numpy()
+    col_to_idx = {c: i for i, c in enumerate(factor_names)}
 
     sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
-    sorted_metrics = metrics_df.sort_values(by=sort_col, key=abs, ascending=False)
+    sorted_metrics = metrics_df.sort(pl.col(sort_col).abs(), descending=True)
 
     has_na_col = "NA %" in sorted_metrics.columns
     has_ic_col = "IC" in sorted_metrics.columns
@@ -72,44 +74,32 @@ def select_best_features(
     na_pcts = sorted_metrics["NA %"].to_numpy() if has_na_col else np.zeros(len(sorted_metrics))
     ics = sorted_metrics["IC"].to_numpy() if has_ic_col else None
 
-    feat_indices = np.array([col_to_idx.get(c, -1) for c in columns])
+    feat_indices = np.array([col_to_idx[c] for c in columns])
 
     valid_na = na_pcts <= max_na_pct
-    # skip alpha filter if a_min is effectively 0
-    skip_alpha_filter = a_min < 1e-9
-    valid_alpha = np.ones(len(alphas), dtype=bool) if skip_alpha_filter else np.abs(alphas) >= a_min
-    valid_ic = np.abs(ics) >= min_ic if ics is not None else None
 
-    for i in range(len(columns)):
-        feature = columns[i]
+    if rank_by == "IC":
+        valid_metric = np.abs(ics) >= min_ic if ics is not None else np.ones(len(columns), dtype=bool)
+        metric_fail_label = "below_ic"
+    else:
+        valid_metric = np.abs(alphas) >= a_min if a_min >= 1e-9 else np.ones(len(alphas), dtype=bool)
+        metric_fail_label = "below_alpha"
 
+    for i, feature in enumerate(columns):
         if not valid_na[i]:
             classifications[feature] = "high_na"
-            continue
-
-        if rank_by == "IC":
-            if valid_ic is not None and not valid_ic[i]:
-                classifications[feature] = "below_ic"
-                continue
-        else:
-            if not valid_alpha[i]:
-                classifications[feature] = "below_alpha"
-                continue
-
-        if len(selected_features) >= N:
+        elif not valid_metric[i]:
+            classifications[feature] = metric_fail_label
+        elif len(selected_features) >= N:
             classifications[feature] = "n_limit"
-            continue
-
-        feat_idx = feat_indices[i]
-        if feat_idx < 0 or (
-            len(selected_indices) > 0
-            and np.any(np.abs(corr_arr[feat_idx, selected_indices]) >= correlation_threshold)
+        elif (
+            selected_indices
+            and np.any(np.abs(corr_arr[feat_indices[i], selected_indices]) >= correlation_threshold)
         ):
             classifications[feature] = "correlation_conflict"
-            continue
-
-        selected_features.append(feature)
-        selected_indices.append(feat_idx)
-        classifications[feature] = "best"
+        else:
+            selected_features.append(feature)
+            selected_indices.append(feat_indices[i])
+            classifications[feature] = "best"
 
     return selected_features, classifications

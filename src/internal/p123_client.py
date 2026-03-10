@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 import requests
 
 from src.internal.config import API_BASE_URL
@@ -37,7 +37,7 @@ def verify_factor_list_access(fl_id: str, access_token: str) -> dict:
 
 def fetch_benchmark_data(
     benchmark_ticker: str, access_token: str, start_date: str, end_date: str
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     try:
         response = _request(
             "GET",
@@ -47,6 +47,6 @@ def fetch_benchmark_data(
         )
         data = response.json()
 
-        return pd.DataFrame(data["prices"])[["dt", "close"]]
+        return pl.DataFrame(data["prices"]).select(["dt", "close"])
     except Exception as e:
         raise PermissionError("Failed to fetch benchmark data: " + str(e))
