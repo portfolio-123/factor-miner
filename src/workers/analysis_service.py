@@ -73,7 +73,7 @@ class AnalysisService:
         # Create backup of dataset metadata if it doesn't exist
         dest_path = BackupDatasetService(self.user_uid, fl_id).get_backup_path(dataset_version)
         if not dest_path.exists():
-            with DatasetService(fl_id) as dataset_svc:
+            with DatasetService(fl_id, self.user_uid) as dataset_svc:
                 dataset_svc.backup_metadata(dest_path)
 
         try:

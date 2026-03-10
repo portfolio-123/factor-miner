@@ -122,6 +122,7 @@ class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     version: str | None = None
+    factorListName: str | None = None
     universeName: str
     frequency: Frequency
     currency: str

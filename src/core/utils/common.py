@@ -16,7 +16,7 @@ def read_json_file(path: Path) -> dict | None:
         return None
 
 
-def format_date(date_value: Any, format_str: str = "%Y/%m/%d") -> str:
+def format_date(date_value: Any, format_str: str = "%Y-%m-%d") -> str:
     try:
         date_obj = pd.to_datetime(date_value)
         return date_obj.strftime(format_str)

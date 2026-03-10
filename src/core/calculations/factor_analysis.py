@@ -4,7 +4,7 @@ import traceback
 import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from src.services.dataset_service import DatasetService
 from src.core.config.constants import (

@@ -64,7 +64,7 @@ class AnalysisRunner:
         params = self.analysis.params
         self.log(f"Processing dataset: {self.fl_id}")
 
-        with DatasetService(self.fl_id) as dataset_svc:
+        with DatasetService(self.fl_id, self.user_uid) as dataset_svc:
             dataset_info = dataset_svc.get_metadata()
 
             if dataset_info.type == DatasetType.DATE:
@@ -138,7 +138,6 @@ class AnalysisRunner:
                 factor_columns=factor_columns,
                 top_pct=params.top_pct,
                 bottom_pct=params.bottom_pct,
-                progress_fn=on_progress,
             )
 
             raw_data = dataset_svc.read_columns(["Date"])

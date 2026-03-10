@@ -22,12 +22,13 @@ from src.core.utils.common import format_date, format_timestamp
 
 def load_active_dataset() -> DatasetConfig | None:
     fl_id = st.query_params.get("fl_id")
+    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
 
     # Build the dataset path based on mode
     if not INTERNAL_MODE:
         dataset_path = Path(FACTOR_LIST_DIR) / f"{fl_id}.parquet"
     else:
-        dataset_path = Path(FACTOR_LIST_DIR) / fl_id
+        dataset_path = Path(FACTOR_LIST_DIR) / user_uid / fl_id
 
     if not dataset_path.is_file():
         if link := p123_link(fl_id, "generate"):
@@ -37,7 +38,7 @@ def load_active_dataset() -> DatasetConfig | None:
         return None
 
     try:
-        with DatasetService(fl_id) as svc:
+        with DatasetService(fl_id, user_uid) as svc:
             return svc.get_metadata()
     except Exception as e:
         st.error(f"Failed to load dataset: {e}")
@@ -70,29 +71,30 @@ def _build_norm_items(normalization) -> list[str]:
     items.append(("N/A Handling", "Middle" if normalization.naFill else "None"))
 
     if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
-        items.append(("ML Training End", format_date(normalization.mlTrainingEnd, "%Y/%m/%d")))
+        items.append(("ML Training End", format_date(normalization.mlTrainingEnd, "%Y-%m-%d")))
 
     return [render_info_item(label, value) for label, value in items]
 
 
 def _get_date_display(dataset_metadata: DatasetConfig) -> tuple[str, str]:
-    fmt = "%Y/%m/%d"
+    fmt = "%Y-%m-%d"
     if dataset_metadata.type == DatasetType.DATE:
         value = format_date(dataset_metadata.asOfDt, fmt) if dataset_metadata.asOfDt else "N/A"
         return "Date", value
     start = format_date(dataset_metadata.startDt, fmt) if dataset_metadata.startDt else "N/A"
     end = format_date(dataset_metadata.endDt, fmt) if dataset_metadata.endDt else "N/A"
-    return "Period", f"{start} - {end}"
+    return "Period", f"{start} -- {end}"
 
 
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
     fl_id = st.query_params.get("fl_id")
+    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
 
     with st.container(border=True):
         is_active = dataset_metadata.active
         if is_active:
             header_left, _, header_formulas, header_preview, header_status = st.columns(
-                [3, 0.4, 0.9, 0.5, 0.15], vertical_alignment="center"
+                [3, 0.4, 0.9, 0.65, 0.15], vertical_alignment="center"
             )
         else:
             header_left, _, header_formulas, header_status = st.columns(
@@ -126,7 +128,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     key=f"preview_dataset_{dataset_metadata.version}",
                     type="secondary",
                 ):
-                    with DatasetService(fl_id) as svc:
+                    with DatasetService(fl_id, user_uid) as svc:
                         preview_df, stats = svc.get_review_data()
                     show_factors_modal(
                         dataset_metadata.formulas_df, stats, preview_df, title="Dataset Preview"

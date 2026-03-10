@@ -269,7 +269,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                     format_date(dataset.asOfDt, "%Y-%m-%d") if dataset.asOfDt else "N/A"
                 )
             else:
-                period_value = f"{format_date(dataset.startDt, '%Y-%m-%d')} - {format_date(dataset.endDt, '%Y-%m-%d')}"
+                period_value = f"{format_date(dataset.startDt, '%Y-%m-%d')} -- {format_date(dataset.endDt, '%Y-%m-%d')}"
         else:
             period_value = "N/A"
 
