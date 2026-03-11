@@ -1,6 +1,6 @@
 from typing import Final
 
-from src.core.types.models import DatasetType, Frequency, ScalingMethod
+from src.core.types.models import Frequency, ScalingMethod
 
 
 PRICE_COLUMN_NAMES: Final[list[str]] = ["Next Close", "Future Return"]
@@ -38,11 +38,6 @@ FREQUENCY_LABELS: Final[dict[Frequency, str]] = {
 PIT_METHOD_LABELS: Final[dict[int, str]] = {
     1: "Included Prelims",
     2: "Excluded Prelims",
-}
-
-DATASET_TYPE_LABELS: Final[dict[DatasetType, str]] = {
-    DatasetType.PERIOD: "Period",
-    DatasetType.DATE: "Date",
 }
 
 CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {

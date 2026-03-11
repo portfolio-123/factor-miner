@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Self
 
-import pandas as pd
+import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -14,8 +14,9 @@ from src.core.config.environment import FACTOR_LIST_DIR, INTERNAL_MODE
 
 
 class DatasetService:
-    def __init__(self, fl_id: str):
+    def __init__(self, fl_id: str, user_uid: str | None = None):
         self.fl_id = fl_id
+        self.user_uid = user_uid
         self._reader: ParquetDataReader | None = None
 
     def __enter__(self) -> Self:
@@ -27,20 +28,17 @@ class DatasetService:
 
     @property
     def base_path(self) -> Path:
-        # In internal mode, files are named by fl_id without extension
+        # In internal mode, files are at FACTOR_LIST_DIR/{user_uid}/{fl_id}
         # In external mode, datasets are .parquet files directly in FACTOR_LIST_DIR
         if INTERNAL_MODE:
-            return FACTOR_LIST_DIR / self.fl_id
+            return FACTOR_LIST_DIR / self.user_uid / self.fl_id
         return FACTOR_LIST_DIR / f"{self.fl_id}.parquet"
 
     @staticmethod
-    def list_available_datasets() -> list[str]:
+    def list_datasets() -> list[str]:
         if not FACTOR_LIST_DIR.exists():
             return []
-        datasets = []
-        for f in FACTOR_LIST_DIR.glob("*.parquet"):
-            datasets.append(f.stem)  # filename without extension
-        return sorted(datasets)
+        return sorted(f.stem for f in FACTOR_LIST_DIR.glob("*.parquet"))
 
     @property
     def exists(self) -> bool:
@@ -64,7 +62,7 @@ class DatasetService:
         metadata.active = True
         return metadata
 
-    def get_review_data(self) -> tuple[pd.DataFrame, dict]:
+    def get_review_data(self) -> tuple[pl.DataFrame, dict]:
         preview_df = self._reader.read_preview(num_rows=10)
         metadata = self._reader.get_review_metadata()
 
@@ -75,7 +73,7 @@ class DatasetService:
         }
         return preview_df, stats
 
-    def read_columns(self, columns: list) -> pd.DataFrame:
+    def read_columns(self, columns: list) -> pl.DataFrame:
         return self._reader.read_columns(columns)
 
     def backup_metadata(self, dest_path: Path) -> None:
@@ -114,7 +112,7 @@ class BackupDatasetService:
         with ParquetDataReader(self.get_backup_path(version)) as reader:
             metadata = reader.get_dataset_info()
         metadata.version = version
-        current = DatasetService(self.fl_id).current_version
+        current = DatasetService(self.fl_id, self.user_uid).current_version
         metadata.active = current is not None and version == current
         return metadata
 
@@ -122,7 +120,7 @@ class BackupDatasetService:
         if not self.backup_dir.exists():
             return {}
 
-        current = DatasetService(self.fl_id).current_version
+        current = DatasetService(self.fl_id, self.user_uid).current_version
         result = {}
         for f in self.backup_dir.glob("*.parquet"):
             version = f.stem

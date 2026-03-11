@@ -73,7 +73,7 @@ class AnalysisService:
         # Create backup of dataset metadata if it doesn't exist
         dest_path = BackupDatasetService(self.user_uid, fl_id).get_backup_path(dataset_version)
         if not dest_path.exists():
-            with DatasetService(fl_id) as dataset_svc:
+            with DatasetService(fl_id, self.user_uid) as dataset_svc:
                 dataset_svc.backup_metadata(dest_path)
 
         try:
@@ -98,11 +98,6 @@ class AnalysisService:
         updated = analysis.model_copy(update=update_dict)
         self._write(updated)
         return updated
-
-    def append_log(self, analysis: Analysis, message: str) -> Analysis:
-        logs = list(analysis.logs or [])
-        logs.append(message)
-        return self.save(analysis, logs=logs)
 
     def get_logs(self, fl_id: str, analysis_id: str) -> list[str]:
         """Read logs from the stderr.log file for an analysis."""
@@ -158,20 +153,3 @@ class AnalysisService:
         )
 
         return analysis
-
-    @staticmethod
-    def list_factor_lists(user_uid: str | None = None) -> list[str]:
-        if INTERNAL_MODE and user_uid:
-            base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
-        else:
-            base_dir = FACTOR_LIST_DIR / "FactorMiner"
-
-        if not base_dir.exists():
-            return []
-
-        fl_ids = []
-        for item in base_dir.iterdir():
-            if item.is_dir() and any(item.glob("*.json")):
-                fl_ids.append(item.name)
-
-        return sorted(fl_ids)

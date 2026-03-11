@@ -17,10 +17,12 @@ from src.core.config.constants import (
     DEFAULT_MIN_IC,
     SETTINGS_STORAGE_KEY,
 )
+from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import AnalysisParams, SettingsForm
+from src.internal.links import p123_link
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
-from src.ui.components.datasets import load_active_dataset, render_dataset_card
+from src.ui.components.datasets import render_dataset_card
 from src.workers.analysis_service import AnalysisService
 
 
@@ -49,20 +51,10 @@ def _apply_settings_if_triggered(saved: str | None) -> None:
 
     try:
         data = json.loads(saved)
-        # Handle potential nested JSON from local storage quirks
-        if isinstance(data, dict) and SETTINGS_STORAGE_KEY in data:
-            inner = data[SETTINGS_STORAGE_KEY]
-            if isinstance(inner, str):
-                data = json.loads(inner)
-            else:
-                data = inner
-        
-        # If data is still just a single key (like min_ic), try to merge with defaults
-        if isinstance(data, dict):
-             defaults = _get_default_settings()
-             for key in SettingsForm.model_fields:
-                 if key not in data:
-                     data[key] = defaults.get(key)
+        defaults = _get_default_settings()
+        for key in SettingsForm.model_fields:
+            if key not in data:
+                data[key] = defaults.get(key)
                 
         settings = SettingsForm(**data)
         
@@ -72,15 +64,14 @@ def _apply_settings_if_triggered(saved: str | None) -> None:
         del st.session_state["_load_settings_triggered"]
         st.rerun()
         
-    except (json.JSONDecodeError, TypeError, ValueError, ValidationError) as e:
-        # st.toast(f"Error loading settings: {e}")
+    except (json.JSONDecodeError, TypeError, ValueError, ValidationError):
         del st.session_state["_load_settings_triggered"]
 
 
 def _submit_analysis() -> None:
     fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
-    dataset_version = DatasetService(fl_id).current_version
+    dataset_version = DatasetService(fl_id, user_uid).current_version
     analysis_id = uuid.uuid4().hex[:8]
 
     try:
@@ -138,7 +129,20 @@ def create_form() -> None:
             },
         )
 
-    if not (active_dataset_metadata := load_active_dataset()):
+    fl_id = st.query_params.get("fl_id")
+    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
+
+    try:
+        with DatasetService(fl_id, user_uid) as svc:
+            active_dataset_metadata = svc.get_metadata()
+    except FileNotFoundError:
+        if INTERNAL_MODE:
+            st.warning(f"No dataset found for this Factor List. [Generate]({p123_link(fl_id, 'generate')})")
+        else:
+            st.warning("No dataset found. Please select a valid .parquet file.")
+        return
+    except Exception as e:
+        st.error(f"Failed to load dataset: {e}")
         return
 
     st.title("Create Analysis")
@@ -179,7 +183,6 @@ def _render_settings() -> None:
         st.radio(
             "Rank By",
             options=["Alpha", "Information Coefficient (IC)"],
-            index=0 if st.session_state["rank_by"] == "Alpha" else 1,
             key="rank_by",
             horizontal=True,
             help="Select metric to rank factors by",

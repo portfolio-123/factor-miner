@@ -15,7 +15,10 @@ def _authenticate(token: str, save_cookie: bool = True) -> None:
     fl_info = verify_factor_list_access(fl_id, token)
     st.session_state.access_token = token
     st.session_state.fl_name = fl_info.get("name", fl_id)
-    st.session_state.user_uid = str(fl_info.get("userUid"))
+    user_uid = fl_info.get("userUid")
+    if not user_uid:
+        raise ValueError("User UID not found in API response")
+    st.session_state.user_uid = str(user_uid)
     if save_cookie:
         set_cookie(AUTH_COOKIE_KEY, token, days=1)
 

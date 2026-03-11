@@ -1,9 +1,9 @@
+import base64
 import json
-from typing import Any
-from io import StringIO
+from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timezone
-import pandas as pd
+import polars as pl
 
 
 def extract_benchmark_ticker(benchmark: str) -> str:
@@ -16,10 +16,14 @@ def read_json_file(path: Path) -> dict | None:
         return None
 
 
-def format_date(date_value: Any, format_str: str = "%Y/%m/%d") -> str:
+def format_date(date_value: str | None, format_str: str = "%Y-%m-%d") -> str:
+    if not date_value:
+        return "N/A"
     try:
-        date_obj = pd.to_datetime(date_value)
-        return date_obj.strftime(format_str)
+        # Fast path: dates are stored as ISO strings, most callers want YYYY-MM-DD
+        if format_str == "%Y-%m-%d":
+            return date_value[:10]
+        return datetime.fromisoformat(date_value[:10]).strftime(format_str)
     except Exception:
         return "N/A"
 
@@ -66,12 +70,14 @@ def format_runtime(started_at: str | None, finished_at: str | None) -> str:
         return "N/A"
 
 
-def serialize_dataframe(df: pd.DataFrame) -> str:
-    return df.to_json(orient="split", date_format="iso")
+def serialize_dataframe(df: pl.DataFrame) -> str:
+    buffer = BytesIO()
+    df.write_ipc(buffer)
+    return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
 
-def deserialize_dataframe(*data: str) -> pd.DataFrame | tuple[pd.DataFrame, ...]:
-    results = [pd.read_json(StringIO(d), orient="split") for d in data]
+def deserialize_dataframe(*data: str) -> pl.DataFrame | tuple[pl.DataFrame, ...]:
+    results = [pl.read_ipc(BytesIO(base64.b64decode(d))) for d in data]
     return results[0] if len(results) == 1 else tuple(results)
 
 
@@ -84,15 +90,29 @@ def find_price_column(column_names: list[str], price_column_names: list[str]) ->
     )
 
 def add_formula_and_tag_columns(
-    download_df: pd.DataFrame,
-    formulas_df: pd.DataFrame,
+    download_df: pl.DataFrame,
+    formulas_df: pl.DataFrame,
     factor_col: str = "Factor",
-) -> pd.DataFrame:
-    deduped = formulas_df.drop_duplicates(subset=["name"]).set_index("name")
-    formula_map = deduped["formula"]
-    tag_map = deduped["tag"]
-    result = download_df.copy()
-    factor_idx = result.columns.get_loc(factor_col)
-    result.insert(factor_idx + 1, "Formula", result[factor_col].map(formula_map))
-    result.insert(factor_idx + 2, "Tag", result[factor_col].map(tag_map))
-    return result
+) -> pl.DataFrame:
+    # df with all the factor names
+    mapping_df = formulas_df.unique(subset=["name"]).select(["name", "formula", "tag"])
+
+    # join with the download df that contains the results
+    result = download_df.join(
+        mapping_df,
+        left_on=factor_col,
+        right_on="name",
+        how="left"
+    ).rename({"formula": "Formula", "tag": "Tag"})
+
+    # reorder columns to place Formula and Tag after factor_col
+    cols = result.columns
+    # know what index the factor column is at
+    factor_idx = cols.index(factor_col)
+    new_order = (
+        # place formula+tag after factor column
+        cols[:factor_idx + 1] +
+        ["Formula", "Tag"] +
+        [c for c in cols[factor_idx + 1:] if c not in ["Formula", "Tag", "name"]]
+    )
+    return result.select(new_order)

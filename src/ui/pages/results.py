@@ -1,9 +1,9 @@
 import streamlit as st
-import pandas as pd
+import polars as pl
 
 from src.core.types.models import AnalysisStatus
 from src.internal.errors import format_analysis_error
-from src.ui.components.common import render_info_item, get_card_header_html
+from src.ui.components.common import render_info_item
 from src.ui.components.tables import render_results_table, render_correlation_matrix
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import (
@@ -70,10 +70,8 @@ def results() -> None:
 
     # add rank column
     sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
-    all_metrics_df = all_metrics_df.sort_values(
-        by=sort_col, key=abs, ascending=False
-    ).reset_index(drop=True)
-    all_metrics_df["rank"] = range(1, len(all_metrics_df) + 1)
+    all_metrics_df = all_metrics_df.sort(pl.col(sort_col).abs(), descending=True)
+    all_metrics_df = all_metrics_df.with_row_index("rank", offset=1)
 
     best_feature_names = analysis.results.best_feature_names
     factor_classifications = analysis.results.factor_classifications
@@ -116,15 +114,15 @@ def results() -> None:
             st.caption(f"Best factors ranked by {metric_label} (highest first)")
 
             render_results_table(
-                all_metrics_df[all_metrics_df["column"].isin(best_feature_names)],
+                all_metrics_df.filter(pl.col("column").is_in(best_feature_names)),
                 key="best_factors",
                 rank_by=rank_by,
             )
 
             st.divider()
-            best_corr_matrix = corr_matrix_df.loc[
-                best_feature_names, best_feature_names
-            ]
+            best_corr_matrix = corr_matrix_df.filter(
+                pl.col("factor").is_in(best_feature_names)
+            ).select(["factor"] + best_feature_names)
             render_correlation_matrix(
                 corr_matrix_df=best_corr_matrix,
                 title="Correlation Matrix (Best Factors)",

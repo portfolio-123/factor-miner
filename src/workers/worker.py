@@ -1,8 +1,7 @@
 import logging
 import sys
 import traceback
-
-import pandas as pd
+from datetime import datetime, timedelta
 
 logging.basicConfig(
     level=logging.INFO,
@@ -10,6 +9,8 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 stderr_logger = logging.getLogger("worker")
+
+import polars.selectors as cs
 
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.constants import PRICE_COLUMN_NAMES, BASE_REQUIRED_COLUMNS
@@ -29,11 +30,15 @@ from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
 from src.internal.p123_client import fetch_benchmark_data
 from src.services.benchmark_service import fetch_benchmark_external
-from src.core.calculations import (
+from src.core.calculations.forward_returns import (
     calculate_benchmark_returns,
     calculate_future_performance,
+)
+from src.core.calculations.factor_analysis import (
     analyze_factors,
     calculate_factor_metrics,
+)
+from src.core.calculations.feature_selection import (
     calculate_correlation_matrix,
     select_best_features,
 )
@@ -60,7 +65,7 @@ class AnalysisRunner:
         params = self.analysis.params
         self.log(f"Processing dataset: {self.fl_id}")
 
-        with DatasetService(self.fl_id) as dataset_svc:
+        with DatasetService(self.fl_id, self.user_uid) as dataset_svc:
             dataset_info = dataset_svc.get_metadata()
 
             if dataset_info.type == DatasetType.DATE:
@@ -70,13 +75,11 @@ class AnalysisRunner:
             # Exclude all price column names from analysis (never analyze them)
             required_columns = BASE_REQUIRED_COLUMNS + PRICE_COLUMN_NAMES
 
-            start_dt = pd.to_datetime(dataset_info.startDt)
+            start_dt = datetime.strptime(dataset_info.startDt[:10], "%Y-%m-%d")
             # extend by full rebalance period + 7 days buffer
             forward_days = dataset_info.frequency.weeks * 7 + 7
-            end_dt = min(
-                pd.to_datetime(dataset_info.endDt) + pd.Timedelta(days=forward_days),
-                pd.Timestamp.today().normalize(),
-            )
+            end_dt_raw = datetime.strptime(dataset_info.endDt[:10], "%Y-%m-%d") + timedelta(days=forward_days)
+            end_dt = min(end_dt_raw, datetime.today().replace(hour=0, minute=0, second=0, microsecond=0))
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
@@ -134,7 +137,7 @@ class AnalysisRunner:
                 factor_columns=factor_columns,
                 top_pct=params.top_pct,
                 bottom_pct=params.bottom_pct,
-                progress_fn=on_progress,
+                on_progress=on_progress,
             )
 
             raw_data = dataset_svc.read_columns(["Date"])
@@ -145,7 +148,7 @@ class AnalysisRunner:
                 benchmark_data,
                 frequency=dataset_info.frequency,
             )
-            if results_df.empty:
+            if results_df.is_empty():
                 raise ValueError("No results from factor analysis")
 
             self.log("Calculating factor metrics...")
@@ -159,8 +162,8 @@ class AnalysisRunner:
             self.log("Calculating correlation matrix...")
             corr_matrix = calculate_correlation_matrix(results_df)
 
-            metrics_df = metrics_df.round(4)
-            corr_matrix = corr_matrix.round(4)
+            metrics_df = metrics_df.with_columns(cs.numeric().round(4))
+            corr_matrix = corr_matrix.with_columns(cs.numeric().round(4))
 
             avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
             self.log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")

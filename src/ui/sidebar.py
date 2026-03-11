@@ -2,7 +2,7 @@ import streamlit as st
 
 from src.core.config.environment import INTERNAL_MODE
 from src.internal.links import p123_link
-from src.internal.sidebar import get_selector_options, update_fl_name_on_select
+from src.internal.sidebar import list_user_datasets
 from src.services.dataset_service import DatasetService
 from src.ui.pages.about import about
 from src.ui.pages.history import history
@@ -34,15 +34,21 @@ def sidebar() -> st.navigation:
         st.markdown("<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>", unsafe_allow_html=True)
 
         link = p123_link(fl_id)
-        header = f"<a href='{link}' target='_blank' style='text-decoration: underline;'>{fl_name}</a>" if link else f"<span style='color: #666;'>{fl_name}</span>"
+        display_name = f"{fl_name} ({fl_id})" if fl_id else fl_name
+        header = f"<a href='{link}' target='_blank' style='text-decoration: underline;'>{display_name}</a>" if link else f"<span style='color: #666;'>{display_name}</span>"
         st.markdown(header, unsafe_allow_html=True)
 
-        # Dataset/Factor List selector
-        if INTERNAL_MODE:  # internal
-            options, label, key = get_selector_options()
-        else:  # external
-            options = DatasetService.list_available_datasets()
-            label, key = "Datasets", "dataset_selector"
+        if INTERNAL_MODE:
+            user_uid = st.session_state.get("user_uid")
+            datasets = list_user_datasets(user_uid) if user_uid else []
+            options = [fl_id for fl_id, _ in datasets]
+            name_map = {fl_id: name for fl_id, name in datasets}
+            label = "Factor Lists"
+            format_func = lambda x: f"{name_map.get(x)} ({x})" if name_map.get(x) and str(name_map.get(x)) != str(x) else str(x)
+        else:
+            options = DatasetService.list_datasets()
+            label = "Datasets"
+            format_func = None
 
         if options:
             try:
@@ -50,13 +56,13 @@ def sidebar() -> st.navigation:
             except ValueError:
                 current_index = 0
 
-            selected = st.selectbox(label, options=options, index=current_index, key=key)
+            selected = st.selectbox(label, options=options, index=current_index, format_func=format_func)
 
             if selected and selected != fl_id:
                 # update fl_name
-                if INTERNAL_MODE:  # internal
-                    update_fl_name_on_select(selected)
-                else:  # external
+                if INTERNAL_MODE:
+                    st.session_state.fl_name = name_map.get(selected, selected)
+                else:
                     st.session_state.fl_name = selected
 
                 # navigate
