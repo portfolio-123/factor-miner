@@ -28,7 +28,12 @@ def render_correlation_matrix(
     if "factor" in rounded.columns:
         rounded = rounded.rename({"factor": ""})
 
-    render_table(rounded, max_height=400, small_headers=True)
+    render_table(
+        rounded,
+        max_height=400,
+        small_headers=True,
+        column_widths={"": "180px"},
+    )
 
     file_name = f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"
 
@@ -66,7 +71,7 @@ def show_preview_modal(
         render_table(
             display_df,
             max_height=500,
-            column_widths={"Row": "40px", "Date": "85px", "P123 ID": "60px", "Ticker": "55px"},
+            column_widths={"Row": "40px", "Date": "95px", "P123 ID": "60px", "Ticker": "55px"},
         )
 
     _render()

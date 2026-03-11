@@ -1,3 +1,5 @@
+import math
+
 import streamlit as st
 import polars as pl
 from html import escape
@@ -103,6 +105,8 @@ def render_table(
             value = row[col]
             if value is None:
                 cell_value = "N/A"
+            elif isinstance(value, float) and math.isnan(value):
+                cell_value = "-"
             elif format_spec and col in format_spec:
                 fmt = format_spec[col]
                 if fmt.endswith("%"):
@@ -112,12 +116,17 @@ def render_table(
             else:
                 cell_value = escape(str(value))
 
-            first_col_style = ' style="font-size: 10px; font-weight: 600;"' if j == 0 and small_headers else ""
+            td_styles = []
+            if j == 0 and small_headers:
+                td_styles.extend(["font-size: 10px", "font-weight: 600"])
+            if column_widths and col in column_widths and column_widths[col].endswith("px"):
+                td_styles.append("white-space: nowrap")
+            td_style_attr = f' style="{"; ".join(td_styles)}"' if td_styles else ""
 
             if link:
-                html += f'<td{first_col_style}><a href="{link}" target="_top">{cell_value}</a></td>'
+                html += f'<td{td_style_attr}><a href="{link}" target="_top">{cell_value}</a></td>'
             else:
-                html += f"<td{first_col_style}>{cell_value}</td>"
+                html += f"<td{td_style_attr}>{cell_value}</td>"
 
         html += "</tr>"
 

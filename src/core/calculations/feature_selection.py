@@ -21,13 +21,15 @@ def calculate_correlation_matrix(results_df: pl.DataFrame) -> pl.DataFrame:
         Correlation matrix DataFrame
     """
     pivot_df = results_df.pivot(index="Date", on="factor", values="ret")
-    factor_df = pivot_df.select(pl.exclude("Date"))
+    factor_names = [c for c in pivot_df.columns if c != "Date"]
+    factor_df = pivot_df.select(factor_names)
 
-    data = factor_df.to_numpy()
-    corr_matrix = np.corrcoef(data, rowvar=False)
+    # only use dates where all factors have returns, drop nan's
+    clean_df = factor_df.drop_nulls()
 
-    corr_df = pl.DataFrame(corr_matrix, schema=factor_df.columns)
-    return corr_df.insert_column(0, pl.Series("factor", factor_df.columns))
+    corr_matrix = np.corrcoef(clean_df.to_numpy(), rowvar=False)
+    corr_df = pl.DataFrame(corr_matrix, schema=factor_names)
+    return corr_df.insert_column(0, pl.Series("factor", factor_names))
 
 
 def select_best_features(
