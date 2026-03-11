@@ -1,13 +1,11 @@
-from pathlib import Path
-
 import streamlit as st
-from src.ui.components.tables import show_factors_modal
+from src.ui.components.tables import show_formulas_modal, show_preview_modal
 from src.core.config.constants import (
     FREQUENCY_LABELS,
     PIT_METHOD_LABELS,
     SCALING_LABELS,
 )
-from src.core.config.environment import FACTOR_LIST_DIR, INTERNAL_MODE
+from src.core.config.environment import INTERNAL_MODE
 from src.internal.links import p123_link
 from src.core.types.models import DatasetConfig, DatasetType, ScalingMethod, ScopeType
 from src.services.dataset_service import DatasetService
@@ -18,31 +16,6 @@ from src.ui.components.common import (
     spacer,
 )
 from src.core.utils.common import format_date, format_timestamp
-
-
-def load_active_dataset() -> DatasetConfig | None:
-    fl_id = st.query_params.get("fl_id")
-    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
-
-    # Build the dataset path based on mode
-    if not INTERNAL_MODE:
-        dataset_path = Path(FACTOR_LIST_DIR) / f"{fl_id}.parquet"
-    else:
-        dataset_path = Path(FACTOR_LIST_DIR) / user_uid / fl_id
-
-    if not dataset_path.is_file():
-        if link := p123_link(fl_id, "generate"):
-            st.warning(f"No dataset found for this Factor List. [Generate]({link})")
-        else:
-            st.warning("No dataset found. Please select a valid .parquet file.")
-        return None
-
-    try:
-        with DatasetService(fl_id, user_uid) as svc:
-            return svc.get_metadata()
-    except Exception as e:
-        st.error(f"Failed to load dataset: {e}")
-        return None
 
 
 def _build_norm_items(normalization) -> list[str]:
@@ -118,7 +91,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 key=f"formulas_{dataset_metadata.version}",
                 type="secondary",
             ):
-                show_factors_modal(dataset_metadata.formulas_df, title="Dataset Formulas")
+                show_formulas_modal(dataset_metadata.formulas_df)
 
         if is_active:
             with header_preview:
@@ -130,9 +103,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 ):
                     with DatasetService(fl_id, user_uid) as svc:
                         preview_df, stats = svc.get_review_data()
-                    show_factors_modal(
-                        dataset_metadata.formulas_df, stats, preview_df, title="Dataset Preview"
-                    )
+                    show_preview_modal(preview_df, stats)
 
         with header_status:
             status_color = "#22c55e" if is_active else "#ef4444"

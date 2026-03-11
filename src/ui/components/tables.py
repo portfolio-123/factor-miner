@@ -1,7 +1,6 @@
 import streamlit as st
 import polars as pl
 import polars.selectors as cs
-import plotly.graph_objects as go
 
 from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisSummary, DatasetType
@@ -13,50 +12,7 @@ from src.core.utils.common import (
 )
 from src.services.dataset_service import BackupDatasetService
 from src.ui.components.common import render_copy_download_buttons
-
-
-NARROW_COLUMNS = ("Rank", "#", "Row")
-
-
-def render_table(
-    df: pl.DataFrame,
-    row_colors: list[str] | None = None,
-    height: int | None = None,
-    min_height: int = 200,
-    max_height: int = 600,
-    key: str = "table",
-) -> None:
-    headers = df.columns
-    values = [df[col].to_list() for col in headers]
-
-    if row_colors is None:
-        row_colors = ["white"] * len(df)
-
-    fig = go.Figure(data=[go.Table(
-        columnwidth=[30 if col in NARROW_COLUMNS else 80 for col in headers],
-        header=dict(
-            values=[f"<b>{h}</b>" for h in headers],
-            fill_color="#f8f9fa",
-            font=dict(size=11, color="#333", family="system-ui, -apple-system, sans-serif"),
-            align="left",
-            height=32,
-            line=dict(color="#dee2e6", width=1),
-        ),
-        cells=dict(
-            values=values,
-            fill_color=[row_colors],
-            font=dict(size=11, color="#333", family="system-ui, -apple-system, sans-serif"),
-            align="left",
-            height=28,
-            line=dict(color="#dee2e6", width=1),
-        ),
-    )])
-
-    if height is None:
-        height = max(min_height, min(max_height, 50 + len(df) * 28))
-
-    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=height)
-    st.plotly_chart(fig, use_container_width=True, key=f"plotly_{key}")
+from src.ui.components.table_builder import render_table
 
 
 def render_correlation_matrix(
@@ -69,92 +25,68 @@ def render_correlation_matrix(
 
     rounded = corr_matrix_df.with_columns(cs.numeric().round(4))
 
-    render_table(rounded, min_height=200, max_height=400, key=f"corr_matrix{key_suffix}")
+    if "factor" in rounded.columns:
+        rounded = rounded.rename({"factor": ""})
+
+    render_table(rounded, max_height=400, small_headers=True)
 
     file_name = f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"
 
-    csv_content = rounded.write_csv()
-    csv_copy = rounded.write_csv(separator="\t")
     render_copy_download_buttons(
-        csv_copy=csv_copy,
-        csv_download=csv_content,
+        csv_copy=rounded.write_csv(separator="\t"),
+        csv_download=rounded.write_csv(),
         file_name=file_name,
         key_prefix=f"corr_matrix{key_suffix}",
         toast_msg="Correlation matrix copied to clipboard",
     )
 
 
-def show_factors_modal(
-    formulas_df: pl.DataFrame,
-    stats: dict | None = None,
-    preview_df: pl.DataFrame | None = None,
+def show_preview_modal(
+    preview_df: pl.DataFrame,
+    stats: dict,
     title: str = "Dataset Preview",
 ) -> None:
     @st.dialog(title, width="large")
     def _render() -> None:
-        show_data = stats is not None and preview_df is not None
+        cols = st.columns(6, gap="small")
+        stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
+        stat_items = [
+            ("Rows", stats["num_rows"]),
+            ("Dates", stats["num_dates"]),
+            ("Columns", stats["num_columns"]),
+        ]
+        for col, (label, value) in zip(cols, stat_items):
+            with col:
+                st.badge(label)
+                st.html(f"<p style='{stat_style}'>{value}</p>")
 
-        if show_data:
-            cols = st.columns(6, gap="small")
-            stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
-            stat_items = [
-                ("Rows", stats["num_rows"]),
-                ("Dates", stats["num_dates"]),
-                ("Columns", stats["num_columns"]),
-            ]
-            for col, (label, value) in zip(cols, stat_items):
-                with col:
-                    st.badge(label)
-                    st.html(f"<p style='{stat_style}'>{value}</p>")
+        st.caption("Showing first and last 10 rows")
 
-            if len(preview_df) > 20:
-                first_10 = preview_df.head(10)
-                last_10 = preview_df.tail(10)
-                display_preview = pl.concat([first_10, last_10])
-            else:
-                display_preview = preview_df
-
-            st.caption("Showing first and last 10 rows")
-
-            # Use _row_idx if present, otherwise create Row column
-            if "_row_idx" in display_preview.columns:
-                display_pl = display_preview.rename({"_row_idx": "Row"})
-            else:
-                display_pl = display_preview.with_row_index("Row")
-
-            st.dataframe(
-                display_pl,
-                height=500,
-                use_container_width=True,
-                hide_index=True,
-                column_config={"Row": st.column_config.NumberColumn("Row", width=85)},
-            )
-        else:
-            subset = formulas_df.select(["formula", "name", "tag"])
-
-            render_table(subset, min_height=300, max_height=400, key="factors_modal")
-
-            render_copy_download_buttons(
-                csv_copy=subset.write_csv(separator="\t"),
-                csv_download=subset.write_csv(),
-                file_name="dataset_factors.csv",
-                key_prefix="factors_modal",
-                toast_msg="Factors copied to clipboard",
-            )
+        display_df = preview_df.rename({"_row_idx": "Row"})
+        render_table(display_df, max_height=500)
 
     _render()
 
 
-def _get_row_colors(factors: list[str], classifications: dict[str, str]) -> list[str]:
-    colors = []
-    for factor in factors:
-        classification = classifications.get(factor, "")
-        if classification in CLASSIFICATION_COLORS:
-            color, _ = CLASSIFICATION_COLORS[classification]
-            colors.append(color)
-        else:
-            colors.append("")
-    return colors
+def show_formulas_modal(
+    formulas_df: pl.DataFrame,
+    title: str = "Dataset Formulas",
+) -> None:
+    @st.dialog(title, width="large")
+    def _render() -> None:
+        subset = formulas_df.select(["formula", "name", "tag"])
+
+        render_table(subset, max_height=400, zebra=True)
+
+        render_copy_download_buttons(
+            csv_copy=subset.write_csv(separator="\t"),
+            csv_download=subset.write_csv(),
+            file_name="dataset_factors.csv",
+            key_prefix="factors_modal",
+            toast_msg="Factors copied to clipboard",
+        )
+
+    _render()
 
 
 def render_results_table(
@@ -189,7 +121,6 @@ def render_results_table(
         "Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"
     ])
 
-    # legend with classifications
     row_colors = None
     if factor_classifications is not None:
         excluded_classification = "below_ic" if rank_by == "Alpha" else "below_alpha"
@@ -198,10 +129,10 @@ def render_results_table(
             classification_counts[classification] = classification_counts.get(classification, 0) + 1
 
         legend_html = '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">'
-        for key, (color, label) in CLASSIFICATION_COLORS.items():
-            if key == excluded_classification:
+        for cls_key, (color, label) in CLASSIFICATION_COLORS.items():
+            if cls_key == excluded_classification:
                 continue
-            count = classification_counts.get(key, 0)
+            count = classification_counts.get(cls_key, 0)
             label_with_count = f"{label} ({count})"
             legend_html += f"""
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -219,13 +150,33 @@ def render_results_table(
         legend_html += "</div>"
         st.html(legend_html)
 
-        row_colors = _get_row_colors(display["Factor"].to_list(), factor_classifications)
-        row_colors = [c if c else "white" for c in row_colors]
+        row_colors = []
+        for factor in display["Factor"].to_list():
+            classification = factor_classifications.get(factor, "")
+            if classification in CLASSIFICATION_COLORS:
+                color, _ = CLASSIFICATION_COLORS[classification]
+                row_colors.append(color)
+            else:
+                row_colors.append("#ffffff")
 
-    render_table(display, row_colors=row_colors, min_height=500, max_height=600, key=key)
+    render_table(
+        display,
+        row_colors=row_colors,
+        format_spec={
+            "Ann. Alpha %": ".2f%",
+            "Ann. Long %": ".2f%",
+            "Ann. Short %": ".2f%",
+            "NA %": ".1f%",
+            "Beta": ".4f",
+            "T-Stat": ".2f",
+            "IC": ".4f",
+            "IC t-stat": ".2f",
+        },
+        max_height=500,
+        zebra=True,
+    )
 
-    export_display = display
-    enriched_df = add_formula_and_tag_columns(export_display, formulas_data)
+    enriched_df = add_formula_and_tag_columns(display, formulas_data)
     csv_download = enriched_df.write_csv()
 
     file_name = f"{fl_id}_factors.csv" if fl_id else "factors.csv"
@@ -238,23 +189,14 @@ def render_results_table(
     )
 
 
-def _format_params_json(params) -> str:
-    rank_by = getattr(params, "rank_by", "Alpha")
-    # if alpha is 0, avoid float rounding error
-    clean_min_alpha = 0 if params.min_alpha < 1e-9 else params.min_alpha
-    metric_str = f'"IC": {params.min_ic}' if rank_by == "IC" else f'"α": {clean_min_alpha}'
-    return (
-        f'{{"max.n": {params.n_factors}, {metric_str}, '
-        f'"corr": {params.correlation_threshold}, '
-        f'"top": "{int(params.top_pct)}%", "btm": "{int(params.bottom_pct)}%"}}'
-    )
-
-
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
     datasets = BackupDatasetService(st.session_state.get("user_uid"), fl_id).load_all_versions()
 
     rows_data = []
+    links = []
+    version_list = []
+
     for a in analyses:
         dataset = datasets.get(a.dataset_version)
 
@@ -272,10 +214,19 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         best_factors = a.best_factors_count or 0
         factors_display = f"{best_factors}/{total_factors}"
 
-        link = f"/results?fl_id={a.fl_id}&id={a.id}"
+        links.append(f"/results?fl_id={a.fl_id}&id={a.id}")
+        version_list.append(a.dataset_version)
+
+        rank_by = getattr(a.params, "rank_by", "Alpha")
+        clean_min_alpha = 0 if a.params.min_alpha < 1e-9 else a.params.min_alpha
+        metric_str = f'"IC": {a.params.min_ic}' if rank_by == "IC" else f'"α": {clean_min_alpha}'
+        params_json = (
+            f'{{"max.n": {a.params.n_factors}, {metric_str}, '
+            f'"corr": {a.params.correlation_threshold}, '
+            f'"top": "{int(a.params.top_pct)}%", "btm": "{int(a.params.bottom_pct)}%"}}'
+        )
 
         rows_data.append({
-            "View": link,
             "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M") + " UTC",
             "Run Time": format_runtime(a.started_at, a.finished_at),
             "Universe": dataset.universeName if dataset else "N/A",
@@ -285,7 +236,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
             "Period": period_value,
             "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M") + " UTC"
                 + (" 🟢" if dataset and dataset.active else ""),
-            "Parameters": _format_params_json(a.params),
+            "Parameters": params_json,
             "Status": a.status.display,
             "Notes": a.notes or "",
         })
@@ -296,27 +247,13 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
 
     df = pl.DataFrame(rows_data)
 
-    st.dataframe(
+    unique_versions = list(dict.fromkeys(version_list))
+    version_color_map = {v: "#f8f8f8" if i % 2 == 0 else "#ffffff" for i, v in enumerate(unique_versions)}
+    row_colors = [version_color_map[v] for v in version_list]
+
+    render_table(
         df,
-        height=min(500, 50 + len(df) * 35),
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "View": st.column_config.LinkColumn(
-                " ",
-                display_text="→",
-                width=50,
-            ),
-            "Analysis Date": st.column_config.TextColumn("Analysis Date", width="medium"),
-            "Run Time": st.column_config.TextColumn("Run Time", width="small"),
-            "Universe": st.column_config.TextColumn("Universe", width="medium"),
-            "Best Factors": st.column_config.TextColumn("Best Factors", width="small"),
-            "Rows": st.column_config.TextColumn("Rows", width="small"),
-            "Avg|α|": st.column_config.TextColumn("Avg|α|", width="small"),
-            "Period": st.column_config.TextColumn("Period", width="medium"),
-            "Dataset Created": st.column_config.TextColumn("Dataset Created", width="medium"),
-            "Parameters": st.column_config.TextColumn("Parameters", width="medium"),
-            "Status": st.column_config.TextColumn("Status", width="small"),
-            "Notes": st.column_config.TextColumn("Notes", width="medium"),
-        },
+        row_colors=row_colors,
+        row_links=links,
+        max_height=400,
     )

@@ -17,10 +17,12 @@ from src.core.config.constants import (
     DEFAULT_MIN_IC,
     SETTINGS_STORAGE_KEY,
 )
+from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import AnalysisParams, SettingsForm
+from src.internal.links import p123_link
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
-from src.ui.components.datasets import load_active_dataset, render_dataset_card
+from src.ui.components.datasets import render_dataset_card
 from src.workers.analysis_service import AnalysisService
 
 
@@ -138,7 +140,20 @@ def create_form() -> None:
             },
         )
 
-    if not (active_dataset_metadata := load_active_dataset()):
+    fl_id = st.query_params.get("fl_id")
+    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
+
+    try:
+        with DatasetService(fl_id, user_uid) as svc:
+            active_dataset_metadata = svc.get_metadata()
+    except FileNotFoundError:
+        if INTERNAL_MODE:
+            st.warning(f"No dataset found for this Factor List. [Generate]({p123_link(fl_id, 'generate')})")
+        else:
+            st.warning("No dataset found. Please select a valid .parquet file.")
+        return
+    except Exception as e:
+        st.error(f"Failed to load dataset: {e}")
         return
 
     st.title("Create Analysis")
