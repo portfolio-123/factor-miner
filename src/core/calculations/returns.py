@@ -40,6 +40,7 @@ def calculate_benchmark_returns(
     close_prices = benchmark_df["close"].to_numpy()
 
     # get unique dates from raw_data (saturday rebalance dates)
+    raw_data = raw_data.with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
     unique_date_values = raw_data["Date"].unique().sort().to_numpy()
 
     # find the next trading day

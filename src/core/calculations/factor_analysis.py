@@ -327,6 +327,7 @@ def calculate_factor_metrics(
     """
     # get unique benchmark values per date
     benchmark = raw_data.select(["Date", INTERNAL_BENCHMARK_COL]).unique()
+    results_df = results_df.with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
 
     # merge benchmark with factor returns
     merged_data = results_df.join(benchmark, on="Date", how="inner")
