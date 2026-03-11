@@ -83,7 +83,7 @@ def _get_date_display(dataset_metadata: DatasetConfig) -> tuple[str, str]:
         return "Date", value
     start = format_date(dataset_metadata.startDt, fmt) if dataset_metadata.startDt else "N/A"
     end = format_date(dataset_metadata.endDt, fmt) if dataset_metadata.endDt else "N/A"
-    return "Period", f"{start} -- {end}"
+    return "Period", f"{start} — {end}"
 
 
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:

@@ -10,6 +10,8 @@ logging.basicConfig(
 )
 stderr_logger = logging.getLogger("worker")
 
+import polars.selectors as cs
+
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.constants import PRICE_COLUMN_NAMES, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
@@ -145,7 +147,7 @@ class AnalysisRunner:
                 benchmark_data,
                 frequency=dataset_info.frequency,
             )
-            if results_df.empty:
+            if results_df.is_empty():
                 raise ValueError("No results from factor analysis")
 
             self.log("Calculating factor metrics...")
@@ -159,8 +161,8 @@ class AnalysisRunner:
             self.log("Calculating correlation matrix...")
             corr_matrix = calculate_correlation_matrix(results_df)
 
-            metrics_df = metrics_df.round(4)
-            corr_matrix = corr_matrix.round(4)
+            metrics_df = metrics_df.with_columns(cs.numeric().round(4))
+            corr_matrix = corr_matrix.with_columns(cs.numeric().round(4))
 
             avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
             self.log(f"Average absolute alpha: {avg_abs_alpha:.2f}%")

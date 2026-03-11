@@ -45,12 +45,11 @@ DATASET_TYPE_LABELS: Final[dict[DatasetType, str]] = {
     DatasetType.DATE: "Date",
 }
 
-# (hex_color, badge_color, label)
-CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str, str]]] = {
-    "best": ("#21c354", "green", "Best Factor"),
-    "correlation_conflict": ("#ff4b4b", "red", "Correlation Conflict"),
-    "high_na": ("#ffe312", "yellow", "High NA %"),
-    "below_alpha": ("#ffa421", "orange", "Below Min Alpha"),
-    "below_ic": ("#803df5", "violet", "Below Min IC"),
-    "n_limit": ("#808495", "gray", "Max. Factors Reached"),
+CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {
+    "best": ("#a5d6a7", "Best Factor"),
+    "correlation_conflict": ("#ef9a9a", "Correlation Conflict"),
+    "high_na": ("#fff59d", "High NA %"),
+    "below_alpha": ("#ffcc80", "Below Min Alpha"),
+    "below_ic": ("#ce93d8", "Below Min IC"),
+    "n_limit": ("#b0bec5", "Max. Factors Reached"),
 }

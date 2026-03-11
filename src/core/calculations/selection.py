@@ -22,7 +22,11 @@ def calculate_correlation_matrix(results_df: pl.DataFrame) -> pl.DataFrame:
     """
     pivot_df = results_df.pivot(index="Date", on="factor", values="ret")
     factor_df = pivot_df.select(pl.exclude("Date"))
-    corr_df = factor_df.pearson_corr()
+
+    data = factor_df.to_numpy()
+    corr_matrix = np.corrcoef(data, rowvar=False)
+
+    corr_df = pl.DataFrame(corr_matrix, schema=factor_df.columns)
     return corr_df.insert_column(0, pl.Series("factor", factor_df.columns))
 
 
