@@ -51,20 +51,10 @@ def _apply_settings_if_triggered(saved: str | None) -> None:
 
     try:
         data = json.loads(saved)
-        # Handle potential nested JSON from local storage quirks
-        if isinstance(data, dict) and SETTINGS_STORAGE_KEY in data:
-            inner = data[SETTINGS_STORAGE_KEY]
-            if isinstance(inner, str):
-                data = json.loads(inner)
-            else:
-                data = inner
-        
-        # If data is still just a single key (like min_ic), try to merge with defaults
-        if isinstance(data, dict):
-             defaults = _get_default_settings()
-             for key in SettingsForm.model_fields:
-                 if key not in data:
-                     data[key] = defaults.get(key)
+        defaults = _get_default_settings()
+        for key in SettingsForm.model_fields:
+            if key not in data:
+                data[key] = defaults.get(key)
                 
         settings = SettingsForm(**data)
         

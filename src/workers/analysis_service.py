@@ -153,20 +153,3 @@ class AnalysisService:
         )
 
         return analysis
-
-    @staticmethod
-    def list_factor_lists(user_uid: str | None = None) -> list[str]:
-        if INTERNAL_MODE and user_uid:
-            base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
-        else:
-            base_dir = FACTOR_LIST_DIR / "FactorMiner"
-
-        if not base_dir.exists():
-            return []
-
-        fl_ids = []
-        for item in base_dir.iterdir():
-            if item.is_dir() and any(item.glob("*.json")):
-                fl_ids.append(item.name)
-
-        return sorted(fl_ids)

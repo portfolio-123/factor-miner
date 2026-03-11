@@ -30,7 +30,7 @@ from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
 from src.internal.p123_client import fetch_benchmark_data
 from src.services.benchmark_service import fetch_benchmark_external
-from src.core.calculations.returns import (
+from src.core.calculations.forward_returns import (
     calculate_benchmark_returns,
     calculate_future_performance,
 )
@@ -38,7 +38,7 @@ from src.core.calculations.factor_analysis import (
     analyze_factors,
     calculate_factor_metrics,
 )
-from src.core.calculations.selection import (
+from src.core.calculations.feature_selection import (
     calculate_correlation_matrix,
     select_best_features,
 )
