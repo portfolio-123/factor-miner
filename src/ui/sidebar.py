@@ -30,15 +30,15 @@ def sidebar() -> st.navigation:
     }
 
     with st.sidebar:
-        fl_name = st.session_state.get("fl_name", "Dataset")
         st.markdown("<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>", unsafe_allow_html=True)
 
-        link = p123_link(fl_id)
-        display_name = f"{fl_name} ({fl_id})" if fl_id else fl_name
-        header = f"<a href='{link}' target='_blank' style='text-decoration: underline;'>{display_name}</a>" if link else f"<span style='color: #666;'>{display_name}</span>"
-        st.markdown(header, unsafe_allow_html=True)
-
         if INTERNAL_MODE:
+            fl_name = st.session_state.get("fl_name", "Dataset")
+            link = p123_link(fl_id)
+            display_name = f"{fl_name} ({fl_id})" if fl_id else fl_name
+            header = f"<a href='{link}' target='_blank' style='text-decoration: underline;'>{display_name}</a>" if link else f"<span style='color: #666;'>{display_name}</span>"
+            st.markdown(header, unsafe_allow_html=True)
+
             user_uid = st.session_state.get("user_uid")
             datasets = list_user_datasets(user_uid) if user_uid else []
             options = [fl_id for fl_id, _ in datasets]
@@ -48,7 +48,7 @@ def sidebar() -> st.navigation:
         else:
             options = DatasetService.list_datasets()
             label = "Datasets"
-            format_func = None
+            format_func = str
 
         if options:
             try:
