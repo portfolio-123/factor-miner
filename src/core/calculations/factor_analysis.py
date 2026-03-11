@@ -4,7 +4,7 @@ import traceback
 import numpy as np
 import polars as pl
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 from src.services.dataset_service import DatasetService
 from src.core.config.constants import (
@@ -212,6 +212,7 @@ def analyze_factors(
     top_pct: float = 10.0,
     bottom_pct: float = 10.0,
     batch_size: int = 50,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> Tuple[pl.DataFrame, Dict[str, dict]]:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
@@ -251,6 +252,7 @@ def analyze_factors(
     n_dates = len(unique_dates)
     del base_df, merged_base
 
+    completed_count = 0
     max_workers = min(8, os.cpu_count() or 4)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Process factors in batches
@@ -284,12 +286,18 @@ def analyze_factors(
                 except Exception as e:
                     logger.error(f"THREAD CRASHED - Factor {col}: {type(e).__name__}: {e}")
                     logger.error(traceback.format_exc())
+                    completed_count += 1
+                    if on_progress:
+                        on_progress(completed_count, total_factors)
                     continue
                 factor_stats_dict[col] = factor_stats
                 if len(dates_arr) > 0:
                     all_dates.append(dates_arr)
                     all_factors.append(factors_arr)
                     all_rets.append(rets_arr)
+                completed_count += 1
+                if on_progress:
+                    on_progress(completed_count, total_factors)
 
             del batch_df
 

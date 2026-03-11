@@ -137,6 +137,7 @@ class AnalysisRunner:
                 factor_columns=factor_columns,
                 top_pct=params.top_pct,
                 bottom_pct=params.bottom_pct,
+                on_progress=on_progress,
             )
 
             raw_data = dataset_svc.read_columns(["Date"])

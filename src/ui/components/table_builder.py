@@ -35,6 +35,7 @@ TABLE_STYLES = """
         padding: 6px;
         border-bottom: 1px solid #ddd;
         border-right: 1px solid #ddd;
+        word-break: break-word;
     }
     .html-table td:last-child {
         border-right: none;
@@ -64,6 +65,7 @@ def render_table(
     row_colors: list[str] | None = None,
     row_links: list[str] | None = None,
     format_spec: dict[str, str] | None = None,
+    column_widths: dict[str, str] | None = None,
     max_height: int = 400,
     zebra: bool = False,
     small_headers: bool = False,
@@ -80,10 +82,15 @@ def render_table(
     html += f'<div class="html-table-container" style="max-height: {max_height}px;">'
     html += f'<table class="{table_class}">'
 
-    header_style = ' style="font-size: 11px;"' if small_headers else ""
     html += "<thead><tr>"
     for col in headers:
-        html += f"<th{header_style}>{escape(str(col))}</th>"
+        styles = []
+        if small_headers:
+            styles.append("font-size: 11px")
+        if column_widths and col in column_widths:
+            styles.append(f"width: {column_widths[col]}")
+        style_attr = f' style="{"; ".join(styles)}"' if styles else ""
+        html += f"<th{style_attr}>{escape(str(col))}</th>"
     html += "</tr></thead>"
 
     html += "<tbody>"

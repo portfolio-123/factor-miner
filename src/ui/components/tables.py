@@ -63,7 +63,11 @@ def show_preview_modal(
         st.caption("Showing first and last 10 rows")
 
         display_df = preview_df.rename({"_row_idx": "Row"})
-        render_table(display_df, max_height=500)
+        render_table(
+            display_df,
+            max_height=500,
+            column_widths={"Row": "40px", "Date": "85px", "P123 ID": "60px", "Ticker": "55px"},
+        )
 
     _render()
 
@@ -76,7 +80,12 @@ def show_formulas_modal(
     def _render() -> None:
         subset = formulas_df.select(["formula", "name", "tag"])
 
-        render_table(subset, max_height=400, zebra=True)
+        render_table(
+            subset,
+            max_height=400,
+            zebra=True,
+            column_widths={"formula": "45%", "name": "35%", "tag": "20%"},
+        )
 
         render_copy_download_buttons(
             csv_copy=subset.write_csv(separator="\t"),

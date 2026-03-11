@@ -3,6 +3,7 @@ from src.ui.components.tables import show_formulas_modal, show_preview_modal
 from src.core.config.constants import (
     FREQUENCY_LABELS,
     PIT_METHOD_LABELS,
+    PRICE_COLUMN_NAMES,
     SCALING_LABELS,
 )
 from src.core.config.environment import INTERNAL_MODE
@@ -83,7 +84,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{subtitle}</span></p>'
             )
 
-        formula_count = len(dataset_metadata.formulas) if dataset_metadata.formulas else 0
+        formula_count = sum(1 for f in dataset_metadata.formulas if f.get("name") not in PRICE_COLUMN_NAMES)
         with header_formulas:
             if st.button(
                 f"Formulas ({formula_count})",
