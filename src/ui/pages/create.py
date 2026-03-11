@@ -64,8 +64,7 @@ def _apply_settings_if_triggered(saved: str | None) -> None:
         del st.session_state["_load_settings_triggered"]
         st.rerun()
         
-    except (json.JSONDecodeError, TypeError, ValueError, ValidationError) as e:
-        # st.toast(f"Error loading settings: {e}")
+    except (json.JSONDecodeError, TypeError, ValueError, ValidationError):
         del st.session_state["_load_settings_triggered"]
 
 

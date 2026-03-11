@@ -3,7 +3,7 @@ import polars as pl
 
 from src.core.types.models import AnalysisStatus
 from src.internal.errors import format_analysis_error
-from src.ui.components.common import render_info_item, get_card_header_html
+from src.ui.components.common import render_info_item
 from src.ui.components.tables import render_results_table, render_correlation_matrix
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import (

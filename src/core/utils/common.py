@@ -1,6 +1,5 @@
 import base64
 import json
-from typing import Any
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timezone

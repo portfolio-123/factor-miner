@@ -16,7 +16,7 @@ def init() -> None:
         validate_fl_id()
     else:  # external
         if not (fl_id := st.query_params.get("fl_id")):
-            available = DatasetService.list_available_datasets()
+            available = DatasetService.list_datasets()
             if not available:
                 st.warning("No datasets found. Add .parquet datasets to the data directory.")
                 st.stop()
