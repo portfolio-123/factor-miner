@@ -2,7 +2,7 @@ import streamlit as st
 
 from src.core.config.environment import INTERNAL_MODE
 from src.internal.links import p123_link
-from src.internal.sidebar import list_user_datasets, update_fl_name_on_select
+from src.internal.sidebar import list_user_datasets
 from src.services.dataset_service import DatasetService
 from src.ui.pages.about import about
 from src.ui.pages.history import history
@@ -61,7 +61,7 @@ def sidebar() -> st.navigation:
             if selected and selected != fl_id:
                 # update fl_name
                 if INTERNAL_MODE:
-                    update_fl_name_on_select(selected)
+                    st.session_state.fl_name = name_map.get(selected, selected)
                 else:
                     st.session_state.fl_name = selected
 

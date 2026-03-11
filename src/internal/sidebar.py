@@ -1,7 +1,4 @@
-import streamlit as st
-
 from src.core.config.environment import FACTOR_LIST_DIR
-from src.internal.p123_client import verify_factor_list_access
 from src.services.readers import ParquetDataReader
 
 
@@ -26,8 +23,11 @@ def list_user_datasets(user_uid: str) -> list[tuple[str, str]]:
 
     results = []
     for fl_id in sorted(fl_ids):
-        name = _read_name_from_parquet(user_dir / fl_id)
-        if not name:
+        main_file = user_dir / fl_id
+        if main_file.exists():
+            name = _read_name_from_parquet(main_file)
+        else:
+            name = None
             backup_dir = factor_miner_dir / fl_id
             if backup_dir.exists():
                 backups = list(backup_dir.glob("*.parquet"))
@@ -35,11 +35,3 @@ def list_user_datasets(user_uid: str) -> list[tuple[str, str]]:
                     name = _read_name_from_parquet(max(backups, key=lambda p: p.stem))
         results.append((fl_id, name or fl_id))
     return results
-
-
-def update_fl_name_on_select(selected: str) -> None:
-    if token := st.session_state.get("access_token"):
-        try:
-            st.session_state.fl_name = verify_factor_list_access(selected, token).get("name", selected)
-        except PermissionError:
-            st.session_state.access_token = None
