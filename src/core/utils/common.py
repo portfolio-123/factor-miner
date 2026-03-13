@@ -16,11 +16,11 @@ def read_json_file(path: Path) -> dict | None:
         return None
 
 
+# "2024-01-15T14:30:00" -> "2024-01-15"
 def format_date(date_value: str | None, format_str: str = "%Y-%m-%d") -> str:
     if not date_value:
         return "N/A"
     try:
-        # Fast path: dates are stored as ISO strings, most callers want YYYY-MM-DD
         if format_str == "%Y-%m-%d":
             return date_value[:10]
         return datetime.fromisoformat(date_value[:10]).strftime(format_str)
@@ -28,6 +28,12 @@ def format_date(date_value: str | None, format_str: str = "%Y-%m-%d") -> str:
         return "N/A"
 
 
+# "20240115_143052" (YYYYMMDD_HHMMSS)
+def format_version_timestamp(unix_ts: float) -> str:
+    return datetime.fromtimestamp(unix_ts).strftime("%Y%m%d_%H%M%S")
+
+
+# "Jan 15, 2024 at 02:30 PM UTC"
 def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y at %I:%M %p UTC") -> str:
     if not timestamp:
         return "N/A"
@@ -48,6 +54,7 @@ def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y a
         return "N/A"
 
 
+# (start_iso, end_iso) -> "5m 30s" or "45s", etc
 def format_runtime(started_at: str | None, finished_at: str | None) -> str:
     if not started_at or not finished_at:
         return "N/A"

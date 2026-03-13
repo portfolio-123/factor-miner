@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from src.core.config.environment import FACTOR_LIST_DIR, INTERNAL_MODE
+from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
 from src.core.types.models import (
     Analysis,
     AnalysisParams,
@@ -26,9 +26,9 @@ class AnalysisService:
     def __init__(self, user_uid: str | None = None):
         self.user_uid = user_uid
         if INTERNAL_MODE and user_uid:
-            self.base_dir = FACTOR_LIST_DIR / user_uid / "FactorMiner"
+            self.base_dir = DATASET_DIR / user_uid / "FactorMiner"
         else:
-            self.base_dir = FACTOR_LIST_DIR / "FactorMiner"
+            self.base_dir = DATASET_DIR / "FactorMiner"
 
     def _get_path(self, fl_id: str, analysis_id: str) -> Path:
         return self.base_dir / fl_id / f"{analysis_id}.json"
@@ -121,6 +121,8 @@ class AnalysisService:
 
         analyses = []
         for json_file in fl_dir.glob("*.json"):
+            if json_file.stem.startswith("dataset_"):
+                continue
             data = read_json_file(json_file)
             try:
                 analyses.append(AnalysisSummary.model_validate(data))
@@ -128,6 +130,21 @@ class AnalysisService:
                 continue
 
         return sorted(analyses, key=lambda a: a.created_at, reverse=True)
+
+    def next_analysis_id(self, fl_id: str) -> str:
+        fl_dir = self.base_dir / fl_id
+        if not fl_dir.exists():
+            return "analysis_1"
+
+        max_num = 0
+        for json_file in fl_dir.glob("analysis_*.json"):
+            try:
+                num = int(json_file.stem.split("_")[1])
+                max_num = max(max_num, num)
+            except (IndexError, ValueError):
+                continue
+
+        return f"analysis_{max_num + 1}"
 
     def start(
         self,

@@ -1,6 +1,5 @@
 import time
 import json
-import uuid
 
 import streamlit as st
 from pydantic import ValidationError
@@ -72,7 +71,7 @@ def _submit_analysis() -> None:
     fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
     dataset_version = DatasetService(fl_id, user_uid).current_version
-    analysis_id = uuid.uuid4().hex[:8]
+    analysis_id = AnalysisService(user_uid).next_analysis_id(fl_id)
 
     try:
         rank_by = st.session_state.get("rank_by", "Alpha")

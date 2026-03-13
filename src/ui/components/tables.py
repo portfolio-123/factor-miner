@@ -108,6 +108,7 @@ def render_results_table(
     factor_classifications: dict[str, str] | None = None,
     key: str = "results",
     rank_by: str = "Alpha",
+    sortable: bool = False,
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
@@ -131,8 +132,19 @@ def render_results_table(
         "IC t-stat": "IC t-stat",
     })
 
+    if formulas_data is not None:
+        tag_mapping = formulas_data.unique(subset=["name"]).select(["name", "tag"])
+        display = display.join(
+            tag_mapping,
+            left_on="Factor",
+            right_on="name",
+            how="left"
+        ).rename({"tag": "Tag"})
+    else:
+        display = display.with_columns(pl.lit("").alias("Tag"))
+
     display = display.select([
-        "Rank", "Factor", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"
+        "Rank", "Factor", "Tag", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"
     ])
 
     row_colors = None
@@ -188,6 +200,7 @@ def render_results_table(
         },
         max_height=500,
         zebra=True,
+        sortable=sortable,
     )
 
     enriched_df = add_formula_and_tag_columns(display, formulas_data)

@@ -4,13 +4,11 @@ from pathlib import Path
 from typing import Self
 
 import polars as pl
-import pyarrow as pa
-import pyarrow.parquet as pq
 
+from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
 from src.core.types.models import DatasetConfig
+from src.core.utils.common import format_version_timestamp
 from src.services.readers import ParquetDataReader
-
-from src.core.config.environment import FACTOR_LIST_DIR, INTERNAL_MODE
 
 
 class DatasetService:
@@ -28,17 +26,15 @@ class DatasetService:
 
     @property
     def base_path(self) -> Path:
-        # In internal mode, files are at FACTOR_LIST_DIR/{user_uid}/{fl_id}
-        # In external mode, datasets are .parquet files directly in FACTOR_LIST_DIR
         if INTERNAL_MODE:
-            return FACTOR_LIST_DIR / self.user_uid / self.fl_id
-        return FACTOR_LIST_DIR / f"{self.fl_id}.parquet"
+            return DATASET_DIR / self.user_uid / self.fl_id
+        return DATASET_DIR / f"{self.fl_id}.parquet"
 
     @staticmethod
     def list_datasets() -> list[str]:
-        if not FACTOR_LIST_DIR.exists():
+        if not DATASET_DIR.exists():
             return []
-        return sorted(f.stem for f in FACTOR_LIST_DIR.glob("*.parquet"))
+        return sorted(f.stem for f in DATASET_DIR.glob("*.parquet"))
 
     @property
     def exists(self) -> bool:
@@ -48,7 +44,7 @@ class DatasetService:
     def current_version(self) -> str | None:
         if not self.base_path.exists():
             return None
-        return str(int(os.path.getmtime(self.base_path)))
+        return format_version_timestamp(os.path.getmtime(self.base_path))
 
     @property
     def column_names(self) -> list[str]:
@@ -84,15 +80,8 @@ class DatasetService:
             if dataset_metadata_raw:
                 dataset_metadata = json.loads(dataset_metadata_raw.decode("utf-8"))
                 dataset_metadata["numRows"] = num_rows
-                updated_metadata = {
-                    **source_metadata,
-                    b"datasetMetadata": json.dumps(dataset_metadata).encode("utf-8"),
-                }
-            else:
-                updated_metadata = source_metadata
-
-            table = pa.table({}).replace_schema_metadata(updated_metadata)
-            pq.write_table(table, dest_path)
+                with open(dest_path, "w") as f:
+                    json.dump(dataset_metadata, f, indent=2)
 
 class BackupDatasetService:
     def __init__(self, user_uid: str | None, fl_id: str):
@@ -102,15 +91,16 @@ class BackupDatasetService:
     @property
     def backup_dir(self) -> Path:
         if INTERNAL_MODE and self.user_uid:
-            return FACTOR_LIST_DIR / self.user_uid / "FactorMiner" / self.fl_id
-        return FACTOR_LIST_DIR / "FactorMiner" / self.fl_id
+            return DATASET_DIR / self.user_uid / "FactorMiner" / self.fl_id
+        return DATASET_DIR / "FactorMiner" / self.fl_id
 
     def get_backup_path(self, version: str) -> Path:
-        return self.backup_dir / f"{version}.parquet"
+        return self.backup_dir / f"dataset_{version}.json"
 
     def get_metadata(self, version: str) -> DatasetConfig:
-        with ParquetDataReader(self.get_backup_path(version)) as reader:
-            metadata = reader.get_dataset_info()
+        with open(self.get_backup_path(version)) as f:
+            data = json.load(f)
+        metadata = DatasetConfig(**data)
         metadata.version = version
         current = DatasetService(self.fl_id, self.user_uid).current_version
         metadata.active = current is not None and version == current
@@ -122,8 +112,8 @@ class BackupDatasetService:
 
         current = DatasetService(self.fl_id, self.user_uid).current_version
         result = {}
-        for f in self.backup_dir.glob("*.parquet"):
-            version = f.stem
+        for f in self.backup_dir.glob("dataset_*.json"):
+            version = f.stem.removeprefix("dataset_")
             dataset = self.get_metadata(version)
             dataset.active = current is not None and version == current
             result[version] = dataset

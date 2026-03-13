@@ -1,17 +1,11 @@
-from src.core.config.environment import FACTOR_LIST_DIR
+import json
+
+from src.core.config.environment import DATASET_DIR
 from src.services.readers import ParquetDataReader
 
 
-def _read_name_from_parquet(path) -> str | None:
-    try:
-        with ParquetDataReader(path) as reader:
-            return reader.get_dataset_info().factorListName
-    except Exception:
-        return None
-
-
 def list_user_datasets(user_uid: str) -> list[tuple[str, str]]:
-    user_dir = FACTOR_LIST_DIR / user_uid
+    user_dir = DATASET_DIR / user_uid
     if not user_dir.exists():
         return []
 
@@ -23,15 +17,23 @@ def list_user_datasets(user_uid: str) -> list[tuple[str, str]]:
 
     results = []
     for fl_id in sorted(fl_ids):
+        name = None
         main_file = user_dir / fl_id
         if main_file.exists():
-            name = _read_name_from_parquet(main_file)
+            try:
+                with ParquetDataReader(main_file) as reader:
+                    name = reader.get_dataset_info().factorListName
+            except Exception:
+                pass
         else:
-            name = None
             backup_dir = factor_miner_dir / fl_id
             if backup_dir.exists():
-                backups = list(backup_dir.glob("*.parquet"))
+                backups = list(backup_dir.glob("dataset_*.json"))
                 if backups:
-                    name = _read_name_from_parquet(max(backups, key=lambda p: p.stem))
+                    try:
+                        with open(max(backups, key=lambda p: p.stem)) as f:
+                            name = json.load(f).get("factorListName")
+                    except Exception:
+                        pass
         results.append((fl_id, name or fl_id))
     return results

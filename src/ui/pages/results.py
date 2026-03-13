@@ -122,7 +122,11 @@ def results() -> None:
             st.divider()
             best_corr_matrix = corr_matrix_df.filter(
                 pl.col("factor").is_in(best_feature_names)
-            ).select(["factor"] + best_feature_names)
+            ).select(["factor"] + best_feature_names).sort(
+                pl.col("factor").replace_strict(
+                    {name: i for i, name in enumerate(best_feature_names)}
+                )
+            )
             render_correlation_matrix(
                 corr_matrix_df=best_corr_matrix,
                 title="Correlation Matrix (Best Factors)",
@@ -136,11 +140,12 @@ def results() -> None:
 
     with all_factors_tab:
         metric_label = "IC" if rank_by == "IC" else "absolute annualized alpha"
-        st.caption(f"All factors ranked by {metric_label} (highest first)")
+        st.caption(f"All factors ranked by {metric_label} (highest first). Click column headers to sort.")
 
         render_results_table(
             all_metrics_df,
             factor_classifications=factor_classifications,
             key="all_factors",
             rank_by=rank_by,
+            sortable=True,
         )

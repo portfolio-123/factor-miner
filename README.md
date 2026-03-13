@@ -16,12 +16,12 @@ pip install -r requirements.txt
 Create a `.env` file with the following variables:
 
 ```env
-FACTOR_LIST_DIR=/path/to/your/data
+DATASET_DIR=/path/to/your/data
 ```
 
 | Variable | Description |
 |----------|-------------|
-| `FACTOR_LIST_DIR` | Directory containing your `.parquet` dataset files. |
+| `DATASET_DIR` | Directory containing your `.parquet` dataset files. |
 
 ### Usage
 
@@ -29,7 +29,7 @@ FACTOR_LIST_DIR=/path/to/your/data
 streamlit run app.py
 ```
 
-1. Place your `.parquet` dataset files in the `FACTOR_LIST_DIR` directory
+1. Place your `.parquet` dataset files in the `DATASET_DIR` directory
 2. Select a dataset from the sidebar dropdown
 3. Click on **New Analysis** to run your analysis
 
@@ -39,6 +39,6 @@ Each parquet file should contain your factor data with Date, Ticker, and price c
 
 ### Results Storage
 
-Analysis results are stored in `{FACTOR_LIST_DIR}/FactorMiner/`. A directory is created for each dataset, containing:
+Analysis results are stored in `{DATASET_DIR}/FactorMiner/`. A directory is created for each dataset, containing:
 - JSON files with analysis results (one per analysis)
 - A `logs/` folder with execution logs

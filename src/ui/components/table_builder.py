@@ -57,7 +57,77 @@ TABLE_STYLES = """
     .html-table--clickable tr:hover {
         filter: brightness(0.93);
     }
+    .html-table--sortable th {
+        cursor: pointer;
+        user-select: none;
+    }
+    .html-table--sortable th:hover {
+        background: #e4e6ea;
+    }
+    .html-table--sortable th .sort-indicator {
+        margin-left: 4px;
+        opacity: 0.3;
+    }
+    .html-table--sortable th.sort-asc .sort-indicator,
+    .html-table--sortable th.sort-desc .sort-indicator {
+        opacity: 1;
+    }
 </style>
+"""
+
+SORT_SCRIPT = """
+<script>
+(function() {
+    const tableId = '__TABLE_ID__';
+    const table = document.getElementById(tableId);
+    if (!table) return;
+
+    const headers = table.querySelectorAll('th');
+    let currentSort = { col: -1, asc: true };
+
+    headers.forEach((th, colIdx) => {
+        th.addEventListener('click', () => sortTable(colIdx));
+    });
+
+    function sortTable(colIdx) {
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        const asc = currentSort.col === colIdx ? !currentSort.asc : true;
+        currentSort = { col: colIdx, asc };
+
+        rows.sort((a, b) => {
+            const aCell = a.children[colIdx];
+            const bCell = b.children[colIdx];
+            const aVal = aCell.dataset.sortValue !== undefined ? aCell.dataset.sortValue : aCell.textContent.trim();
+            const bVal = bCell.dataset.sortValue !== undefined ? bCell.dataset.sortValue : bCell.textContent.trim();
+
+            const aNum = parseFloat(aVal);
+            const bNum = parseFloat(bVal);
+
+            let cmp;
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+                cmp = aNum - bNum;
+            } else {
+                cmp = aVal.localeCompare(bVal);
+            }
+            return asc ? cmp : -cmp;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+
+        headers.forEach((th, idx) => {
+            th.classList.remove('sort-asc', 'sort-desc');
+            if (idx === colIdx) {
+                th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+                th.querySelector('.sort-indicator').textContent = asc ? '▲' : '▼';
+            } else {
+                th.querySelector('.sort-indicator').textContent = '▲';
+            }
+        });
+    }
+})();
+</script>
 """
 
 
@@ -71,6 +141,7 @@ def render_table(
     max_height: int = 400,
     zebra: bool = False,
     small_headers: bool = False,
+    sortable: bool = False,
 ) -> None:
     headers = df.columns
     is_clickable = row_links is not None
@@ -78,11 +149,18 @@ def render_table(
     if row_colors is None and zebra:
         row_colors = ["#ffffff" if i % 2 == 0 else "#f8f8f8" for i in range(len(df))]
 
-    table_class = "html-table html-table--clickable" if is_clickable else "html-table"
+    table_classes = ["html-table"]
+    if is_clickable:
+        table_classes.append("html-table--clickable")
+    if sortable:
+        table_classes.append("html-table--sortable")
+    table_class = " ".join(table_classes)
+
+    table_id = f"table-{id(df)}"
 
     html = TABLE_STYLES
     html += f'<div class="html-table-container" style="max-height: {max_height}px;">'
-    html += f'<table class="{table_class}">'
+    html += f'<table class="{table_class}" id="{table_id}">'
 
     html += "<thead><tr>"
     for col in headers:
@@ -92,7 +170,8 @@ def render_table(
         if column_widths and col in column_widths:
             styles.append(f"width: {column_widths[col]}")
         style_attr = f' style="{"; ".join(styles)}"' if styles else ""
-        html += f"<th{style_attr}>{escape(str(col))}</th>"
+        sort_indicator = '<span class="sort-indicator">▲</span>' if sortable else ""
+        html += f"<th{style_attr}>{escape(str(col))}{sort_indicator}</th>"
     html += "</tr></thead>"
 
     html += "<tbody>"
@@ -100,21 +179,28 @@ def render_table(
         bg_color = row_colors[i] if row_colors and i < len(row_colors) else "#ffffff"
         link = row_links[i] if row_links and i < len(row_links) else None
 
-        html += f'<tr style="background: {bg_color}">'
+        html += f'<tr style="background: {bg_color}" data-original-bg="{bg_color}">'
         for j, col in enumerate(headers):
             value = row[col]
+            sort_value = ""
+
             if value is None:
                 cell_value = "N/A"
+                sort_value = ""
             elif isinstance(value, float) and math.isnan(value):
                 cell_value = "-"
+                sort_value = ""
             elif format_spec and col in format_spec:
                 fmt = format_spec[col]
+                sort_value = str(value) if isinstance(value, (int, float)) else ""
                 if fmt.endswith("%"):
                     cell_value = escape(f"{value:{fmt[:-1]}}%")
                 else:
                     cell_value = escape(f"{value:{fmt}}")
             else:
                 cell_value = escape(str(value))
+                if isinstance(value, (int, float)):
+                    sort_value = str(value)
 
             td_styles = []
             if j == 0 and small_headers:
@@ -123,13 +209,18 @@ def render_table(
                 td_styles.append("white-space: nowrap")
             td_style_attr = f' style="{"; ".join(td_styles)}"' if td_styles else ""
 
+            sort_attr = f' data-sort-value="{sort_value}"' if sortable and sort_value else ""
+
             if link:
-                html += f'<td{td_style_attr}><a href="{link}" target="_top">{cell_value}</a></td>'
+                html += f'<td{td_style_attr}{sort_attr}><a href="{link}" target="_top">{cell_value}</a></td>'
             else:
-                html += f"<td{td_style_attr}>{cell_value}</td>"
+                html += f"<td{td_style_attr}{sort_attr}>{cell_value}</td>"
 
         html += "</tr>"
 
     html += "</tbody></table></div>"
+
+    if sortable:
+        html += SORT_SCRIPT.replace("__TABLE_ID__", table_id)
 
     st.html(html)
