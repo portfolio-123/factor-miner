@@ -212,10 +212,8 @@ def render_table(
 
             sort_attr = f' data-sort-value="{sort_value}"' if sortable and sort_value else ""
 
-            if link:
-                html += f'<td{td_style_attr}{sort_attr}><a href="{link}" target="_top">{cell_value}</a></td>'
-            else:
-                html += f"<td{td_style_attr}{sort_attr}>{cell_value}</td>"
+            cell_content = f'<a href="{link}">{cell_value}</a>' if link else cell_value
+            html += f"<td{td_style_attr}{sort_attr}>{cell_content}</td>"
 
         html += "</tr>"
 
@@ -223,5 +221,6 @@ def render_table(
 
     if sortable:
         html += SORT_SCRIPT.replace("__TABLE_ID__", table_id)
-
-    components.html(html, height=max_height + 50, scrolling=True)
+        components.html(html, height=max_height + 50, scrolling=True)
+    else:
+        st.html(html)
