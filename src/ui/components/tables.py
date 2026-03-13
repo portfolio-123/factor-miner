@@ -5,7 +5,7 @@ import polars.selectors as cs
 from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisSummary, DatasetType
 from src.core.utils.common import (
-    add_formula_and_tag_columns,
+    add_formula_column,
     format_date,
     format_runtime,
     format_timestamp,
@@ -203,7 +203,7 @@ def render_results_table(
         sortable=sortable,
     )
 
-    enriched_df = add_formula_and_tag_columns(display, formulas_data)
+    enriched_df = add_formula_column(display, formulas_data)
     csv_download = enriched_df.write_csv()
 
     file_name = f"{fl_id}_factors.csv" if fl_id else "factors.csv"

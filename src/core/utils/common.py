@@ -96,30 +96,29 @@ def find_price_column(column_names: list[str], price_column_names: list[str]) ->
         f"[price-column-not-found] Dataset must include one of: {', '.join(price_column_names)}"
     )
 
-def add_formula_and_tag_columns(
+def add_formula_column(
     download_df: pl.DataFrame,
     formulas_df: pl.DataFrame,
     factor_col: str = "Factor",
 ) -> pl.DataFrame:
-    # df with all the factor names
-    mapping_df = formulas_df.unique(subset=["name"]).select(["name", "formula", "tag"])
+    if "Formula" in download_df.columns:
+        return download_df
 
-    # join with the download df that contains the results
+    mapping_df = formulas_df.unique(subset=["name"]).select(["name", "formula"])
+
     result = download_df.join(
         mapping_df,
         left_on=factor_col,
         right_on="name",
         how="left"
-    ).rename({"formula": "Formula", "tag": "Tag"})
+    ).rename({"formula": "Formula"})
 
-    # reorder columns to place Formula and Tag after factor_col
+    # place Formula after factor_col
     cols = result.columns
-    # know what index the factor column is at
     factor_idx = cols.index(factor_col)
     new_order = (
-        # place formula+tag after factor column
         cols[:factor_idx + 1] +
-        ["Formula", "Tag"] +
-        [c for c in cols[factor_idx + 1:] if c not in ["Formula", "Tag", "name"]]
+        ["Formula"] +
+        [c for c in cols[factor_idx + 1:] if c not in ["Formula", "name"]]
     )
     return result.select(new_order)

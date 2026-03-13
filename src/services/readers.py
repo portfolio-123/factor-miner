@@ -79,6 +79,7 @@ class ParquetDataReader:
             raise ValueError("Missing datasetMetadata in parquet file")
 
         dataset_info = json.loads(raw)
+        dataset_info["version"] = str(dataset_info.get("version", ""))
 
         if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
             dataset_info["normalization"] = dataset_info["preprocessor"]

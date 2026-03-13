@@ -1,6 +1,7 @@
 import math
 
 import streamlit as st
+import streamlit.components.v1 as components
 import polars as pl
 from html import escape
 
@@ -223,4 +224,4 @@ def render_table(
     if sortable:
         html += SORT_SCRIPT.replace("__TABLE_ID__", table_id)
 
-    st.html(html)
+    components.html(html, height=max_height + 50, scrolling=True)
