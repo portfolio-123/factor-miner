@@ -91,7 +91,7 @@ class Frequency(IntEnum):
         return 365.0 / (self.weeks * 7)
 
 
-class SettingsForm(BaseModel):
+class AnalysisParams(BaseModel):
     min_alpha: float
     top_pct: float
     bottom_pct: float
@@ -100,9 +100,6 @@ class SettingsForm(BaseModel):
     max_na_pct: float
     min_ic: float
     rank_by: str = "Alpha"
-
-
-class AnalysisParams(SettingsForm):
     access_token: str | None = None
 
 

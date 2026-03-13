@@ -1,10 +1,4 @@
-import time
-import json
-
 import streamlit as st
-from pydantic import ValidationError
-
-from streamlit_local_storage import LocalStorage
 
 from src.core.config.constants import (
     DEFAULT_MIN_ALPHA,
@@ -14,10 +8,9 @@ from src.core.config.constants import (
     DEFAULT_N_FACTORS,
     DEFAULT_MAX_NA_PCT,
     DEFAULT_MIN_IC,
-    SETTINGS_STORAGE_KEY,
 )
 from src.core.config.environment import INTERNAL_MODE
-from src.core.types.models import AnalysisParams, SettingsForm
+from src.core.types.models import AnalysisParams
 from src.internal.links import p123_link
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
@@ -40,31 +33,21 @@ def _get_default_settings() -> dict:
     }
 
 
-def _apply_settings_if_triggered(saved: str | None) -> None:
-    if not st.session_state.get("_load_settings_triggered"):
-        return
-    
-    if not saved:
-        del st.session_state["_load_settings_triggered"]
+def _load_last_analysis_params() -> None:
+    fl_id = st.query_params.get("fl_id")
+    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
+
+    analyses = AnalysisService(user_uid).list_all(fl_id)
+    if not analyses:
+        st.toast("No previous analysis found for this dataset")
         return
 
-    try:
-        data = json.loads(saved)
-        defaults = _get_default_settings()
-        for key in SettingsForm.model_fields:
-            if key not in data:
-                data[key] = defaults.get(key)
-                
-        settings = SettingsForm(**data)
-        
-        for key, value in settings.model_dump().items():
+    # list_all returns sorted by created_at desc, so first is most recent
+    last_params = analyses[0].params
+
+    for key, value in last_params.model_dump().items():
+        if key != "access_token":  # don't copy access_token if it's there
             st.session_state[key] = value
-        
-        del st.session_state["_load_settings_triggered"]
-        st.rerun()
-        
-    except (json.JSONDecodeError, TypeError, ValueError, ValidationError):
-        del st.session_state["_load_settings_triggered"]
 
 
 def _submit_analysis() -> None:
@@ -87,9 +70,6 @@ def _submit_analysis() -> None:
             access_token=st.session_state.get("access_token"),
         )
         AnalysisService(user_uid).start(fl_id, analysis_id, dataset_version, params)
-        
-        # Trigger save settings flow
-        st.session_state["_save_settings_triggered"] = True
         st.session_state["_redirect_to_results"] = analysis_id
         
     except Exception as e:
@@ -97,28 +77,6 @@ def _submit_analysis() -> None:
 
 
 def create_form() -> None:
-    ls = LocalStorage(key=SETTINGS_STORAGE_KEY)
-    
-    if st.session_state.get("_save_settings_triggered"):
-        try:
-            defaults = _get_default_settings()
-            current_settings = {}
-            for key in SettingsForm.model_fields:
-                val = st.session_state.get(key)
-                if val is None:
-                    val = defaults.get(key)
-                current_settings[key] = val
-            
-            ls.setItem(SETTINGS_STORAGE_KEY, json.dumps(current_settings))
-            
-            # have to sleep otherwise the settings are not saved
-            time.sleep(0.1)
-        except Exception as e:
-            st.toast(f"Error saving settings: {e}")
-        finally:
-            del st.session_state["_save_settings_triggered"]
-            st.rerun()
-
     if analysis_id := st.session_state.pop("_redirect_to_results", None):
         st.switch_page(
             st.session_state["pages"]["results"],
@@ -146,10 +104,6 @@ def create_form() -> None:
 
     st.title("Create Analysis")
     render_dataset_card(active_dataset_metadata)
-
-    # Load settings early to ensure component is mounted and syncing
-    saved_settings = ls.getItem(SETTINGS_STORAGE_KEY)
-    _apply_settings_if_triggered(saved_settings)
     _render_settings()
 
     _, col_last_settings, col_run = st.columns([3, 1, 1])
@@ -157,15 +111,15 @@ def create_form() -> None:
         st.button(
             "Use Last Settings",
             type="secondary",
-            on_click=lambda: st.session_state.update(_load_settings_triggered=True),
-            width="stretch",
+            on_click=_load_last_analysis_params,
+            width="stretch"
         )
     with col_run:
         st.button(
             "Run Analysis",
             type="primary",
             on_click=_submit_analysis,
-            width="stretch",
+            width="stretch"
         )
 
 
