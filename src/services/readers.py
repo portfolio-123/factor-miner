@@ -80,12 +80,8 @@ class ParquetDataReader:
 
         dataset_info = json.loads(raw)
 
-        dataset_info["version"] = str(dataset_info["version"])
-
         if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
             dataset_info["normalization"] = dataset_info["preprocessor"]
-        else:
-            dataset_info["normalization"] = None
         dataset_info.pop("preprocessor", None)
 
         return DatasetConfig(**dataset_info)

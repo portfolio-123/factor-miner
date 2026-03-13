@@ -38,10 +38,10 @@ def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y a
     if not timestamp:
         return "N/A"
     try:
-        ts = int(timestamp)
+        ts = int(timestamp) // 1000
         dt = datetime.fromtimestamp(ts, tz=timezone.utc)
         return dt.strftime(format_str)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OSError):
         pass
     try:
         dt = datetime.fromisoformat(str(timestamp))

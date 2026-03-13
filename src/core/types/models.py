@@ -1,7 +1,7 @@
 from enum import IntEnum, StrEnum
 
 import polars as pl
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class AnalysisStatus(StrEnum):
     PENDING = "pending"
@@ -137,6 +137,13 @@ class DatasetConfig(BaseModel):
     pitMethod: int
     active: bool = False
     num_rows: int | None = Field(default=None, alias="numRows")
+
+    @field_validator("normalization", mode="before")
+    @classmethod
+    def coerce_normalization(cls, v):
+        if v is False:
+            return None
+        return v
 
     # for when tag is missing completely
     @property

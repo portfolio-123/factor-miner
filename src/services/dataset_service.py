@@ -80,6 +80,7 @@ class DatasetService:
             if dataset_metadata_raw:
                 dataset_metadata = json.loads(dataset_metadata_raw.decode("utf-8"))
                 dataset_metadata["numRows"] = num_rows
+                dataset_metadata["version"] = str(dataset_metadata.get("version", ""))
                 with open(dest_path, "w") as f:
                     json.dump(dataset_metadata, f, indent=2)
 
@@ -100,6 +101,9 @@ class BackupDatasetService:
     def get_metadata(self, version: str) -> DatasetConfig:
         with open(self.get_backup_path(version)) as f:
             data = json.load(f)
+        if data.get("normalization") is True and "preprocessor" in data:
+            data["normalization"] = data["preprocessor"]
+        data.pop("preprocessor", None)
         metadata = DatasetConfig(**data)
         metadata.version = version
         current = DatasetService(self.fl_id, self.user_uid).current_version
