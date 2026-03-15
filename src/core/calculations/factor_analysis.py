@@ -43,7 +43,7 @@ def _process_factor(
     Returns:
         Tuple of (dates array, factor names array, returns array, factor stats dict)
     """
-    # Calculate NA stats
+
     total_values = len(factor_arr)
     na_count = np.isnan(factor_arr).sum()
     na_pct = (na_count / total_values * 100) if total_values > 0 else 100.0
@@ -123,12 +123,6 @@ def _process_factor(
     else:
         ic_tstat = np.nan
 
-    factor_stats = {
-        'na_pct': round(na_pct, 2),
-        'ic': mean_ic,
-        'ic_tstat': ic_tstat,
-    }
-
     # considering how many stocks per date (counts), calculate what topx% and bottomx% translate to.
     # Use round() instead of truncation so 2.9 -> 3, 2.4 -> 2
     top_n = np.round(counts * (top_pct / 100.0)).astype(np.int64)
@@ -174,23 +168,27 @@ def _process_factor(
     n_long_periods = int(valid_long.sum())
     n_short_periods = int(valid_short.sum())
 
-    if valid_long.any():
+    if n_long_periods > 0:
         log_cum_long = np.sum(np.log1p(long_ret[valid_long]))
         cumulative_long_ret = np.exp(log_cum_long) - 1
     else:
         cumulative_long_ret = np.nan
 
-    if valid_short.any():
+    if n_short_periods > 0:
         log_cum_short = np.sum(np.log1p(short_ret[valid_short]))
         cumulative_short_ret = np.exp(log_cum_short) - 1
     else:
         cumulative_short_ret = np.nan
 
-    # Add to factor_stats
-    factor_stats['cumulative_long_ret'] = cumulative_long_ret
-    factor_stats['cumulative_short_ret'] = cumulative_short_ret
-    factor_stats['n_long_periods'] = n_long_periods
-    factor_stats['n_short_periods'] = n_short_periods
+    factor_stats = {
+        'NA %': round(na_pct, 2),
+        'IC': mean_ic,
+        'IC t-stat': ic_tstat,
+        'cumulative_long_ret': cumulative_long_ret,
+        'cumulative_short_ret': cumulative_short_ret,
+        'n_long_periods': n_long_periods,
+        'n_short_periods': n_short_periods,
+    }
 
     # build results as arrays instead of dicts
     valid_results = valid_date_mask & ~np.isnan(ret)
@@ -351,11 +349,8 @@ def calculate_factor_metrics(
     y = pivot.select(factor_names).to_numpy()  # (n_dates, n_factors)
 
     # get benchmark values aligned with pivot index
-    pivot_dates = pivot["Date"].to_list()
-    bench_aligned = benchmark.filter(pl.col("Date").is_in(pivot_dates)).sort("Date")
-    # Ensure alignment with pivot order
-    bench_dict = dict(zip(bench_aligned["Date"].to_list(), bench_aligned[INTERNAL_BENCHMARK_COL].to_list()))
-    x = np.array([[bench_dict.get(d, np.nan)] for d in pivot_dates])  # (n_dates, 1)
+    pivot_with_bench = pivot.join(benchmark, on="Date", how="left")
+    x = pivot_with_bench[INTERNAL_BENCHMARK_COL].to_numpy().reshape(-1, 1)
 
     valid = ~np.isnan(y)
     n_valid = valid.sum(axis=0)  # count per factor
@@ -387,19 +382,9 @@ def calculate_factor_metrics(
     valid_factors = n_valid >= 2
     valid_factor_names = np.array(factor_names)[valid_factors].tolist()
 
-    stats_records = []
-    for k, v in factor_stats.items():
-        stats_records.append({
-            "column": k,
-            "NA %": v.get("na_pct", 0.0),
-            "IC": v.get("ic", np.nan),
-            "IC t-stat": v.get("ic_tstat", np.nan),
-            "cumulative_long_ret": v.get("cumulative_long_ret", np.nan),
-            "cumulative_short_ret": v.get("cumulative_short_ret", np.nan),
-            "n_long_periods": v.get("n_long_periods", 0),
-            "n_short_periods": v.get("n_short_periods", 0),
-        })
-    stats_df = pl.DataFrame(stats_records)
+    stats_df = pl.DataFrame([
+        {"column": k, **v} for k, v in factor_stats.items()
+    ])
 
     result = pl.DataFrame({
         "column": valid_factor_names,
