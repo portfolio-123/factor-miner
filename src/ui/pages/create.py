@@ -34,12 +34,9 @@ def _get_default_settings() -> dict:
 
 
 def _load_last_analysis_params() -> None:
-    fl_id = st.query_params.get("fl_id")
-    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
-
-    analyses = AnalysisService(user_uid).list_all(fl_id)
+    analyses = AnalysisService(st.session_state.get("user_uid") if INTERNAL_MODE else None).list_all(st.query_params.get("fl_id"))
     if not analyses:
-        st.toast("No previous analysis found for this dataset")
+        st.toast("No previous analyses found for this dataset")
         return
 
     # list_all returns sorted by created_at desc, so first is most recent
