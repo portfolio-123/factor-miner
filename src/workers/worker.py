@@ -171,7 +171,7 @@ class AnalysisRunner:
             best_feature_names, factor_classifications = select_best_features(
                 metrics_df=metrics_df,
                 correlation_matrix=corr_matrix,
-                N=params.n_factors,
+                n=params.n_factors,
                 correlation_threshold=params.correlation_threshold,
                 a_min=params.min_alpha,
                 max_na_pct=params.max_na_pct,
