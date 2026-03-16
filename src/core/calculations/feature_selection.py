@@ -35,41 +35,60 @@ def calculate_correlation_matrix(results_df: pl.DataFrame) -> pl.DataFrame:
 def select_best_features(
     metrics_df: pl.DataFrame,
     correlation_matrix: pl.DataFrame,
-    N: int = DEFAULT_N_FACTORS,
+    n: int = DEFAULT_N_FACTORS,
     correlation_threshold: float = DEFAULT_CORRELATION_THRESHOLD,
     a_min: float = DEFAULT_MIN_ALPHA,
     max_na_pct: float = DEFAULT_MAX_NA_PCT,
     min_ic: float = DEFAULT_MIN_IC,
     rank_by: str = "Alpha",
-) -> tuple[list, dict[str, str]]:
+) -> tuple[list[str], dict[str, str]]:
     """
-    Select N best features based on alpha or IC and low correlation.
-    Also classifies all factors into categories.
+    Select n best features based on absolute Alpha or IC and low correlation.
+    Also classifies all candidate factors.
 
     Args:
-        metrics_df: DataFrame with feature metrics
-        correlation_matrix: Correlation matrix of features
-        N: Number of features to select
+        metrics_df: DataFrame with feature metrics. Required columns:
+            - "column"
+            - "annualized alpha %"
+            - "NA %" (optional; if missing, NA% is treated as 0)
+            - "IC" (required when rank_by is "IC")
+        correlation_matrix: Correlation matrix with required columns:
+            - "factor" containing factor names
+            - one numeric column per factor in "factor"
+        n: Number of features to select
         correlation_threshold: Maximum allowed correlation
         a_min: Minimum absolute annualized alpha %
         max_na_pct: Maximum allowed NA percentage
         min_ic: Minimum absolute IC threshold
-        rank_by: Metric to rank by ("Alpha" or "IC")
+        rank_by: Metric to rank by, either "Alpha" or "IC"
 
     Returns:
         Tuple of (selected feature names, classifications dict)
         Classifications: "best", "below_alpha", "correlation_conflict", "n_limit", "high_na", or "below_ic"
     """
+    if n < 0:
+        raise ValueError("n must be >= 0")
+
+    normalized_rank_by = rank_by.strip().upper()
+
+    required_metrics_cols = {"column", "annualized alpha %"}
+    missing_metrics_cols = required_metrics_cols - set(metrics_df.columns)
+    if missing_metrics_cols:
+        raise ValueError(
+            f"Missing required columns: {sorted(missing_metrics_cols)}"
+        )
+
     classifications = {}
     selected_features = []
     selected_indices = []
-
 
     factor_names = correlation_matrix["factor"].to_list()
     corr_arr = correlation_matrix.select(pl.exclude("factor")).to_numpy()
     col_to_idx = {c: i for i, c in enumerate(factor_names)}
 
-    sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
+    sort_col = "IC" if normalized_rank_by == "IC" else "annualized alpha %"
+    if sort_col not in metrics_df.columns:
+        raise ValueError(f"Missing required column for ranking: '{sort_col}'")
     sorted_metrics = metrics_df.sort(pl.col(sort_col).abs(), descending=True)
 
     has_na_col = "NA %" in sorted_metrics.columns
@@ -80,11 +99,17 @@ def select_best_features(
     na_pcts = sorted_metrics["NA %"].to_numpy() if has_na_col else np.zeros(len(sorted_metrics))
     ics = sorted_metrics["IC"].to_numpy() if has_ic_col else None
 
+    missing_features = sorted(set(columns) - set(factor_names))
+    if missing_features:
+        raise ValueError(
+            "Features missing from correlation_matrix['factor']: "
+            f"{missing_features}"
+        )
     feat_indices = np.array([col_to_idx[c] for c in columns])
 
     valid_na = na_pcts <= max_na_pct
 
-    if rank_by == "IC":
+    if normalized_rank_by == "IC":
         valid_metric = np.abs(ics) >= min_ic if ics is not None else np.ones(len(columns), dtype=bool)
         metric_fail_label = "below_ic"
     else:
@@ -96,7 +121,7 @@ def select_best_features(
             classifications[feature] = "high_na"
         elif not valid_metric[i]:
             classifications[feature] = metric_fail_label
-        elif len(selected_features) >= N:
+        elif len(selected_features) >= n:
             classifications[feature] = "n_limit"
         elif (
             selected_indices
