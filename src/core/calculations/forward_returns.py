@@ -1,4 +1,3 @@
-import logging
 import numpy as np
 import polars as pl
 
@@ -8,9 +7,6 @@ from src.core.config.constants import (
     INTERNAL_BENCHMARK_COL,
 )
 
-logger = logging.getLogger("calculations")
-
-
 def calculate_benchmark_returns(
     raw_data: pl.DataFrame,
     benchmark_data: pl.DataFrame,
@@ -18,7 +14,8 @@ def calculate_benchmark_returns(
 ) -> pl.DataFrame:
     """
     Calculate forward-looking benchmark returns for each date in the dataset.
-    Returns the benchmark return from current period's transaction date to next period's transaction date.
+    Returns the benchmark return from the first benchmark trading day on/after the
+    current rebalance date to the first benchmark trading day on/after the next rebalance date.
 
     Args:
         raw_data: Dataset with 'Date' column
@@ -35,19 +32,18 @@ def calculate_benchmark_returns(
         .sort("dt")
     )
 
-    # benchmark_df only contains trading days
+    # benchmark_df is expected to contain benchmark trading dates
     benchmark_dates = benchmark_df["dt"].to_numpy()
     close_prices = benchmark_df["close"].to_numpy()
 
-    # get unique dates from raw_data (saturday rebalance dates)
+    # get unique rebalance dates from raw_data
     raw_data = raw_data.with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
     unique_date_values = raw_data["Date"].unique().sort().to_numpy()
 
-    # find the next trading day
-    # side="left" finds first trading day >= the Saturday date
+    # side="left" finds first trading day >= each rebalance date
     start_positions = np.searchsorted(benchmark_dates, unique_date_values, side="left")
 
-    # For end date, use the start date of the next period
+    # for end date, use the start date of the next period
     n_dates = len(unique_date_values)
     end_positions = np.zeros(n_dates, dtype=int)
 
@@ -106,7 +102,7 @@ def calculate_future_performance(
         pl.col(price_column).shift(-1).over("Ticker").alias("_next_price")
     )
 
-    # Set current price=0 to NaN
+    # treat zero current prices as null
     df = df.with_columns(
         pl.when(pl.col(price_column) == 0)
         .then(None)
@@ -114,26 +110,11 @@ def calculate_future_performance(
         .alias(price_column)
     )
 
-    # Calculate return - if 0, capture -100% return
+    # Forward return: (next_price - current_price) / current_price
     df = df.with_columns(
         ((pl.col("_next_price") - pl.col(price_column)) / pl.col(price_column))
         .alias(INTERNAL_FUTURE_PERF_COL)
     )
-
-    # Replace inf with nan (happens when price = 0) and warn
-    inf_count = df.filter(pl.col(INTERNAL_FUTURE_PERF_COL).is_infinite()).height
-    if inf_count > 0:
-        bad_df = df.filter(pl.col(INTERNAL_FUTURE_PERF_COL).is_infinite()).head(5)
-        logger.warning(f"Found {inf_count} inf values in future perf (division by zero):")
-        for row in bad_df.iter_rows(named=True):
-            logger.warning(f"  {row['Date']} | {row['Ticker']} | price={row[price_column]} | next_price={row['_next_price']}")
-
-        df = df.with_columns(
-            pl.when(pl.col(INTERNAL_FUTURE_PERF_COL).is_infinite())
-            .then(None)
-            .otherwise(pl.col(INTERNAL_FUTURE_PERF_COL))
-            .alias(INTERNAL_FUTURE_PERF_COL)
-        )
 
     df = df.drop([price_column, "_next_price"])
 
