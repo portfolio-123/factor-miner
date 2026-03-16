@@ -40,7 +40,7 @@ def calculate_benchmark_returns(
     raw_data = raw_data.with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
     unique_date_values = raw_data["Date"].unique().sort().to_numpy()
 
-    # side="left" finds first trading day >= each rebalance date
+    # find first trading day >= each rebalance date (monday, tuesday, etc.)
     start_positions = np.searchsorted(benchmark_dates, unique_date_values, side="left")
 
     # for end date, use the start date of the next period
