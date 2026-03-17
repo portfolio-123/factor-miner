@@ -100,7 +100,6 @@ class AnalysisParams(BaseModel):
     max_na_pct: float
     min_ic: float
     rank_by: str = "Alpha"
-    access_token: str | None = None
 
 
 class NormalizationConfig(BaseModel):

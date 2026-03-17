@@ -45,10 +45,11 @@ from src.core.calculations.feature_selection import (
 
 
 class AnalysisRunner:
-    def __init__(self, fl_id: str, analysis_id: str, user_uid: str):
+    def __init__(self, fl_id: str, analysis_id: str, user_uid: str, access_token: str | None = None):
         self.fl_id = fl_id
         self.analysis_id = analysis_id
         self.user_uid = user_uid
+        self.access_token = access_token
         self.service = AnalysisService(user_uid)
         self.analysis: Analysis | None = None
 
@@ -83,23 +84,20 @@ class AnalysisRunner:
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
-            try:
-                date_range = (start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"))
-                if INTERNAL_MODE:  # internal
-                    benchmark_data = fetch_benchmark_data(
-                        benchmark_ticker=benchmark_ticker,
-                        access_token=params.access_token,
-                        start_date=date_range[0],
-                        end_date=date_range[1],
-                    )
-                else:  # external
-                    benchmark_data = fetch_benchmark_external(
-                        ticker=benchmark_ticker,
-                        start_date=date_range[0],
-                        end_date=date_range[1],
-                    )
-            finally:
-                self.analysis = self.service.clear_credentials(self.analysis)
+            date_range = (start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"))
+            if INTERNAL_MODE:  # internal
+                benchmark_data = fetch_benchmark_data(
+                    benchmark_ticker=benchmark_ticker,
+                    access_token=self.access_token,
+                    start_date=date_range[0],
+                    end_date=date_range[1],
+                )
+            else:  # external
+                benchmark_data = fetch_benchmark_external(
+                    ticker=benchmark_ticker,
+                    start_date=date_range[0],
+                    end_date=date_range[1],
+                )
 
             self.log("Benchmark data fetched successfully")
 
@@ -228,7 +226,8 @@ def main():
     fl_id = sys.argv[1]
     analysis_id = sys.argv[2]
     user_uid = sys.argv[3] or None
-    runner = AnalysisRunner(fl_id, analysis_id, user_uid)
+    access_token = sys.argv[4] or None
+    runner = AnalysisRunner(fl_id, analysis_id, user_uid, access_token)
     runner.execute()
 
 

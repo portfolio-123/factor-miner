@@ -43,8 +43,7 @@ def _load_last_analysis_params() -> None:
     last_params = analyses[0].params
 
     for key, value in last_params.model_dump().items():
-        if key != "access_token":  # don't copy access_token if it's there
-            st.session_state[key] = value
+        st.session_state[key] = value
 
 
 def _submit_analysis() -> None:
@@ -64,9 +63,14 @@ def _submit_analysis() -> None:
             max_na_pct=st.session_state.get("max_na_pct"),
             min_ic=float(st.session_state.get("min_ic", DEFAULT_MIN_IC)),
             rank_by=rank_by,
+        )
+        AnalysisService(user_uid).start(
+            fl_id,
+            analysis_id,
+            dataset_version,
+            params,
             access_token=st.session_state.get("access_token"),
         )
-        AnalysisService(user_uid).start(fl_id, analysis_id, dataset_version, params)
         st.session_state["_redirect_to_results"] = analysis_id
         
     except Exception as e:

@@ -110,10 +110,6 @@ class AnalysisService:
         except Exception:
             return []
 
-    def clear_credentials(self, analysis: Analysis) -> Analysis:
-        updated_params = analysis.params.model_copy(update={"access_token": None})
-        return self.save(analysis, params=updated_params)
-
     def list_all(self, fl_id: str) -> list[AnalysisSummary]:
         fl_dir = self.base_dir / fl_id
         if not fl_dir.exists():
@@ -152,6 +148,7 @@ class AnalysisService:
         analysis_id: str,
         dataset_version: str,
         params: AnalysisParams,
+        access_token: str | None = None,
     ) -> Analysis:
         analysis = self.create(fl_id, analysis_id, dataset_version, params)
 
@@ -162,7 +159,7 @@ class AnalysisService:
 
         stderr_file = open(stderr_path, "w")
         subprocess.Popen(
-            [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id, self.user_uid or ""],
+            [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id, self.user_uid or "", access_token or ""],
             cwd=str(project_root),
             start_new_session=True,
             stdout=subprocess.DEVNULL,
