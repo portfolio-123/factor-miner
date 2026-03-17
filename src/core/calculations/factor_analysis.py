@@ -213,6 +213,7 @@ def analyze_factors(
     future_perf_df: pl.DataFrame,
     dataset_svc: DatasetService,
     *,
+    core_df: pl.DataFrame,
     factor_columns: List[str],
     top_pct: float = 10.0,
     bottom_pct: float = 10.0,
@@ -226,6 +227,7 @@ def analyze_factors(
     Args:
         future_perf_df: Pre-calculated future performance (Date, Ticker, internal future perf column)
         dataset_svc: DatasetService for reading factor data
+        core_df: Pre-read DataFrame containing Date and Ticker columns
         factor_columns: List of factor columns to analyze (auto-detected if None)
         top_pct: Percentage of top stocks to include (default: 10.0)
         bottom_pct: Percentage of bottom stocks to include (default: 10.0)
@@ -241,9 +243,7 @@ def analyze_factors(
     all_rets: List[np.ndarray] = []
     factor_stats_dict: Dict[str, dict] = {}
 
-    # read date/ticker once and track row indices
-    base_df = dataset_svc.read_columns(["Date", "Ticker"])
-    base_df = base_df.with_row_index("_row_idx")
+    base_df = core_df.select(["Date", "Ticker"]).with_row_index("_row_idx")
 
     # add future performance column to base dataframe
     merged_base = base_df.join(future_perf_df, on=["Date", "Ticker"], how="inner")

@@ -125,20 +125,21 @@ class AnalysisRunner:
             )
 
             self.log("Calculating future performance...")
-            perf_core = dataset_svc.read_columns(["Date", "Ticker", price_column])
-            future_perf_df = calculate_future_performance(perf_core, price_column)
+            core_df = dataset_svc.read_columns(["Date", "Ticker", price_column])
+            future_perf_df = calculate_future_performance(core_df, price_column)
 
             self.log("Analyzing factors...")
             results_df, factor_stats = analyze_factors(
                 future_perf_df,
                 dataset_svc,
+                core_df=core_df,
                 factor_columns=factor_columns,
                 top_pct=params.top_pct,
                 bottom_pct=params.bottom_pct,
                 on_progress=on_progress,
             )
 
-            raw_data = dataset_svc.read_columns(["Date"])
+            raw_data = core_df.select(["Date"])
 
             self.log("Calculating benchmark returns...")
             raw_data = calculate_benchmark_returns(
