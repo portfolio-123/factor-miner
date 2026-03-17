@@ -75,7 +75,9 @@ def results() -> None:
 
     best_feature_names = analysis.results.best_feature_names
     factor_classifications = analysis.results.factor_classifications
-    na_excluded_count = sum(1 for c in factor_classifications.values() if c == "high_na")
+    na_excluded_count = sum(
+        1 for c in factor_classifications.values() if c == "high_na"
+    )
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
         f"Found **{len(best_feature_names)}** of **{analysis.params.n_factors}** requested Best Factors. "
@@ -96,15 +98,23 @@ def results() -> None:
             settings = [
                 ("Rank By", rank_by),
                 ("Max. Factors", p.n_factors),
-                ("Min. IC", p.min_ic) if rank_by == "IC" else ("Min. Annual Alpha", f"{clean_min_alpha}%"),
+                (
+                    ("Min. IC", p.min_ic)
+                    if rank_by == "IC"
+                    else ("Min. Annual Alpha", f"{clean_min_alpha}%")
+                ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
                 ("Benchmark", dataset_metadata.benchmark),
                 ("Top X (Long)", f"{p.top_pct}%"),
                 ("Bottom X (Short)", f"{p.bottom_pct}%"),
             ]
-            items_html = "".join(render_info_item(label, value) for label, value in settings)
-            st.html(f'<div style="display: flex; gap: 24px; flex-wrap: wrap;">{items_html}</div>')
+            items_html = "".join(
+                render_info_item(label, value) for label, value in settings
+            )
+            st.html(
+                f'<div style="display: flex; gap: 24px; flex-wrap: wrap;">{items_html}</div>'
+            )
 
         render_analysis_notes(analysis)
 
@@ -120,11 +130,13 @@ def results() -> None:
             )
 
             st.divider()
-            best_corr_matrix = corr_matrix_df.filter(
-                pl.col("factor").is_in(best_feature_names)
-            ).select(["factor"] + best_feature_names).sort(
-                pl.col("factor").replace_strict(
-                    {name: i for i, name in enumerate(best_feature_names)}
+            best_corr_matrix = (
+                corr_matrix_df.filter(pl.col("factor").is_in(best_feature_names))
+                .select(["factor"] + best_feature_names)
+                .sort(
+                    pl.col("factor").replace_strict(
+                        {name: i for i, name in enumerate(best_feature_names)}
+                    )
                 )
             )
             render_correlation_matrix(
@@ -140,7 +152,9 @@ def results() -> None:
 
     with all_factors_tab:
         metric_label = "IC" if rank_by == "IC" else "absolute annualized alpha"
-        st.caption(f"All factors ranked by {metric_label} (highest first). Click column headers to sort.")
+        st.caption(
+            f"All factors ranked by {metric_label} (highest first). Click column headers to sort."
+        )
 
         render_results_table(
             all_metrics_df,

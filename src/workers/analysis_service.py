@@ -45,7 +45,9 @@ class AnalysisService:
                 return Analysis.model_validate(data)
             except ValidationError:
                 if attempt < retries:
-                    time.sleep(0.1) # to avoid race conditions in the progress functions which triggers this every second
+                    time.sleep(
+                        0.1
+                    )  # to avoid race conditions in the progress functions which triggers this every second
                     continue
                 return None
 
@@ -71,7 +73,9 @@ class AnalysisService:
         fl_dir.mkdir(parents=True, exist_ok=True)
 
         # Create backup of dataset metadata if it doesn't exist
-        dest_path = BackupDatasetService(self.user_uid, fl_id).get_backup_path(dataset_version)
+        dest_path = BackupDatasetService(self.user_uid, fl_id).get_backup_path(
+            dataset_version
+        )
         if not dest_path.exists():
             with DatasetService(fl_id, self.user_uid) as dataset_svc:
                 dataset_svc.backup_metadata(dest_path)
@@ -85,7 +89,9 @@ class AnalysisService:
         return analysis
 
     def save(self, analysis: Analysis, **updates: Any) -> Analysis:
-        update_dict: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
+        update_dict: dict[str, Any] = {
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
         update_dict.update(updates)
 
         status = updates.get("status")
@@ -159,7 +165,15 @@ class AnalysisService:
 
         stderr_file = open(stderr_path, "w")
         subprocess.Popen(
-            [sys.executable, "-m", "src.workers.worker", fl_id, analysis_id, self.user_uid or "", access_token or ""],
+            [
+                sys.executable,
+                "-m",
+                "src.workers.worker",
+                fl_id,
+                analysis_id,
+                self.user_uid or "",
+                access_token or "",
+            ],
             cwd=str(project_root),
             start_new_session=True,
             stdout=subprocess.DEVNULL,

@@ -2,6 +2,7 @@ import logging
 import sys
 import traceback
 from datetime import datetime, timedelta
+from typing import TypedDict
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,8 +45,22 @@ from src.core.calculations.feature_selection import (
 )
 
 
+class AnalysisRunResult(TypedDict):
+    all_metrics: str
+    all_corr_matrix: str
+    avg_abs_alpha: float
+    best_feature_names: list[str]
+    factor_classifications: dict[str, str]
+
+
 class AnalysisRunner:
-    def __init__(self, fl_id: str, analysis_id: str, user_uid: str, access_token: str | None = None):
+    def __init__(
+        self,
+        fl_id: str,
+        analysis_id: str,
+        user_uid: str,
+        access_token: str | None = None,
+    ):
         self.fl_id = fl_id
         self.analysis_id = analysis_id
         self.user_uid = user_uid
@@ -60,7 +75,7 @@ class AnalysisRunner:
         if self.analysis:
             self.analysis = self.service.save(self.analysis, **updates)
 
-    def run(self) -> dict:
+    def run(self) -> AnalysisRunResult:
         self.log("Starting analysis...")
 
         params = self.analysis.params
@@ -72,15 +87,22 @@ class AnalysisRunner:
             if dataset_info.type == DatasetType.DATE:
                 raise ValueError("[single-date]")
 
-            price_column = find_price_column(dataset_svc.column_names, PRICE_COLUMN_NAMES)
+            price_column = find_price_column(
+                dataset_svc.column_names, PRICE_COLUMN_NAMES
+            )
             # Exclude all price column names from analysis (never analyze them)
             required_columns = BASE_REQUIRED_COLUMNS + PRICE_COLUMN_NAMES
 
             start_dt = datetime.strptime(dataset_info.startDt[:10], "%Y-%m-%d")
             # extend by full rebalance period + 7 days buffer
             forward_days = dataset_info.frequency.weeks * 7 + 7
-            end_dt_raw = datetime.strptime(dataset_info.endDt[:10], "%Y-%m-%d") + timedelta(days=forward_days)
-            end_dt = min(end_dt_raw, datetime.today().replace(hour=0, minute=0, second=0, microsecond=0))
+            end_dt_raw = datetime.strptime(
+                dataset_info.endDt[:10], "%Y-%m-%d"
+            ) + timedelta(days=forward_days)
+            end_dt = min(
+                end_dt_raw,
+                datetime.today().replace(hour=0, minute=0, second=0, microsecond=0),
+            )
             benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
 
             self.log(f"Fetching benchmark data for {benchmark_ticker}...")
@@ -108,10 +130,7 @@ class AnalysisRunner:
                     self.log(f"Progress: {percent}% ({completed}/{total} factors)")
                 self.update(
                     status=AnalysisStatus.RUNNING,
-                    progress=AnalysisProgress(
-                        completed=completed,
-                        total=total,
-                    ),
+                    progress=AnalysisProgress(completed=completed, total=total),
                 )
 
             factor_columns = [

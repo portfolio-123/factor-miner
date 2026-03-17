@@ -8,13 +8,11 @@ def get_cookie(key: str) -> str | None:
     return st.context.cookies.get(key)
 
 
-def set_cookie(name: str, value: str, days: int = 1):
-    components.html(f"""<script>
-        document.cookie = "{name}={value}; path=/; max-age={days * 86400}";
-    </script>""", height=0)
+def set_cookie(name: str, value: str, days=1):
+    html = f"""<script>document.cookie = "{name}={value}; path=/; max-age={days * 86400}";</script>"""
+    components.html(html, height=0)
 
 
 def clear_cookie(name: str):
-    components.html(f"""<script>
-        document.cookie = "{name}=; path=/; max-age=0";
-    </script>""", height=0)
+    html = f"""<script>document.cookie = "{name}=; path=/; max-age=0";</script>"""
+    components.html(html, height=0)

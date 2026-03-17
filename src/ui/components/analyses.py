@@ -87,4 +87,3 @@ def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
         return
 
     _render_progress_bar(analysis.progress if analysis else None)
-

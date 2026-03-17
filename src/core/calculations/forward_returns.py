@@ -7,6 +7,7 @@ from src.core.config.constants import (
     INTERNAL_BENCHMARK_COL,
 )
 
+
 def calculate_benchmark_returns(
     raw_data: pl.DataFrame,
     benchmark_data: pl.DataFrame,
@@ -26,8 +27,7 @@ def calculate_benchmark_returns(
         DataFrame with 'benchmark' column added
     """
     benchmark_df = (
-        benchmark_data
-        .with_columns(pl.col("dt").str.to_date("%Y-%m-%d").alias("dt"))
+        benchmark_data.with_columns(pl.col("dt").str.to_date("%Y-%m-%d").alias("dt"))
         .drop_nulls(subset=["dt", "close"])
         .sort("dt")
     )
@@ -50,7 +50,9 @@ def calculate_benchmark_returns(
     for i in range(n_dates - 1):
         # end position is the start position of the next period
         next_dataset_date = unique_date_values[i + 1]
-        end_positions[i] = np.searchsorted(benchmark_dates, next_dataset_date, side="left")
+        end_positions[i] = np.searchsorted(
+            benchmark_dates, next_dataset_date, side="left"
+        )
 
     # for the last date, estimate using frequency (no next dataset date available)
     if n_dates > 0:
@@ -72,10 +74,9 @@ def calculate_benchmark_returns(
     # Forward return: (next_price - curr_price) / curr_price
     benchmark_returns = (next_prices - curr_prices) / curr_prices
 
-    bench_df = pl.DataFrame({
-        "Date": unique_date_values,
-        INTERNAL_BENCHMARK_COL: benchmark_returns
-    })
+    bench_df = pl.DataFrame(
+        {"Date": unique_date_values, INTERNAL_BENCHMARK_COL: benchmark_returns}
+    )
 
     result = raw_data.join(bench_df, on="Date", how="left")
     return result
@@ -112,8 +113,9 @@ def calculate_future_performance(
 
     # Forward return: (next_price - current_price) / current_price
     df = df.with_columns(
-        ((pl.col("_next_price") - pl.col(price_column)) / pl.col(price_column))
-        .alias(INTERNAL_FUTURE_PERF_COL)
+        ((pl.col("_next_price") - pl.col(price_column)) / pl.col(price_column)).alias(
+            INTERNAL_FUTURE_PERF_COL
+        )
     )
 
     df = df.drop([price_column, "_next_price"])

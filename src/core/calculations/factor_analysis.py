@@ -67,7 +67,9 @@ def _process_factor(
     date_start_offsets = np.zeros(n_dates + 1, dtype=np.int64)
     date_start_offsets[1:] = np.cumsum(count_per_date)
     # rank each row within its date, e.g [0,1,2]
-    rank_within_date = np.arange(len(date_index_sorted)) - date_start_offsets[date_index_sorted]
+    rank_within_date = (
+        np.arange(len(date_index_sorted)) - date_start_offsets[date_index_sorted]
+    )
     date_size_per_row = count_per_date[date_index_sorted]
     # convert index rank to percentile-like rank in (0,1).
     # example for size=4 -> [0.125, 0.375, 0.625, 0.875]
@@ -80,24 +82,33 @@ def _process_factor(
     perf_rank_within_date = perf_rank_position - date_start_offsets[date_index_sorted]
     perf_rank_pct = (perf_rank_within_date + 0.5) / date_size_per_row
 
-
     alpha = 4.0
     weights = 1.0 + alpha * np.abs(factor_rank_pct - 0.5)
 
     # weighted spearman correlation (ic) per date
-    weight_sum_per_date = np.bincount(date_index_sorted, weights=weights, minlength=n_dates)
+    weight_sum_per_date = np.bincount(
+        date_index_sorted, weights=weights, minlength=n_dates
+    )
     weight_sum_per_date = np.where(weight_sum_per_date > 0, weight_sum_per_date, 1.0)
 
     # weighted means of factor/perf ranks per date
     mean_factor_rank_per_date = (
-        np.bincount(date_index_sorted, weights=weights * factor_rank_pct, minlength=n_dates) / weight_sum_per_date
+        np.bincount(
+            date_index_sorted, weights=weights * factor_rank_pct, minlength=n_dates
+        )
+        / weight_sum_per_date
     )
     mean_perf_rank_per_date = (
-        np.bincount(date_index_sorted, weights=weights * perf_rank_pct, minlength=n_dates) / weight_sum_per_date
+        np.bincount(
+            date_index_sorted, weights=weights * perf_rank_pct, minlength=n_dates
+        )
+        / weight_sum_per_date
     )
 
     # center ranks by their date mean, then compute weighted cov/var
-    factor_rank_centered = factor_rank_pct - mean_factor_rank_per_date[date_index_sorted]
+    factor_rank_centered = (
+        factor_rank_pct - mean_factor_rank_per_date[date_index_sorted]
+    )
     perf_rank_centered = perf_rank_pct - mean_perf_rank_per_date[date_index_sorted]
     cov_factor_perf_rank = (
         np.bincount(
@@ -108,11 +119,19 @@ def _process_factor(
         / weight_sum_per_date
     )
     var_factor_rank = (
-        np.bincount(date_index_sorted, weights=weights * factor_rank_centered ** 2, minlength=n_dates)
+        np.bincount(
+            date_index_sorted,
+            weights=weights * factor_rank_centered**2,
+            minlength=n_dates,
+        )
         / weight_sum_per_date
     )
     var_perf_rank = (
-        np.bincount(date_index_sorted, weights=weights * perf_rank_centered ** 2, minlength=n_dates)
+        np.bincount(
+            date_index_sorted,
+            weights=weights * perf_rank_centered**2,
+            minlength=n_dates,
+        )
         / weight_sum_per_date
     )
 
@@ -120,9 +139,16 @@ def _process_factor(
     ic_denominator = np.sqrt(var_factor_rank * var_perf_rank)
     valid_ic_denominator = (ic_denominator > 0) & (count_per_date >= 4)
     ic_per_date = np.full(n_dates, np.nan)
-    np.divide(cov_factor_perf_rank, ic_denominator, out=ic_per_date, where=valid_ic_denominator)
+    np.divide(
+        cov_factor_perf_rank,
+        ic_denominator,
+        out=ic_per_date,
+        where=valid_ic_denominator,
+    )
 
-    valid_ic_mask = (count_per_date >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
+    valid_ic_mask = (
+        (count_per_date >= 4) & ~np.isnan(ic_per_date) & (np.abs(ic_per_date) < 1.0)
+    )
     valid_ic_values = ic_per_date[valid_ic_mask]
     n_ic = len(valid_ic_values)
     mean_ic = np.mean(valid_ic_values) if n_ic > 0 else np.nan
@@ -137,7 +163,9 @@ def _process_factor(
     # translate percentage to count per date.
     # e.g. count_per_date=23 and top_pct=10 -> round(2.3)=2 names in top bucket
     top_count_per_date = np.round(count_per_date * (top_pct / 100.0)).astype(np.int64)
-    bottom_count_per_date = np.round(count_per_date * (bottom_pct / 100.0)).astype(np.int64)
+    bottom_count_per_date = np.round(count_per_date * (bottom_pct / 100.0)).astype(
+        np.int64
+    )
     top_count_per_row = top_count_per_date[date_index_sorted]
     bottom_count_per_row = bottom_count_per_date[date_index_sorted]
 
@@ -145,10 +173,14 @@ def _process_factor(
     is_bottom_bucket = rank_within_date < bottom_count_per_row
     is_top_bucket = rank_within_date >= (date_size_per_row - top_count_per_row)
     top_return_sum_per_date = np.bincount(
-        date_index_sorted, weights=np.where(is_top_bucket, perf_sorted_by_factor, 0.0), minlength=n_dates
+        date_index_sorted,
+        weights=np.where(is_top_bucket, perf_sorted_by_factor, 0.0),
+        minlength=n_dates,
     )
     bottom_return_sum_per_date = np.bincount(
-        date_index_sorted, weights=np.where(is_bottom_bucket, perf_sorted_by_factor, 0.0), minlength=n_dates
+        date_index_sorted,
+        weights=np.where(is_bottom_bucket, perf_sorted_by_factor, 0.0),
+        minlength=n_dates,
     )
 
     # per-date long-short return: (sum(top) - sum(bottom)) / (n_top + n_bottom)
@@ -156,18 +188,21 @@ def _process_factor(
     has_selected_names_mask = selected_count_per_date > 0
     long_short_ret_per_date = np.full(n_dates, np.nan)
     long_short_ret_per_date[has_selected_names_mask] = (
-        (top_return_sum_per_date[has_selected_names_mask] - bottom_return_sum_per_date[has_selected_names_mask])
-        / selected_count_per_date[has_selected_names_mask]
-    )
+        top_return_sum_per_date[has_selected_names_mask]
+        - bottom_return_sum_per_date[has_selected_names_mask]
+    ) / selected_count_per_date[has_selected_names_mask]
 
     # average leg returns per date: long=top mean, short=bottom mean
     long_ret_per_date = np.full(n_dates, np.nan)
     short_ret_per_date = np.full(n_dates, np.nan)
     has_top_mask = top_count_per_date > 0
     has_bottom_mask = bottom_count_per_date > 0
-    long_ret_per_date[has_top_mask] = top_return_sum_per_date[has_top_mask] / top_count_per_date[has_top_mask]
+    long_ret_per_date[has_top_mask] = (
+        top_return_sum_per_date[has_top_mask] / top_count_per_date[has_top_mask]
+    )
     short_ret_per_date[has_bottom_mask] = (
-        bottom_return_sum_per_date[has_bottom_mask] / bottom_count_per_date[has_bottom_mask]
+        bottom_return_sum_per_date[has_bottom_mask]
+        / bottom_count_per_date[has_bottom_mask]
     )
 
     valid_long_mask = np.isfinite(long_ret_per_date)
@@ -188,13 +223,13 @@ def _process_factor(
         cumulative_short_ret = np.nan
 
     factor_stats = {
-        'NA %': round(na_pct, 2),
-        'IC': mean_ic,
-        'IC t-stat': ic_tstat,
-        'cumulative_long_ret': cumulative_long_ret,
-        'cumulative_short_ret': cumulative_short_ret,
-        'n_long_periods': n_long_periods,
-        'n_short_periods': n_short_periods,
+        "NA %": round(na_pct, 2),
+        "IC": mean_ic,
+        "IC t-stat": ic_tstat,
+        "cumulative_long_ret": cumulative_long_ret,
+        "cumulative_short_ret": cumulative_short_ret,
+        "n_long_periods": n_long_periods,
+        "n_short_periods": n_short_periods,
     }
 
     # build results as arrays instead of dicts
@@ -251,7 +286,9 @@ def analyze_factors(
     perf_arr = merged_base[INTERNAL_FUTURE_PERF_COL].to_numpy()
 
     # get date index per row
-    unique_dates, date_index_by_row = np.unique(merged_base["Date"].to_numpy(), return_inverse=True)
+    unique_dates, date_index_by_row = np.unique(
+        merged_base["Date"].to_numpy(), return_inverse=True
+    )
     perf_is_valid = ~np.isnan(perf_arr)
 
     n_dates = len(unique_dates)
@@ -286,7 +323,9 @@ def analyze_factors(
                 try:
                     dates_arr, factors_arr, rets_arr, factor_stats = future.result()
                 except Exception as e:
-                    logger.error(f"THREAD CRASHED - Factor {col}: {type(e).__name__}: {e}")
+                    logger.error(
+                        f"THREAD CRASHED - Factor {col}: {type(e).__name__}: {e}"
+                    )
                     logger.error(traceback.format_exc())
                     completed_count += 1
                     if on_progress:
@@ -304,15 +343,22 @@ def analyze_factors(
     # concatenate all arrays and build DataFrame once
     if all_dates:
         return (
-            pl.DataFrame({
-                "Date": np.concatenate(all_dates),
-                "factor": np.concatenate(all_factors),
-                "ret": np.concatenate(all_rets),
-            }),
+            pl.DataFrame(
+                {
+                    "Date": np.concatenate(all_dates),
+                    "factor": np.concatenate(all_factors),
+                    "ret": np.concatenate(all_rets),
+                }
+            ),
             factor_stats_dict,
         )
     else:
-        return pl.DataFrame(schema={"Date": pl.Utf8, "factor": pl.Utf8, "ret": pl.Float64}), factor_stats_dict
+        return (
+            pl.DataFrame(
+                schema={"Date": pl.Utf8, "factor": pl.Utf8, "ret": pl.Float64}
+            ),
+            factor_stats_dict,
+        )
 
 
 def calculate_factor_metrics(
@@ -346,7 +392,9 @@ def calculate_factor_metrics(
     )
 
     # y matrix shape is (n_dates, n_factors)
-    pivot = merged_data.pivot(index="Date", on="factor", values="ret", aggregate_function="first")
+    pivot = merged_data.pivot(
+        index="Date", on="factor", values="ret", aggregate_function="first"
+    )
     factor_names = [c for c in pivot.columns if c != "Date"]
     y = pivot.select(factor_names).to_numpy()  # (n_dates, n_factors)
 
@@ -374,7 +422,7 @@ def calculate_factor_metrics(
     beta = numerator / denominator
 
     # t-stat per factor: mean(ret) / standard_error(ret)
-    y_var = (y_centered ** 2).sum(axis=0) / (n_valid - 1)
+    y_var = (y_centered**2).sum(axis=0) / (n_valid - 1)
     y_std = np.sqrt(y_var)
     y_stderr = y_std / np.sqrt(n_valid)
     t_stat = y_mean / y_stderr
@@ -383,39 +431,66 @@ def calculate_factor_metrics(
     valid_factors = n_valid >= 2
     valid_factor_names = np.array(factor_names)[valid_factors].tolist()
 
-    stats_df = pl.DataFrame([
-        {"column": k, **v} for k, v in factor_stats.items()
-    ])
+    stats_df = pl.DataFrame([{"column": k, **v} for k, v in factor_stats.items()])
 
-    result = pl.DataFrame({
-        "column": valid_factor_names,
-        "T-Stat": t_stat[valid_factors],
-        "beta": beta[valid_factors],
-    })
+    result = pl.DataFrame(
+        {
+            "column": valid_factor_names,
+            "T-Stat": t_stat[valid_factors],
+            "beta": beta[valid_factors],
+        }
+    )
 
     # add ic, na %, and cumulative fields
     result = result.join(stats_df, on="column", how="left")
 
     # annualize cumulative return.
     # e.g. cum=0.10 over 10 weeks, periods_per_year=52 -> (1.10)^(5.2)-1
-    result = result.with_columns([
-        (100 * ((1 + pl.col("cumulative_long_ret")) ** (periods_per_year / pl.col("n_long_periods")) - 1)).alias("annualized long %"),
-        (100 * ((1 + pl.col("cumulative_short_ret")) ** (periods_per_year / pl.col("n_short_periods")) - 1)).alias("annualized short %"),
-    ])
+    result = result.with_columns(
+        [
+            (
+                100
+                * (
+                    (1 + pl.col("cumulative_long_ret"))
+                    ** (periods_per_year / pl.col("n_long_periods"))
+                    - 1
+                )
+            ).alias("annualized long %"),
+            (
+                100
+                * (
+                    (1 + pl.col("cumulative_short_ret"))
+                    ** (periods_per_year / pl.col("n_short_periods"))
+                    - 1
+                )
+            ).alias("annualized short %"),
+        ]
+    )
 
     factor_mean_per_period = y_mean[valid_factors]
     bench_mean_per_period = x_mean[valid_factors].flatten()
 
     # alpha calculation
-    alpha_per_period = factor_mean_per_period - result["beta"].to_numpy() * bench_mean_per_period
+    alpha_per_period = (
+        factor_mean_per_period - result["beta"].to_numpy() * bench_mean_per_period
+    )
     annualized_alpha = 100 * ((1 + alpha_per_period) ** periods_per_year - 1)
 
     result = result.with_columns(pl.Series("annualized alpha %", annualized_alpha))
 
     # final display order
-    result = result.select([
-        "column", "T-Stat", "beta", "NA %", "IC", "IC t-stat",
-        "annualized long %", "annualized short %", "annualized alpha %",
-    ])
+    result = result.select(
+        [
+            "column",
+            "T-Stat",
+            "beta",
+            "NA %",
+            "IC",
+            "IC t-stat",
+            "annualized long %",
+            "annualized short %",
+            "annualized alpha %",
+        ]
+    )
 
     return result

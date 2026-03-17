@@ -13,7 +13,11 @@ def list_user_datasets(user_uid: str) -> list[tuple[str, str]]:
 
     factor_miner_dir = user_dir / "FactorMiner"
     if factor_miner_dir.exists():
-        fl_ids |= {d.name for d in factor_miner_dir.iterdir() if d.is_dir() and any(d.glob("*.json"))}
+        fl_ids |= {
+            d.name
+            for d in factor_miner_dir.iterdir()
+            if d.is_dir() and any(d.glob("*.json"))
+        }
 
     results = []
     for fl_id in sorted(fl_ids):

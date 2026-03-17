@@ -74,9 +74,7 @@ def select_best_features(
     required_metrics_cols = {"column", "annualized alpha %"}
     missing_metrics_cols = required_metrics_cols - set(metrics_df.columns)
     if missing_metrics_cols:
-        raise ValueError(
-            f"Missing required columns: {sorted(missing_metrics_cols)}"
-        )
+        raise ValueError(f"Missing required columns: {sorted(missing_metrics_cols)}")
 
     classifications = {}
     selected_features = []
@@ -96,24 +94,35 @@ def select_best_features(
 
     columns = sorted_metrics["column"].to_numpy()
     alphas = sorted_metrics["annualized alpha %"].to_numpy()
-    na_pcts = sorted_metrics["NA %"].to_numpy() if has_na_col else np.zeros(len(sorted_metrics))
+    na_pcts = (
+        sorted_metrics["NA %"].to_numpy()
+        if has_na_col
+        else np.zeros(len(sorted_metrics))
+    )
     ics = sorted_metrics["IC"].to_numpy() if has_ic_col else None
 
     missing_features = sorted(set(columns) - set(factor_names))
     if missing_features:
         raise ValueError(
-            "Features missing from correlation_matrix['factor']: "
-            f"{missing_features}"
+            "Features missing from correlation_matrix['factor']: " f"{missing_features}"
         )
     feat_indices = np.array([col_to_idx[c] for c in columns])
 
     valid_na = na_pcts <= max_na_pct
 
     if normalized_rank_by == "IC":
-        valid_metric = np.abs(ics) >= min_ic if ics is not None else np.ones(len(columns), dtype=bool)
+        valid_metric = (
+            np.abs(ics) >= min_ic
+            if ics is not None
+            else np.ones(len(columns), dtype=bool)
+        )
         metric_fail_label = "below_ic"
     else:
-        valid_metric = np.abs(alphas) >= a_min if a_min >= 1e-9 else np.ones(len(alphas), dtype=bool)
+        valid_metric = (
+            np.abs(alphas) >= a_min
+            if a_min >= 1e-9
+            else np.ones(len(alphas), dtype=bool)
+        )
         metric_fail_label = "below_alpha"
 
     for i, feature in enumerate(columns):
@@ -123,9 +132,8 @@ def select_best_features(
             classifications[feature] = metric_fail_label
         elif len(selected_features) >= n:
             classifications[feature] = "n_limit"
-        elif (
-            selected_indices
-            and np.any(np.abs(corr_arr[feat_indices[i], selected_indices]) >= correlation_threshold)
+        elif selected_indices and np.any(
+            np.abs(corr_arr[feat_indices[i], selected_indices]) >= correlation_threshold
         ):
             classifications[feature] = "correlation_conflict"
         else:

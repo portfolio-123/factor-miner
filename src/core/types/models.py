@@ -3,6 +3,7 @@ from enum import IntEnum, StrEnum
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+
 class AnalysisStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"

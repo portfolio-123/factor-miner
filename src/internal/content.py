@@ -1,5 +1,6 @@
 # internal mode about me page
 
+
 def get_about_intro(fl_id: str, p123_link: str) -> str:
     return f"""
 FactorMiner is tightly coupled to Portfolio 123's [Factor List]({p123_link}) feature—you need to generate a dataset there before running any analysis here.

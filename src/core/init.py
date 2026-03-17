@@ -18,7 +18,9 @@ def init() -> None:
         if not (fl_id := st.query_params.get("fl_id")):
             available = DatasetService.list_datasets()
             if not available:
-                st.warning("No datasets found. Add .parquet datasets to the data directory.")
+                st.warning(
+                    "No datasets found. Add .parquet datasets to the data directory."
+                )
                 st.stop()
             fl_id = available[0]
             st.query_params["fl_id"] = fl_id

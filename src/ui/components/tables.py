@@ -35,7 +35,11 @@ def render_correlation_matrix(
         column_widths={"": "180px"},
     )
 
-    file_name = f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"
+    file_name = (
+        f"{file_prefix}_correlation_matrix.csv"
+        if file_prefix
+        else "correlation_matrix.csv"
+    )
 
     render_copy_download_buttons(
         csv_copy=rounded.write_csv(separator="\t"),
@@ -71,7 +75,12 @@ def show_preview_modal(
         render_table(
             display_df,
             max_height=500,
-            column_widths={"Row": "40px", "Date": "95px", "P123 ID": "60px", "Ticker": "55px"},
+            column_widths={
+                "Row": "40px",
+                "Date": "95px",
+                "P123 ID": "60px",
+                "Ticker": "55px",
+            },
         )
 
     _render()
@@ -116,43 +125,56 @@ def render_results_table(
     sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
     sorted_metrics = metrics.sort(pl.col(sort_col).abs(), descending=True)
 
-    if 'rank' not in sorted_metrics.columns:
+    if "rank" not in sorted_metrics.columns:
         sorted_metrics = sorted_metrics.with_row_index("rank", offset=1)
 
-    display = sorted_metrics.rename({
-        "column": "Factor",
-        "annualized alpha %": "Ann. Alpha %",
-        "annualized long %": "Ann. Long %",
-        "annualized short %": "Ann. Short %",
-        "NA %": "NA %",
-        "T-Stat": "T-Stat",
-        "beta": "Beta",
-        "rank": "Rank",
-        "IC": "IC",
-        "IC t-stat": "IC t-stat",
-    })
+    display = sorted_metrics.rename(
+        {
+            "column": "Factor",
+            "annualized alpha %": "Ann. Alpha %",
+            "annualized long %": "Ann. Long %",
+            "annualized short %": "Ann. Short %",
+            "NA %": "NA %",
+            "T-Stat": "T-Stat",
+            "beta": "Beta",
+            "rank": "Rank",
+            "IC": "IC",
+            "IC t-stat": "IC t-stat",
+        }
+    )
 
     if formulas_data is not None:
         tag_mapping = formulas_data.unique(subset=["name"]).select(["name", "tag"])
         display = display.join(
-            tag_mapping,
-            left_on="Factor",
-            right_on="name",
-            how="left"
+            tag_mapping, left_on="Factor", right_on="name", how="left"
         ).rename({"tag": "Tag"})
     else:
         display = display.with_columns(pl.lit("").alias("Tag"))
 
-    display = display.select([
-        "Rank", "Factor", "Tag", "Ann. Alpha %", "Beta", "T-Stat", "IC", "IC t-stat", "Ann. Long %", "Ann. Short %", "NA %"
-    ])
+    display = display.select(
+        [
+            "Rank",
+            "Factor",
+            "Tag",
+            "Ann. Alpha %",
+            "Beta",
+            "T-Stat",
+            "IC",
+            "IC t-stat",
+            "Ann. Long %",
+            "Ann. Short %",
+            "NA %",
+        ]
+    )
 
     row_colors = None
     if factor_classifications is not None:
         excluded_classification = "below_ic" if rank_by == "Alpha" else "below_alpha"
         classification_counts = {}
         for classification in factor_classifications.values():
-            classification_counts[classification] = classification_counts.get(classification, 0) + 1
+            classification_counts[classification] = (
+                classification_counts.get(classification, 0) + 1
+            )
 
         legend_html = '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">'
         for cls_key, (color, label) in CLASSIFICATION_COLORS.items():
@@ -218,7 +240,9 @@ def render_results_table(
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     fl_id = st.query_params.get("fl_id")
-    datasets = BackupDatasetService(st.session_state.get("user_uid"), fl_id).load_all_versions()
+    datasets = BackupDatasetService(
+        st.session_state.get("user_uid"), fl_id
+    ).load_all_versions()
 
     rows_data = []
     links = []
@@ -246,27 +270,37 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
 
         rank_by = getattr(a.params, "rank_by", "Alpha")
         clean_min_alpha = 0 if a.params.min_alpha < 1e-9 else a.params.min_alpha
-        metric_str = f'"IC": {a.params.min_ic}' if rank_by == "IC" else f'"α": {clean_min_alpha}'
+        metric_str = (
+            f'"IC": {a.params.min_ic}' if rank_by == "IC" else f'"α": {clean_min_alpha}'
+        )
         params_json = (
             f'{{"max.n": {a.params.n_factors}, {metric_str}, '
             f'"corr": {a.params.correlation_threshold}, '
             f'"top": "{int(a.params.top_pct)}%", "btm": "{int(a.params.bottom_pct)}%"}}'
         )
 
-        rows_data.append({
-            "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M") + " UTC",
-            "Run Time": format_runtime(a.started_at, a.finished_at),
-            "Universe": dataset.universeName if dataset else "N/A",
-            "Best Factors": factors_display,
-            "Rows": f"{dataset.num_rows:,}" if dataset and dataset.num_rows else "N/A",
-            "Avg|α|": f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A",
-            "Period": period_value,
-            "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M") + " UTC"
+        rows_data.append(
+            {
+                "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M")
+                + " UTC",
+                "Run Time": format_runtime(a.started_at, a.finished_at),
+                "Universe": dataset.universeName if dataset else "N/A",
+                "Best Factors": factors_display,
+                "Rows": (
+                    f"{dataset.num_rows:,}" if dataset and dataset.num_rows else "N/A"
+                ),
+                "Avg|α|": (
+                    f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
+                ),
+                "Period": period_value,
+                "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M")
+                + " UTC"
                 + (" 🟢" if dataset and dataset.active else ""),
-            "Parameters": params_json,
-            "Status": a.status.display,
-            "Notes": a.notes or "",
-        })
+                "Parameters": params_json,
+                "Status": a.status.display,
+                "Notes": a.notes or "",
+            }
+        )
 
     if not rows_data:
         st.info("No analyses found.")
@@ -275,7 +309,9 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
     df = pl.DataFrame(rows_data)
 
     unique_versions = list(dict.fromkeys(version_list))
-    version_color_map = {v: "#f8f8f8" if i % 2 == 0 else "#ffffff" for i, v in enumerate(unique_versions)}
+    version_color_map = {
+        v: "#f8f8f8" if i % 2 == 0 else "#ffffff" for i, v in enumerate(unique_versions)
+    }
     row_colors = [version_color_map[v] for v in version_list]
 
     render_table(

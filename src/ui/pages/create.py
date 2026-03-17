@@ -18,8 +18,6 @@ from src.ui.components.datasets import render_dataset_card
 from src.workers.analysis_service import AnalysisService
 
 
-
-
 def _get_default_settings() -> dict:
     return {
         "rank_by": "Alpha",
@@ -34,7 +32,9 @@ def _get_default_settings() -> dict:
 
 
 def _load_last_analysis_params() -> None:
-    analyses = AnalysisService(st.session_state.get("user_uid") if INTERNAL_MODE else None).list_all(st.query_params.get("fl_id"))
+    analyses = AnalysisService(
+        st.session_state.get("user_uid") if INTERNAL_MODE else None
+    ).list_all(st.query_params.get("fl_id"))
     if not analyses:
         st.toast("No previous analyses found for this dataset")
         return
@@ -72,7 +72,7 @@ def _submit_analysis() -> None:
             access_token=st.session_state.get("access_token"),
         )
         st.session_state["_redirect_to_results"] = analysis_id
-        
+
     except Exception as e:
         st.toast(f"Error starting analysis: {e}")
 
@@ -95,7 +95,9 @@ def create_form() -> None:
             active_dataset_metadata = svc.get_metadata()
     except FileNotFoundError:
         if INTERNAL_MODE:
-            st.warning(f"No dataset found for this Factor List. [Generate]({p123_link(fl_id, 'generate')})")
+            st.warning(
+                f"No dataset found for this Factor List. [Generate]({p123_link(fl_id, 'generate')})"
+            )
         else:
             st.warning("No dataset found. Please select a valid .parquet file.")
         return
@@ -113,14 +115,11 @@ def create_form() -> None:
             "Use Last Settings",
             type="secondary",
             on_click=_load_last_analysis_params,
-            width="stretch"
+            width="stretch",
         )
     with col_run:
         st.button(
-            "Run Analysis",
-            type="primary",
-            on_click=_submit_analysis,
-            width="stretch"
+            "Run Analysis", type="primary", on_click=_submit_analysis, width="stretch"
         )
 
 

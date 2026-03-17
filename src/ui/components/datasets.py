@@ -32,20 +32,30 @@ def _build_norm_items(normalization) -> list[str]:
     ]
 
     if normalization.scaling in (ScalingMethod.NORMAL, ScalingMethod.MINMAX):
-        trim_value = f"{normalization.trimPct}%" if normalization.trimPct is not None else "N/A"
+        trim_value = (
+            f"{normalization.trimPct}%" if normalization.trimPct is not None else "N/A"
+        )
         items.append(("Trim", trim_value))
 
         if normalization.scaling == ScalingMethod.MINMAX:
-            outlier_value = normalization.outliers.title() if normalization.outliers else "N/A"
+            outlier_value = (
+                normalization.outliers.title() if normalization.outliers else "N/A"
+            )
             items.append(("Outliers", outlier_value))
         else:
-            outlier_value = str(normalization.outlierLimit) if normalization.outlierLimit is not None else "N/A"
+            outlier_value = (
+                str(normalization.outlierLimit)
+                if normalization.outlierLimit is not None
+                else "N/A"
+            )
             items.append(("Outlier Limit", outlier_value))
 
     items.append(("N/A Handling", "Middle" if normalization.naFill else "None"))
 
     if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
-        items.append(("ML Training End", format_date(normalization.mlTrainingEnd, "%Y-%m-%d")))
+        items.append(
+            ("ML Training End", format_date(normalization.mlTrainingEnd, "%Y-%m-%d"))
+        )
 
     return [render_info_item(label, value) for label, value in items]
 
@@ -53,9 +63,17 @@ def _build_norm_items(normalization) -> list[str]:
 def _get_date_display(dataset_metadata: DatasetConfig) -> tuple[str, str]:
     fmt = "%Y-%m-%d"
     if dataset_metadata.type == DatasetType.DATE:
-        value = format_date(dataset_metadata.asOfDt, fmt) if dataset_metadata.asOfDt else "N/A"
+        value = (
+            format_date(dataset_metadata.asOfDt, fmt)
+            if dataset_metadata.asOfDt
+            else "N/A"
+        )
         return "Date", value
-    start = format_date(dataset_metadata.startDt, fmt) if dataset_metadata.startDt else "N/A"
+    start = (
+        format_date(dataset_metadata.startDt, fmt)
+        if dataset_metadata.startDt
+        else "N/A"
+    )
     end = format_date(dataset_metadata.endDt, fmt) if dataset_metadata.endDt else "N/A"
     return "Period", f"{start} — {end}"
 
@@ -84,7 +102,11 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{subtitle}</span></p>'
             )
 
-        formula_count = sum(1 for f in dataset_metadata.formulas if f.get("name") not in PRICE_COLUMN_NAMES)
+        formula_count = sum(
+            1
+            for f in dataset_metadata.formulas
+            if f.get("name") not in PRICE_COLUMN_NAMES
+        )
         with header_formulas:
             if st.button(
                 f"Formulas ({formula_count})",

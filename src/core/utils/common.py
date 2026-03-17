@@ -8,6 +8,8 @@ import polars as pl
 
 def extract_benchmark_ticker(benchmark: str) -> str:
     return benchmark[benchmark.rfind("(") + 1 : benchmark.rfind(")")]
+
+
 def read_json_file(path: Path) -> dict | None:
     try:
         with open(path, "r") as f:
@@ -34,7 +36,9 @@ def format_version_timestamp(unix_ts: float) -> str:
 
 
 # "Jan 15, 2024 at 02:30 PM UTC"
-def format_timestamp(timestamp: str | int | None, format_str: str = "%b %d, %Y at %I:%M %p UTC") -> str:
+def format_timestamp(
+    timestamp: str | int | None, format_str: str = "%b %d, %Y at %I:%M %p UTC"
+) -> str:
     if not timestamp:
         return "N/A"
     try:
@@ -80,7 +84,7 @@ def format_runtime(started_at: str | None, finished_at: str | None) -> str:
 def serialize_dataframe(df: pl.DataFrame) -> str:
     buffer = BytesIO()
     df.write_ipc(buffer)
-    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
 def deserialize_dataframe(*data: str) -> pl.DataFrame | tuple[pl.DataFrame, ...]:
@@ -96,6 +100,7 @@ def find_price_column(column_names: list[str], price_column_names: list[str]) ->
         f"[price-column-not-found] Dataset must include one of: {', '.join(price_column_names)}"
     )
 
+
 def add_formula_column(
     download_df: pl.DataFrame,
     formulas_df: pl.DataFrame,
@@ -107,18 +112,15 @@ def add_formula_column(
     mapping_df = formulas_df.unique(subset=["name"]).select(["name", "formula"])
 
     result = download_df.join(
-        mapping_df,
-        left_on=factor_col,
-        right_on="name",
-        how="left"
+        mapping_df, left_on=factor_col, right_on="name", how="left"
     ).rename({"formula": "Formula"})
 
     # place Formula after factor_col
     cols = result.columns
     factor_idx = cols.index(factor_col)
     new_order = (
-        cols[:factor_idx + 1] +
-        ["Formula"] +
-        [c for c in cols[factor_idx + 1:] if c not in ["Formula", "name"]]
+        cols[: factor_idx + 1]
+        + ["Formula"]
+        + [c for c in cols[factor_idx + 1 :] if c not in ["Formula", "name"]]
     )
     return result.select(new_order)

@@ -84,6 +84,7 @@ class DatasetService:
                 with open(dest_path, "w") as f:
                     json.dump(dataset_metadata, f, indent=2)
 
+
 class BackupDatasetService:
     def __init__(self, user_uid: str | None, fl_id: str):
         self.user_uid = user_uid

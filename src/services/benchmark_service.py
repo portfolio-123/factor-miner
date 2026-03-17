@@ -4,13 +4,13 @@ import yfinance as yf
 
 # convert p123 benchmark tickers to be compatible with yfinance
 MARKET_SUFFIX_MAP = {
-    "USA": "",      # US exchanges
-    "CAN": ".TO",   # Toronto Stock Exchange
-    "DEU": ".DE",   # Germany (XETRA)
-    "GBR": ".L",    # London Stock Exchange
-    "NLD": ".AS",   # Amsterdam (Euronext)
-    "ITA": ".MI",   # Milan (Borsa Italiana)
-    "CHE": ".SW",   # Swiss Exchange
+    "USA": "",  # US exchanges
+    "CAN": ".TO",  # Toronto Stock Exchange
+    "DEU": ".DE",  # Germany (XETRA)
+    "GBR": ".L",  # London Stock Exchange
+    "NLD": ".AS",  # Amsterdam (Euronext)
+    "ITA": ".MI",  # Milan (Borsa Italiana)
+    "CHE": ".SW",  # Swiss Exchange
 }
 
 
@@ -29,7 +29,9 @@ def convert_to_yfinance_ticker(ticker_with_market: str) -> str:
     return f"{ticker}{MARKET_SUFFIX_MAP[market]}"
 
 
-def fetch_benchmark_external(ticker: str, start_date: str, end_date: str) -> pl.DataFrame:
+def fetch_benchmark_external(
+    ticker: str, start_date: str, end_date: str
+) -> pl.DataFrame:
     yf_ticker = convert_to_yfinance_ticker(ticker)
     data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
 
@@ -45,8 +47,6 @@ def fetch_benchmark_external(ticker: str, start_date: str, end_date: str) -> pl.
     pandas_df.columns = ["dt", "close"]
 
     df = pl.from_pandas(pandas_df)
-    df = df.with_columns(
-        pl.col("dt").dt.strftime("%Y-%m-%d").alias("dt")
-    )
+    df = df.with_columns(pl.col("dt").dt.strftime("%Y-%m-%d").alias("dt"))
 
     return df

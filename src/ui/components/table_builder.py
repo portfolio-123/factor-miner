@@ -206,11 +206,17 @@ def render_table(
             td_styles = []
             if j == 0 and small_headers:
                 td_styles.extend(["font-size: 10px", "font-weight: 600"])
-            if column_widths and col in column_widths and column_widths[col].endswith("px"):
+            if (
+                column_widths
+                and col in column_widths
+                and column_widths[col].endswith("px")
+            ):
                 td_styles.append("white-space: nowrap")
             td_style_attr = f' style="{"; ".join(td_styles)}"' if td_styles else ""
 
-            sort_attr = f' data-sort-value="{sort_value}"' if sortable and sort_value else ""
+            sort_attr = (
+                f' data-sort-value="{sort_value}"' if sortable and sort_value else ""
+            )
 
             cell_content = f'<a href="{link}">{cell_value}</a>' if link else cell_value
             html += f"<td{td_style_attr}{sort_attr}>{cell_content}</td>"
