@@ -217,7 +217,7 @@ def analyze_factors(
     factor_columns: List[str],
     top_pct: float = 10.0,
     bottom_pct: float = 10.0,
-    batch_size: int = 50,
+    batch_size: int = 10,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> Tuple[pl.DataFrame, Dict[str, dict]]:
     """
