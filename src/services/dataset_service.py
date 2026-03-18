@@ -5,17 +5,15 @@ from typing import Self
 
 import polars as pl
 
-from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
+from src.core.config.environment import DATASET_DIR
 from src.core.types.models import DatasetConfig
 from src.core.utils.common import format_version_timestamp
 from src.services.readers import ParquetDataReader
 
 
 class DatasetService:
-    def __init__(self, fl_id: str, user_uid: str | None = None):
-        self.fl_id = fl_id
-        self.user_uid = user_uid
-        self._reader: ParquetDataReader | None = None
+    def __init__(self, dataset_details: DatasetDetails):
+        self.dataset_details = dataset_details
 
     def __enter__(self) -> Self:
         self._reader = ParquetDataReader(self.base_path)
@@ -26,9 +24,7 @@ class DatasetService:
 
     @property
     def base_path(self) -> Path:
-        if INTERNAL_MODE:
-            return DATASET_DIR / self.user_uid / self.fl_id
-        return DATASET_DIR / f"{self.fl_id}.parquet"
+        return self.dataset_details.get_base_path()
 
     @staticmethod
     def list_datasets() -> list[str]:
@@ -86,15 +82,12 @@ class DatasetService:
 
 
 class BackupDatasetService:
-    def __init__(self, user_uid: str | None, fl_id: str):
-        self.user_uid = user_uid
-        self.fl_id = fl_id
+    def __init__(self, dataset_details: DatasetDetails):
+        self.dataset_details = dataset_details
 
     @property
     def backup_dir(self) -> Path:
-        if INTERNAL_MODE and self.user_uid:
-            return DATASET_DIR / self.user_uid / "FactorMiner" / self.fl_id
-        return DATASET_DIR / "FactorMiner" / self.fl_id
+        return self.dataset_details.get_backup_dir()
 
     def get_backup_path(self, version: str) -> Path:
         return self.backup_dir / f"dataset_{version}.json"
@@ -107,7 +100,7 @@ class BackupDatasetService:
         data.pop("preprocessor", None)
         metadata = DatasetConfig(**data)
         metadata.version = version
-        current = DatasetService(self.fl_id, self.user_uid).current_version
+        current = DatasetService(self.dataset_details).current_version
         metadata.active = current is not None and version == current
         return metadata
 
@@ -115,7 +108,7 @@ class BackupDatasetService:
         if not self.backup_dir.exists():
             return {}
 
-        current = DatasetService(self.fl_id, self.user_uid).current_version
+        current = DatasetService(self.dataset_details).current_version
         result = {}
         for f in self.backup_dir.glob("dataset_*.json"):
             version = f.stem.removeprefix("dataset_")

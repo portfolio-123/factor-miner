@@ -10,16 +10,8 @@ def extract_benchmark_ticker(benchmark: str) -> str:
     return benchmark[benchmark.rfind("(") + 1 : benchmark.rfind(")")]
 
 
-def read_json_file(path: Path) -> dict | None:
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, IOError):
-        return None
-
-
 # "2024-01-15T14:30:00" -> "2024-01-15"
-def format_date(date_value: str | None, format_str: str = "%Y-%m-%d") -> str:
+def format_date(date_value: str | None, format_str="%Y-%m-%d") -> str:
     if not date_value:
         return "N/A"
     try:
@@ -37,18 +29,12 @@ def format_version_timestamp(unix_ts: float) -> str:
 
 # "Jan 15, 2024 at 02:30 PM UTC"
 def format_timestamp(
-    timestamp: str | int | None, format_str: str = "%b %d, %Y at %I:%M %p UTC"
+    timestamp: str | None, format_str="%b %d, %Y at %I:%M %p UTC"
 ) -> str:
     if not timestamp:
         return "N/A"
     try:
-        ts = int(timestamp) // 1000
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-        return dt.strftime(format_str)
-    except (ValueError, TypeError, OSError):
-        pass
-    try:
-        dt = datetime.fromisoformat(str(timestamp))
+        dt = datetime.fromisoformat(timestamp)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         else:
@@ -87,9 +73,8 @@ def serialize_dataframe(df: pl.DataFrame) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def deserialize_dataframe(*data: str) -> pl.DataFrame | tuple[pl.DataFrame, ...]:
-    results = [pl.read_ipc(BytesIO(base64.b64decode(d))) for d in data]
-    return results[0] if len(results) == 1 else tuple(results)
+def deserialize_dataframe(data: str) -> pl.DataFrame | tuple[pl.DataFrame, ...]:
+    return pl.read_ipc(BytesIO(base64.b64decode(data)))
 
 
 def find_price_column(column_names: list[str], price_column_names: list[str]) -> str:
@@ -102,9 +87,7 @@ def find_price_column(column_names: list[str], price_column_names: list[str]) ->
 
 
 def add_formula_column(
-    download_df: pl.DataFrame,
-    formulas_df: pl.DataFrame,
-    factor_col: str = "Factor",
+    download_df: pl.DataFrame, formulas_df: pl.DataFrame, factor_col="Factor"
 ) -> pl.DataFrame:
     if "Formula" in download_df.columns:
         return download_df

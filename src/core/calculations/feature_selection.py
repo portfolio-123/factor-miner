@@ -35,12 +35,12 @@ def calculate_correlation_matrix(results_df: pl.DataFrame) -> pl.DataFrame:
 def select_best_features(
     metrics_df: pl.DataFrame,
     correlation_matrix: pl.DataFrame,
-    n: int = DEFAULT_N_FACTORS,
-    correlation_threshold: float = DEFAULT_CORRELATION_THRESHOLD,
-    a_min: float = DEFAULT_MIN_ALPHA,
-    max_na_pct: float = DEFAULT_MAX_NA_PCT,
-    min_ic: float = DEFAULT_MIN_IC,
-    rank_by: str = "Alpha",
+    n=DEFAULT_N_FACTORS,
+    correlation_threshold=DEFAULT_CORRELATION_THRESHOLD,
+    a_min=DEFAULT_MIN_ALPHA,
+    max_na_pct=DEFAULT_MAX_NA_PCT,
+    min_ic=DEFAULT_MIN_IC,
+    rank_by="Alpha",
 ) -> tuple[list[str], dict[str, str]]:
     """
     Select n best features based on absolute Alpha or IC and low correlation.

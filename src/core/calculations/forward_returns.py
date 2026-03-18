@@ -9,9 +9,7 @@ from src.core.config.constants import (
 
 
 def calculate_benchmark_returns(
-    raw_data: pl.DataFrame,
-    benchmark_data: pl.DataFrame,
-    frequency: Frequency,
+    raw_data: pl.DataFrame, benchmark_data: pl.DataFrame, frequency: Frequency
 ) -> pl.DataFrame:
     """
     Calculate forward-looking benchmark returns for each date in the dataset.

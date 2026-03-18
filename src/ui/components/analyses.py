@@ -7,33 +7,30 @@ from src.ui.components.common import section_header
 from src.workers.analysis_service import AnalysisService
 
 
-def show_analysis_logs_modal(fl_id: str, analysis_id: str) -> None:
-    @st.dialog("Analysis Logs", width="large")
-    def _render() -> None:
-        user_uid = st.session_state.get("user_uid")
-        logs = AnalysisService(user_uid).get_logs(fl_id, analysis_id)
-        if not logs:
-            st.info("No logs available for this analysis.")
-            return
+@st.dialog("Analysis Logs", width="large")
+def show_analysis_logs_modal(fl_id: str, analysis_id: str):
+    user_uid = st.session_state.get("user_uid")
+    logs = AnalysisService(user_uid).get_logs(fl_id, analysis_id)
+    if not logs:
+        st.info("No logs available for this analysis.")
+        return
 
-        log_lines = [
-            re.sub(r"(\[.*?\])", r'<span style="color: #2196F3;">\1</span>', log)
-            for log in logs
-        ]
+    log_lines = [
+        re.sub(r"(\[.*?\])", r'<span style="color: #2196F3;">\1</span>', log)
+        for log in logs
+    ]
 
-        log_html = "<br>".join(log_lines)
-        st.html(
-            f'<div style="font-family: monospace; font-size: 13px; '
-            f"background: #f5f5f5; color: #333; padding: 12px; "
-            f'border-radius: 4px; max-height: 400px; overflow-y: auto;">'
-            f"{log_html}</div>"
-        )
-
-    _render()
+    log_html = "<br>".join(log_lines)
+    st.html(
+        f'<div style="font-family: monospace; font-size: 13px; '
+        f"background: #f5f5f5; color: #333; padding: 12px; "
+        f'border-radius: 4px; max-height: 400px; overflow-y: auto;">'
+        f"{log_html}</div>"
+    )
 
 
 @st.fragment
-def render_analysis_notes(analysis: Analysis) -> None:
+def render_analysis_notes(analysis: Analysis):
     section_header("Note")
 
     with st.form(key=f"notes_form_{analysis.id}", enter_to_submit=True, border=False):
@@ -55,11 +52,11 @@ def render_analysis_notes(analysis: Analysis) -> None:
             AnalysisService(user_uid).save(analysis, notes=notes_value)
 
 
-def _render_failure_message(fl_id: str, error: str | None) -> None:
+def _render_failure_message(fl_id: str, error: str | None):
     st.error(format_analysis_error(fl_id, error or "Analysis failed"))
 
 
-def _render_progress_bar(progress: AnalysisProgress | None) -> None:
+def _render_progress_bar(progress: AnalysisProgress | None):
     has_progress = progress and progress.total > 0
     progress_value = (progress.completed / progress.total) if has_progress else 0
     progress_text = (
@@ -75,7 +72,7 @@ def _render_progress_bar(progress: AnalysisProgress | None) -> None:
 
 
 @st.fragment(run_every="1s")
-def render_analysis_progress(fl_id: str, analysis_id: str) -> None:
+def render_analysis_progress(fl_id: str, analysis_id: str):
     user_uid = st.session_state.get("user_uid")
     analysis = AnalysisService(user_uid).get(fl_id, analysis_id)
 

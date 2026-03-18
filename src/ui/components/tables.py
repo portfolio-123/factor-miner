@@ -268,7 +268,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         links.append(f"/results?fl_id={a.fl_id}&id={a.id}")
         version_list.append(a.dataset_version)
 
-        rank_by = getattr(a.params, "rank_by", "Alpha")
+        rank_by = a.params.rank_by
         clean_min_alpha = 0 if a.params.min_alpha < 1e-9 else a.params.min_alpha
         metric_str = (
             f'"IC": {a.params.min_ic}' if rank_by == "IC" else f'"α": {clean_min_alpha}'

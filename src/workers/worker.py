@@ -68,10 +68,10 @@ class AnalysisRunner:
         self.service = AnalysisService(user_uid)
         self.analysis: Analysis | None = None
 
-    def log(self, message: str) -> None:
+    def log(self, message: str):
         stderr_logger.info(message)
 
-    def update(self, **updates) -> None:
+    def update(self, **updates):
         if self.analysis:
             self.analysis = self.service.save(self.analysis, **updates)
 
@@ -194,7 +194,7 @@ class AnalysisRunner:
                 a_min=params.min_alpha,
                 max_na_pct=params.max_na_pct,
                 min_ic=params.min_ic,
-                rank_by=getattr(params, "rank_by", "Alpha"),
+                rank_by=params.rank_by,
             )
             best_factors_count = len(best_feature_names)
             self.log(f"Best factors: {best_factors_count}/{len(metrics_df)}")
@@ -209,7 +209,7 @@ class AnalysisRunner:
                 "factor_classifications": factor_classifications,
             }
 
-    def execute(self) -> None:
+    def execute(self):
         self.log(f"Worker started for {self.fl_id}/{self.analysis_id}")
 
         self.analysis = self.service.get(self.fl_id, self.analysis_id)

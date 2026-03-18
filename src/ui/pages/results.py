@@ -66,7 +66,7 @@ def results() -> None:
 
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
-    rank_by = getattr(analysis.params, "rank_by", "Alpha")
+    rank_by = analysis.params.rank_by
 
     # add rank column
     sort_col = "IC" if rank_by == "IC" else "annualized alpha %"

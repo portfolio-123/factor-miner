@@ -1,5 +1,4 @@
 import polars as pl
-import yfinance as yf
 
 
 # convert p123 benchmark tickers to be compatible with yfinance
@@ -32,6 +31,8 @@ def convert_to_yfinance_ticker(ticker_with_market: str) -> str:
 def fetch_benchmark_external(
     ticker: str, start_date: str, end_date: str
 ) -> pl.DataFrame:
+    import yfinance as yf
+
     yf_ticker = convert_to_yfinance_ticker(ticker)
     data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
 

@@ -2,13 +2,12 @@ import polars as pl
 import requests
 
 from src.internal.config import API_BASE_URL
-from src.core.types.models import TokenPayload
 
 
 def _request(
     method: str, endpoint: str, token: str | None = None, timeout: int = 30, **kwargs
 ) -> requests.Response:
-    headers = {"Content-Type": "application/json", "Source": "0"}
+    headers = {"Content-Type": "application/json", "Source": "FactorMiner"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     response = requests.request(
@@ -18,9 +17,9 @@ def _request(
     return response
 
 
-def authenticate(payload: TokenPayload) -> str:
+def authenticate(apiId: int, apiKey: str) -> str:
     try:
-        auth_data = {"apiId": payload.apiId, "apiKey": payload.apiKey}
+        auth_data = {"apiId": apiId, "apiKey": apiKey}
         response = _request("POST", "/auth", json=auth_data, timeout=10)
         return response.text.strip('"')
     except Exception:

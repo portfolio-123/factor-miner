@@ -1,10 +1,10 @@
+from collections.abc import Callable
 import logging
 import os
 import traceback
 import numpy as np
 import polars as pl
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Dict, List, Tuple
 
 from src.services.dataset_service import DatasetService
 from src.core.config.constants import (
@@ -25,7 +25,7 @@ def _process_factor(
     n_dates: int,
     top_pct: float,
     bottom_pct: float,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
     """
     Process a single factor column to calculate returns and statistics.
 
@@ -223,6 +223,7 @@ def _process_factor(
         cumulative_short_ret = np.nan
 
     factor_stats = {
+        "column": col,
         "NA %": round(na_pct, 2),
         "IC": mean_ic,
         "IC t-stat": ic_tstat,
@@ -249,12 +250,12 @@ def analyze_factors(
     dataset_svc: DatasetService,
     *,
     core_df: pl.DataFrame,
-    factor_columns: List[str],
-    top_pct: float = 10.0,
-    bottom_pct: float = 10.0,
-    batch_size: int = 10,
+    factor_columns: list[str],
+    top_pct=10.0,
+    bottom_pct=10.0,
+    batch_size=10,
     on_progress: Callable[[int, int], None] | None = None,
-) -> Tuple[pl.DataFrame, Dict[str, dict]]:
+) -> tuple[pl.DataFrame, dict[str, dict]]:
     """
     Analyze factors by calculating top X% vs bottom X% performance difference.
     Reads factors in batches from Parquet.
@@ -273,10 +274,10 @@ def analyze_factors(
     """
     total_factors = len(factor_columns)
 
-    all_dates: List[np.ndarray] = []
-    all_factors: List[np.ndarray] = []
-    all_rets: List[np.ndarray] = []
-    factor_stats_dict: Dict[str, dict] = {}
+    all_dates: list[np.ndarray] = []
+    all_factors: list[np.ndarray] = []
+    all_rets: list[np.ndarray] = []
+    factor_stats_dict: dict[str, dict] = {}
 
     base_df = core_df.select(["Date", "Ticker"]).with_row_index("_row_idx")
 
@@ -364,8 +365,8 @@ def analyze_factors(
 def calculate_factor_metrics(
     results_df: pl.DataFrame,
     raw_data: pl.DataFrame,
-    factor_stats: Dict[str, dict],
-    periods_per_year: float = 52.0,
+    factor_stats: dict[str, dict],
+    periods_per_year=52.0,
 ) -> pl.DataFrame:
     """
     Calculate statistical metrics for each factor.
@@ -431,7 +432,7 @@ def calculate_factor_metrics(
     valid_factors = n_valid >= 2
     valid_factor_names = np.array(factor_names)[valid_factors].tolist()
 
-    stats_df = pl.DataFrame([{"column": k, **v} for k, v in factor_stats.items()])
+    stats_df = pl.DataFrame(factor_stats.values())
 
     result = pl.DataFrame(
         {

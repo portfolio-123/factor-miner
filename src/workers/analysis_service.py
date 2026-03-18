@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pydantic import ValidationError
-
 from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
 from src.core.types.models import (
     Analysis,
@@ -16,7 +14,6 @@ from src.core.types.models import (
     AnalysisSummary,
     AnalysisStatus,
 )
-from src.core.utils.common import read_json_file
 from src.services.dataset_service import BackupDatasetService, DatasetService
 
 logger = logging.getLogger(__name__)
@@ -38,18 +35,23 @@ class AnalysisService:
         with open(path, "w") as f:
             json.dump(analysis.model_dump(), f, indent=2)
 
-    def get(self, fl_id: str, analysis_id: str, retries: int = 2) -> Analysis | None:
-        for attempt in range(retries + 1):
-            data = read_json_file(self._get_path(fl_id, analysis_id))
-            try:
+    def get(self, fl_id: str, analysis_id: str, retries=2) -> Analysis | None:
+        path = self._get_path(fl_id, analysis_id)
+        tries = 0
+        while True:
+            with open(path, "r") as f:
+                try:
+                    data = json.load(f)
+                except (FileNotFoundError, IOError):
+                    return None
+                except json.JSONDecodeError:
+                    if (tries := tries + 1) < retries:
+                        # to avoid race conditions in the progress functions which triggers this every second
+                        time.sleep(0.1)
+                        continue
+                    return None
+
                 return Analysis.model_validate(data)
-            except ValidationError:
-                if attempt < retries:
-                    time.sleep(
-                        0.1
-                    )  # to avoid race conditions in the progress functions which triggers this every second
-                    continue
-                return None
 
     def create(
         self,
@@ -125,11 +127,12 @@ class AnalysisService:
         for json_file in fl_dir.glob("*.json"):
             if json_file.stem.startswith("dataset_"):
                 continue
-            data = read_json_file(json_file)
-            try:
-                analyses.append(AnalysisSummary.model_validate(data))
-            except ValidationError:
-                continue
+            with open(json_file, "r") as f:
+                try:
+                    data = json.load(f)
+                    analyses.append(AnalysisSummary.model_validate(data))
+                except Exception:
+                    continue
 
         return sorted(analyses, key=lambda a: a.created_at, reverse=True)
 

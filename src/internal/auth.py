@@ -1,7 +1,6 @@
 import streamlit as st
 
 from src.core.config.constants import AUTH_COOKIE_KEY
-from src.core.types.models import TokenPayload
 from src.core.utils.cookie_utils import clear_cookie, get_cookie, set_cookie
 from src.core.utils.jwt_utils import decrypt_token
 from src.internal.p123_client import (
@@ -10,7 +9,7 @@ from src.internal.p123_client import (
 )
 
 
-def _authenticate(token: str, save_cookie: bool = True) -> None:
+def _authenticate(token: str, save_cookie=True) -> None:
     fl_id = st.query_params.get("fl_id")
     fl_info = verify_factor_list_access(fl_id, token)
     st.session_state.access_token = token
@@ -75,22 +74,13 @@ def _render_auth_form() -> str | None:
 
         with st.form(key="login_form", border=False):
             api_id = st.text_input("API ID", placeholder="Enter your API ID")
-            api_key = st.text_input(
-                "API Key",
-                placeholder="Enter your API Key",
-            )
+            api_key = st.text_input("API Key", placeholder="Enter your API Key")
 
-            submitted = st.form_submit_button(
-                "Login",
-                type="primary",
-                width="stretch",
-            )
+            submitted = st.form_submit_button("Login", type="primary", width="stretch")
 
             if submitted:
                 try:
-                    return get_access_token(
-                        TokenPayload(apiId=int(api_id), apiKey=api_key)
-                    )
+                    return get_access_token(apiId=int(api_id), apiKey=api_key)
                 except PermissionError as e:
                     st.error(str(e))
 
