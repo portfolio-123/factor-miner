@@ -1,6 +1,8 @@
 import base64
+from collections.abc import Callable
 import json
 from io import BytesIO
+from os import DirEntry, scandir
 from pathlib import Path
 from datetime import datetime, timezone
 import polars as pl
@@ -107,3 +109,32 @@ def add_formula_column(
         + [c for c in cols[factor_idx + 1 :] if c not in ["Formula", "name"]]
     )
     return result.select(new_order)
+
+
+def find_files(
+    dirpath: Path,
+    *,
+    prefix: str | None = None,
+    suffix: str | None = None,
+    matcher: Callable[[DirEntry[str]], bool] | None = None,
+):
+    if matcher is None:
+        if prefix:
+            if suffix:
+                matcher = lambda e: e.name.startswith(prefix) and e.name.endswith(
+                    suffix
+                )
+            else:
+                matcher = lambda e: e.name.startswith(prefix)
+        else:
+            if suffix:
+                matcher = lambda e: e.name.endswith(suffix)
+            else:
+                raise ValueError("find_files called with invalid arguments")
+    try:
+        with scandir(dirpath) as it:
+            for e in it:
+                if e.is_file() and matcher(e):
+                    yield e
+    except (FileNotFoundError, NotADirectoryError):
+        return

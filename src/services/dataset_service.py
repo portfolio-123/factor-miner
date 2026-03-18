@@ -1,5 +1,5 @@
 import json
-import os
+from os import stat
 from pathlib import Path
 from typing import Self
 
@@ -7,7 +7,7 @@ import polars as pl
 
 from src.core.config.environment import DATASET_DIR
 from src.core.types.models import DatasetConfig
-from src.core.utils.common import format_version_timestamp
+from src.core.utils.common import find_files, format_version_timestamp
 from src.services.readers import ParquetDataReader
 
 
@@ -27,28 +27,21 @@ class DatasetService:
         return self.dataset_details.get_base_path()
 
     @staticmethod
-    def list_datasets() -> list[str]:
-        if not DATASET_DIR.exists():
-            return []
-        return sorted(f.stem for f in DATASET_DIR.glob("*.parquet"))
-
-    @property
-    def exists(self) -> bool:
-        return self.base_path.exists()
+    def list_datasets():
+        return sorted(f.name for f in find_files(DATASET_DIR, suffix=".parquet"))
 
     @property
     def current_version(self) -> str | None:
-        if not self.base_path.exists():
+        try:
+            return format_version_timestamp(stat(self.base_path).st_mtime)
+        except FileNotFoundError:
             return None
-        return format_version_timestamp(os.path.getmtime(self.base_path))
 
     @property
     def column_names(self) -> list[str]:
         return self._reader.column_names
 
     def get_metadata(self) -> DatasetConfig:
-        if not self.base_path.exists():
-            raise FileNotFoundError(f"Dataset file not found: {self.base_path}")
         metadata = self._reader.get_dataset_info()
         metadata.version = self.current_version
         metadata.active = True
@@ -68,7 +61,7 @@ class DatasetService:
     def read_columns(self, columns: list) -> pl.DataFrame:
         return self._reader.read_columns(columns)
 
-    def backup_metadata(self, dest_path: Path) -> None:
+    def back_up_metadata(self, dest_path: Path) -> None:
         source_metadata = self._reader.get_schema_metadata()
         if source_metadata:
             num_rows = self._reader._parquet_file.metadata.num_rows
@@ -90,11 +83,11 @@ class BackupDatasetService:
         return self.dataset_details.get_backup_dir()
 
     def get_backup_path(self, version: str) -> Path:
-        return self.backup_dir / f"dataset_{version}.json"
+        return Path(self.backup_dir, f"dataset_{version}.json")
 
     def get_metadata(self, version: str) -> DatasetConfig:
         with open(self.get_backup_path(version)) as f:
-            data = json.load(f)
+            data: dict = json.load(f)
         if data.get("normalization") is True and "preprocessor" in data:
             data["normalization"] = data["preprocessor"]
         data.pop("preprocessor", None)
@@ -105,14 +98,15 @@ class BackupDatasetService:
         return metadata
 
     def load_all_versions(self) -> dict[str, DatasetConfig]:
-        if not self.backup_dir.exists():
-            return {}
+        files = list(find_files(self.backup_dir, prefix="dataset_", suffix=".json"))
 
-        current = DatasetService(self.dataset_details).current_version
         result = {}
-        for f in self.backup_dir.glob("dataset_*.json"):
-            version = f.stem.removeprefix("dataset_")
-            dataset = self.get_metadata(version)
-            dataset.active = current is not None and version == current
-            result[version] = dataset
+        if files:
+            current = DatasetService(self.dataset_details).current_version
+            for f in files:
+                version = f.name[8:-5]  # slice "dataset_" and ".json"
+                dataset = self.get_metadata(version)
+                dataset.active = current is not None and version == current
+                result[version] = dataset
+
         return result

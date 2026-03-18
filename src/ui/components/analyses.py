@@ -49,7 +49,7 @@ def render_analysis_notes(analysis: Analysis):
 
         if submitted and notes_value != (analysis.notes or ""):
             user_uid = st.session_state.get("user_uid")
-            AnalysisService(user_uid).save(analysis, notes=notes_value)
+            AnalysisService(user_uid).save(analysis, {"notes": notes_value})
 
 
 def _render_failure_message(fl_id: str, error: str | None):

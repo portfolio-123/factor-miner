@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import logging
-import os
+from os import cpu_count
 import traceback
 import numpy as np
 import polars as pl
@@ -296,7 +296,7 @@ def analyze_factors(
     del base_df, merged_base
 
     completed_count = 0
-    max_workers = min(8, os.cpu_count() or 4)
+    max_workers = min(8, cpu_count() or 4)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for batch_start in range(0, total_factors, batch_size):
             batch_cols = factor_columns[batch_start : batch_start + batch_size]

@@ -1,4 +1,5 @@
 from enum import IntEnum, StrEnum
+from typing import TypedDict
 
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -170,3 +171,16 @@ class Analysis(AnalysisSummary):
     results: AnalysisResults | None = None
     error: str | None = None
     progress: AnalysisProgress | None = None
+
+
+class AnalysisUpdate(TypedDict, total=False):
+    status: AnalysisStatus
+    started_at: str
+    finished_at: str
+    notes: str
+    avg_abs_alpha: float
+    best_factors_count: int
+    updated_at: str
+    results: AnalysisResults
+    error: str
+    progress: AnalysisProgress | None
