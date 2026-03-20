@@ -49,7 +49,7 @@ def _load_last_analysis_params() -> None:
 def _submit_analysis() -> None:
     fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
-    dataset_version = DatasetService(fl_id, user_uid).current_version
+    dataset_version = DatasetService(st.session_state.dataset_details).current_version
     analysis_id = AnalysisService(user_uid).next_analysis_id(fl_id)
 
     try:
@@ -88,18 +88,16 @@ def create_form() -> None:
         )
 
     fl_id = st.query_params.get("fl_id")
-    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
 
     try:
-        with DatasetService(fl_id, user_uid) as svc:
+        with DatasetService(st.session_state.dataset_details) as svc:
             active_dataset_metadata = svc.get_metadata()
     except FileNotFoundError:
-        if INTERNAL_MODE:
-            st.warning(
-                f"No dataset found for this Factor List. [Generate]({p123_link(fl_id, 'generate')})"
-            )
-        else:
-            st.warning("No dataset found. Please select a valid .parquet file.")
+        st.warning(
+            f"No dataset found for this Factor List. [Generate]({p123_link(fl_id, 'generate')})"
+            if INTERNAL_MODE
+            else "No dataset found. Please select a valid .parquet file."
+        )
         return
     except Exception as e:
         st.error(f"Failed to load dataset: {e}")

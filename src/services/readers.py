@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Any
 
@@ -69,7 +68,7 @@ class ParquetDataReader:
 
     def get_review_metadata(self) -> dict[str, Any]:
         return {
-            "num_rows": self._parquet_file.metadata.num_rows,
+            "numRows": self._parquet_file.metadata.num_rows,
             "unique_dates": self.read_columns(["Date"])["Date"].n_unique(),
         }
 
@@ -77,15 +76,7 @@ class ParquetDataReader:
         raw = self._get_dataset_metadata_raw()
         if raw is None:
             raise ValueError("Missing datasetMetadata in parquet file")
-
-        dataset_info = json.loads(raw)
-        dataset_info["version"] = str(dataset_info.get("version", ""))
-
-        if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
-            dataset_info["normalization"] = dataset_info["preprocessor"]
-        dataset_info.pop("preprocessor", None)
-
-        return DatasetConfig(**dataset_info)
+        return DatasetConfig.model_validate_json(raw)
 
     def get_schema_metadata(self) -> dict[bytes, bytes] | None:
         return self._parquet_file.schema_arrow.metadata

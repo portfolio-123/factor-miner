@@ -34,7 +34,7 @@ def results() -> None:
         return
 
     try:
-        dataset_metadata = BackupDatasetService(user_uid, fl_id).get_metadata(
+        dataset_metadata = BackupDatasetService(st.session_state.dataset_details).get_metadata(
             analysis.dataset_version
         )
         st.session_state.formulas_data = dataset_metadata.formulas_df
