@@ -96,14 +96,16 @@ def run_analysis(
     def on_progress(completed: int, total: int) -> None:
         nonlocal last_progress_write_at
         now = monotonic()
-        is_done = completed == total
         elapsed = now - last_progress_write_at >= progress_min_interval_seconds
 
-        if not (is_done or elapsed):
+        if not (
+            completed == total or elapsed
+        ):  # every 3s or if analysis has finished, update
             return
 
-        percent = (completed * 100) // total
-        logger.info(f"Progress: {percent}% ({completed}/{total} factors)")
+        logger.info(
+            f"Progress: {(completed * 100) // total}% ({completed}/{total} factors)"
+        )
         update({"progress": AnalysisProgress(completed=completed, total=total)})
         last_progress_write_at = now
 
