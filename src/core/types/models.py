@@ -1,8 +1,28 @@
 from enum import IntEnum, StrEnum
+from pathlib import Path
 from typing import TypedDict
 
 import polars as pl
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+from src.core.config.paths import get_user_base_dir
+
+
+class DatasetDetails(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    fl_id: str
+    user_uid: str | None = None
+
+    @property
+    def _base_dir(self) -> Path:
+        return get_user_base_dir(self.user_uid)
+
+    def get_base_path(self) -> Path:
+        return self._base_dir / f"{self.fl_id}.parquet"
+
+    def get_backup_dir(self) -> Path:
+        return self._base_dir / "FactorMiner" / self.fl_id
 
 
 class AnalysisStatus(StrEnum):
@@ -62,35 +82,34 @@ class DatasetType(StrEnum):
     DATE = "date"
 
 
+P123_TO_WEEKS = {1: 1, 7: 2, 2: 4, 8: 8, 3: 13, 9: 26, 10: 52}
+WEEKS_TO_P123 = {weeks: code for code, weeks in P123_TO_WEEKS.items()}
+
+
 class Frequency(IntEnum):
     WEEKLY = 1
-    BIWEEKLY = 7
-    FOUR_WEEKS = 2
+    BIWEEKLY = 2
+    FOUR_WEEKS = 4
     EIGHT_WEEKS = 8
-    THIRTEEN_WEEKS = 3
-    TWENTY_SIX_WEEKS = 9
-    FIFTY_TWO_WEEKS = 10
-
-    @property
-    def weeks(self) -> int:
-        mapping = {
-            Frequency.WEEKLY: 1,
-            Frequency.BIWEEKLY: 2,
-            Frequency.FOUR_WEEKS: 4,
-            Frequency.EIGHT_WEEKS: 8,
-            Frequency.THIRTEEN_WEEKS: 13,
-            Frequency.TWENTY_SIX_WEEKS: 26,
-            Frequency.FIFTY_TWO_WEEKS: 52,
-        }
-        return mapping[self]
+    THIRTEEN_WEEKS = 13
+    TWENTY_SIX_WEEKS = 26
+    FIFTY_TWO_WEEKS = 52
 
     @property
     def trading_days(self) -> int:
-        return self.weeks * 5
+        return self.value * 5
+
+    @property
+    def calendar_days(self) -> int:
+        return self.value * 7
 
     @property
     def periods_per_year(self) -> float:
-        return 365.0 / (self.weeks * 7)
+        return 365 / self.calendar_days
+
+    @property
+    def p123_code(self) -> int:
+        return WEEKS_TO_P123[self.value]
 
 
 class AnalysisParams(BaseModel):
@@ -128,20 +147,23 @@ class DatasetConfig(BaseModel):
     startDt: str | None = None
     endDt: str | None = None
     asOfDt: str | None = None
-    benchmark: str = Field(alias="benchName")
+    benchmark: str
     precision: int
-    normalization: NormalizationConfig | None = None
+    normalization: bool = False
+    preprocessor: NormalizationConfig | None = None
     formulas: list | None = None
     pitMethod: int
     active: bool = False
-    num_rows: int | None = Field(default=None, alias="numRows")
+    numRows: int | None = None
 
-    @field_validator("normalization", mode="before")
+    @field_validator("frequency", mode="before")
     @classmethod
-    def coerce_normalization(cls, v):
-        if v is False:
-            return None
-        return v
+    def parse_p123_frequency(cls, v: int):
+        return P123_TO_WEEKS.get(v, v)
+
+    @field_serializer("frequency")
+    def serialize_p123_frequency(self, v: Frequency):
+        return v.p123_code
 
     # for when tag is missing completely
     @property

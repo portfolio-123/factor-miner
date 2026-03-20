@@ -54,7 +54,7 @@ def calculate_benchmark_returns(
 
     # for the last date, estimate using frequency (no next dataset date available)
     if n_dates > 0:
-        forward_trading_days = frequency.weeks * 5
+        forward_trading_days = frequency.trading_days
         end_positions[-1] = start_positions[-1] + forward_trading_days
 
     # Valid if start position is within range
