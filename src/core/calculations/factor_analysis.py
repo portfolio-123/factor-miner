@@ -4,6 +4,7 @@ from os import cpu_count
 import traceback
 import numpy as np
 import polars as pl
+import polars.selectors as cs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.services.dataset_service import DatasetService
@@ -348,7 +349,7 @@ def analyze_factors(
                 {
                     "Date": np.concatenate(all_dates),
                     "factor": np.concatenate(all_factors),
-                    "ret": np.concatenate(all_rets),
+                    "ret": np.concatenate(all_rets).astype(np.float32),
                 }
             ),
             factor_stats_dict,
@@ -356,7 +357,7 @@ def analyze_factors(
     else:
         return (
             pl.DataFrame(
-                schema={"Date": pl.Utf8, "factor": pl.Utf8, "ret": pl.Float64}
+                schema={"Date": pl.Utf8, "factor": pl.Utf8, "ret": pl.Float32}
             ),
             factor_stats_dict,
         )
@@ -493,5 +494,7 @@ def calculate_factor_metrics(
             "annualized alpha %",
         ]
     )
+
+    result = result.cast({cs.float64(): pl.Float32})
 
     return result
