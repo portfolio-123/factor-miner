@@ -26,14 +26,6 @@ def authenticate(apiId: int, apiKey: str) -> str:
         raise PermissionError("Authentication failed")
 
 
-def verify_factor_list_access(fl_id: str, access_token: str) -> dict:
-    try:
-        response = _request("GET", f"/factorList/{fl_id}", token=access_token)
-        return response.json()
-    except Exception:
-        raise PermissionError("Factor List not accessible or invalid session")
-
-
 def fetch_benchmark_data(
     benchmark_ticker: str, access_token: str, start_date: str, end_date: str
 ) -> pl.DataFrame:

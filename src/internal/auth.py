@@ -4,53 +4,37 @@ from src.core.config.constants import AUTH_COOKIE_KEY
 from src.core.utils.cookie_utils import clear_cookie, get_cookie, set_cookie
 from src.core.utils.jwt_utils import decrypt_token
 from src.internal.links import p123_auth_link
-from src.internal.p123_client import (
-    authenticate as get_access_token,
-    verify_factor_list_access,
-)
+from src.internal.p123_client import authenticate as get_access_token
 
 
-def _authenticate(token: str, save_cookie=True) -> None:
-    fl_id = st.query_params.get("fl_id")
-    fl_info = verify_factor_list_access(fl_id, token)
-    st.session_state.access_token = token
-    st.session_state.fl_name = fl_info.get("name", fl_id)
-    user_uid = fl_info.get("userUid")
-    if not user_uid:
-        raise ValueError("User UID not found in API response")
-    st.session_state.user_uid = str(user_uid)
+def _authenticate(jwt_token: str, save_cookie: bool = True) -> None:
+    payload = decrypt_token(jwt_token)
+    if not payload.user_uid:
+        raise ValueError("User UID not found in token")
+    access_token = get_access_token(apiId=payload.apiId, apiKey=payload.apiKey)
+    st.session_state.access_token = access_token
+    st.session_state.user_uid = payload.user_uid
     if save_cookie:
-        set_cookie(AUTH_COOKIE_KEY, token, days=1)
+        set_cookie(AUTH_COOKIE_KEY, jwt_token, days=1)
 
 
 def login():
-    # validate token if existing
-    if existing_token := st.session_state.get("access_token"):
-        try:
-            verify_factor_list_access(st.query_params.get("fl_id"), existing_token)
-            return  # token still valid
-        except PermissionError:
-            # token expired, clear it and continue to re-auth
-            st.session_state.access_token = None
+    # already authenticated this session
+    if st.session_state.get("access_token") and st.session_state.get("user_uid"):
+        return
 
-    # url token (webapp redirect)
-    if url_token := st.query_params.get("token"):
+    # url token (webapp redirect) or cookie
+    jwt_token = st.query_params.get("token") or get_cookie(AUTH_COOKIE_KEY)
+    if jwt_token:
         try:
-            del st.query_params["token"]
-            token = get_access_token(decrypt_token(url_token))
-            _authenticate(token)
+            if "token" in st.query_params:
+                del st.query_params["token"]
+            _authenticate(jwt_token)
             return
         except (ValueError, PermissionError, FileNotFoundError) as e:
+            clear_cookie(AUTH_COOKIE_KEY)
             st.error(str(e))
             st.stop()
-
-    # token already present in cookies
-    if cookie_token := get_cookie(AUTH_COOKIE_KEY):
-        try:
-            _authenticate(cookie_token, save_cookie=False)
-            return
-        except PermissionError:
-            clear_cookie(AUTH_COOKIE_KEY)  # Clear invalid cookie
 
     fl_id = st.query_params.get("fl_id")
     with st.columns([1, 2, 1])[1]:
