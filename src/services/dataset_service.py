@@ -5,8 +5,8 @@ from typing import Self
 
 import polars as pl
 
-from src.core.config.environment import DATASET_DIR
-from src.core.types.models import DatasetConfig
+from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
+from src.core.types.models import DatasetConfig, DatasetDetails
 from src.core.utils.common import find_files, format_version_timestamp
 from src.services.readers import ParquetDataReader
 
@@ -30,6 +30,31 @@ class DatasetService:
     def list_datasets():
         return sorted(f.name for f in find_files(DATASET_DIR, suffix=".parquet"))
 
+    @staticmethod
+    def fetch_benchmark(
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        access_token: str | None = None,
+    ) -> pl.DataFrame:
+        if INTERNAL_MODE:
+            from src.internal.p123_client import fetch_benchmark_data
+
+            return fetch_benchmark_data(
+                benchmark_ticker=ticker,
+                access_token=access_token,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        else:
+            from src.services.benchmark_service import fetch_benchmark_external
+
+            return fetch_benchmark_external(
+                ticker=ticker,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
     @property
     def current_version(self) -> str | None:
         try:
@@ -52,9 +77,9 @@ class DatasetService:
         metadata = self._reader.get_review_metadata()
 
         stats = {
-            "num_rows": metadata.get("num_rows"),
-            "num_columns": len(preview_df.columns),
-            "num_dates": metadata.get("unique_dates"),
+            "numRows": metadata.get("numRows"),
+            "numColumns": len(preview_df.columns),
+            "numDates": metadata.get("unique_dates"),
         }
         return preview_df, stats
 
@@ -86,12 +111,8 @@ class BackupDatasetService:
         return Path(self.backup_dir, f"dataset_{version}.json")
 
     def get_metadata(self, version: str) -> DatasetConfig:
-        with open(self.get_backup_path(version)) as f:
-            data: dict = json.load(f)
-        if data.get("normalization") is True and "preprocessor" in data:
-            data["normalization"] = data["preprocessor"]
-        data.pop("preprocessor", None)
-        metadata = DatasetConfig(**data)
+        raw = self.get_backup_path(version).read_text()
+        metadata = DatasetConfig.model_validate_json(raw)
         metadata.version = version
         current = DatasetService(self.dataset_details).current_version
         metadata.active = current is not None and version == current
