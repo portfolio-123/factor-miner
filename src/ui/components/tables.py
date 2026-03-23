@@ -26,12 +26,7 @@ def render_correlation_matrix(
     if "factor" in corr_matrix_df.columns:
         corr_matrix_df = corr_matrix_df.rename({"factor": ""})
 
-    float_cols = [
-        col
-        for col in corr_matrix_df.columns
-        if corr_matrix_df[col].dtype in (pl.Float32, pl.Float64)
-    ]
-    format_spec = {col: ".4f" for col in float_cols}
+    format_spec = {col: ".4f" for col in corr_matrix_df.columns[1:]}
 
     render_table(
         corr_matrix_df,
