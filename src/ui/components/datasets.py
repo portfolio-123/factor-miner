@@ -93,7 +93,11 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             )
         with header_left:
             fl_name = st.session_state.get("fl_name", fl_id)
-            subtitle = f'Generated using <a href="{p123_link(fl_id)}" target="_blank" style="color: #666;">{fl_name}</a>' if INTERNAL_MODE else fl_name
+            subtitle = (
+                f'Generated using <a href="{p123_link(fl_id)}" target="_blank" style="color: #666;">{fl_name}</a>'
+                if INTERNAL_MODE
+                else fl_name
+            )
             st.html(
                 f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{subtitle}</span></p>'
             )
@@ -166,7 +170,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                         dataset_metadata.pitMethod, dataset_metadata.pitMethod
                     ),
                 ),
-                ("Benchmark", dataset_metadata.benchmark),
+                ("Benchmark", dataset_metadata.benchName),
             ]
             if not has_normalization:
                 items.append(("Normalization", "Raw"))

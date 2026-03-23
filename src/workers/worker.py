@@ -79,8 +79,8 @@ def run_analysis(
     end_dt_raw = datetime.strptime(dataset_info.endDt[:10], "%Y-%m-%d") + timedelta(
         days=forward_days
     )
-    end_dt = min(end_dt_raw, date.today())
-    benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
+    end_dt = min(end_dt_raw, datetime.now())
+    benchmark_ticker = extract_benchmark_ticker(dataset_info.benchName)
 
     logger.info(f"Fetching benchmark data for {benchmark_ticker}...")
     date_range = (start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"))
@@ -237,4 +237,4 @@ def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str |
 
 
 if __name__ == "__main__":
-    main(*sys.argv)
+    main(*sys.argv[1:])

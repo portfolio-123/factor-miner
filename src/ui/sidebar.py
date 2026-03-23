@@ -14,7 +14,24 @@ from src.ui.pages.results import results
 def sidebar() -> st.navigation:
     fl_id = st.query_params.get("fl_id")
 
-    if (
+    # get available datasets first to determine default fl_id
+    if INTERNAL_MODE:
+        name_map = list_user_datasets(st.session_state.get("user_uid"))
+        options = list(name_map)
+    else:
+        name_map = {}
+        options = DatasetService.list_datasets()
+
+    # set default fl_id if not provided
+    if not fl_id and options:
+        fl_id = options[0]
+        st.query_params["fl_id"] = fl_id
+
+    # set fl_name in session state
+    if fl_id:
+        st.session_state.fl_name = name_map.get(fl_id) or fl_id
+
+    if fl_id and (
         "dataset_details" not in st.session_state
         or st.session_state.dataset_details.fl_id != fl_id
     ):
@@ -41,17 +58,6 @@ def sidebar() -> st.navigation:
     with st.sidebar:
         st.html("<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>")
 
-        if INTERNAL_MODE:
-            st.html(
-                f"<a href='{p123_link(fl_id)}' target='_blank' style='text-decoration: underline;'>{st.session_state.get("fl_name")}</a>"
-            )
-
-            name_map = list_user_datasets(st.session_state.get("user_uid"))
-            options = list(name_map)
-        else:
-            options = DatasetService.list_datasets()
-            name_map = {}
-
         if options:
             current_index = options.index(fl_id) if fl_id in options else 0
 
@@ -59,11 +65,11 @@ def sidebar() -> st.navigation:
                 "Datasets",
                 options=options,
                 index=current_index,
-                format_func=lambda v: name_map.get(v, v),
+                format_func=lambda v: name_map.get(v) or v,
             )
 
             if selected and selected != fl_id:
-                st.session_state.fl_name = name_map.get(selected, selected)
+                st.session_state.fl_name = name_map.get(selected) or selected
                 if (
                     "id" in st.query_params
                 ):  # if in results page, switch to history page

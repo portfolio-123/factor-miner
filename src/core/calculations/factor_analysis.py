@@ -433,7 +433,7 @@ def calculate_factor_metrics(
     valid_factors = n_valid >= 2
     valid_factor_names = np.array(factor_names)[valid_factors].tolist()
 
-    stats_df = pl.DataFrame(factor_stats.values())
+    stats_df = pl.DataFrame(list(factor_stats.values()))
 
     result = pl.DataFrame(
         {
@@ -495,6 +495,6 @@ def calculate_factor_metrics(
         ]
     )
 
-    result = result.cast({cs.float64(): pl.Float32})
+    result = result.cast({cs.by_dtype(pl.Float64): pl.Float32})
 
     return result

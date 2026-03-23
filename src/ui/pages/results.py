@@ -34,9 +34,9 @@ def results() -> None:
         return
 
     try:
-        dataset_metadata = BackupDatasetService(st.session_state.dataset_details).get_metadata(
-            analysis.dataset_version
-        )
+        dataset_metadata = BackupDatasetService(
+            st.session_state.dataset_details
+        ).get_metadata(analysis.dataset_version)
         st.session_state.formulas_data = dataset_metadata.formulas_df
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
@@ -105,7 +105,7 @@ def results() -> None:
                 ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
-                ("Benchmark", dataset_metadata.benchmark),
+                ("Benchmark", dataset_metadata.benchName),
                 ("Top X (Long)", f"{p.top_pct}%"),
                 ("Bottom X (Short)", f"{p.bottom_pct}%"),
             ]

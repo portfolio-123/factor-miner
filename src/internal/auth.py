@@ -41,7 +41,5 @@ def login():
         st.info(
             "You don't have a valid session. Please authenticate via Portfolio123 to access your datasets."
         )
-        st.link_button(
-            "Go to Portfolio123", p123_auth_link(fl_id), type="primary", width="stretch"
-        )
+        st.link_button("Login", p123_auth_link(fl_id), type="primary", width="stretch")
     st.stop()

@@ -23,16 +23,22 @@ def render_correlation_matrix(
 ) -> None:
     st.subheader(title)
 
-    rounded = corr_matrix_df.with_columns(cs.numeric().round(4))
+    if "factor" in corr_matrix_df.columns:
+        corr_matrix_df = corr_matrix_df.rename({"factor": ""})
 
-    if "factor" in rounded.columns:
-        rounded = rounded.rename({"factor": ""})
+    float_cols = [
+        col
+        for col in corr_matrix_df.columns
+        if corr_matrix_df[col].dtype in (pl.Float32, pl.Float64)
+    ]
+    format_spec = {col: ".4f" for col in float_cols}
 
     render_table(
-        rounded,
+        corr_matrix_df,
         max_height=400,
         small_headers=True,
         column_widths={"": "180px"},
+        format_spec=format_spec,
     )
 
     file_name = (
@@ -42,8 +48,8 @@ def render_correlation_matrix(
     )
 
     render_copy_download_buttons(
-        csv_copy=rounded.write_csv(separator="\t"),
-        csv_download=rounded.write_csv(),
+        csv_copy=corr_matrix_df.write_csv(separator="\t"),
+        csv_download=corr_matrix_df.write_csv(),
         file_name=file_name,
         key_prefix=f"corr_matrix{key_suffix}",
         toast_msg="Correlation matrix copied to clipboard",

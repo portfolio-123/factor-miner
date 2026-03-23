@@ -39,10 +39,14 @@ def list_user_datasets(user_uid: str) -> dict[str, str]:
     # overlay with active file if present
     for fl_id in fl_ids:
         dataset_details = DatasetDetails(fl_id=fl_id, user_uid=user_uid)
+        base_path = dataset_details.get_base_path()
+        # skip empty files
+        if not base_path.exists() or base_path.stat().st_size == 0:
+            continue
         try:
             with DatasetService(dataset_details) as svc:
                 results[fl_id] = svc.get_metadata().factorListName
-        except FileNotFoundError:
+        except (FileNotFoundError, Exception):
             pass  # no active file, keep backup name
 
     return dict(sorted(results.items()))

@@ -5,6 +5,7 @@ from typing import TypedDict
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
+from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
 
 
@@ -19,7 +20,8 @@ class DatasetDetails(BaseModel):
         return get_user_base_dir(self.user_uid)
 
     def get_base_path(self) -> Path:
-        return self._base_dir / f"{self.fl_id}.parquet"
+        filename = self.fl_id if INTERNAL_MODE else f"{self.fl_id}.parquet"
+        return self._base_dir / filename
 
     def get_backup_dir(self) -> Path:
         return self._base_dir / "FactorMiner" / self.fl_id
@@ -138,7 +140,7 @@ class NormalizationConfig(BaseModel):
 class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    version: str | None = None
+    version: str = ""
     factorListName: str | None = None
     universeName: str
     frequency: Frequency
@@ -147,7 +149,7 @@ class DatasetConfig(BaseModel):
     startDt: str | None = None
     endDt: str | None = None
     asOfDt: str | None = None
-    benchmark: str
+    benchName: str
     precision: int
     normalization: bool = False
     preprocessor: NormalizationConfig | None = None
@@ -155,6 +157,11 @@ class DatasetConfig(BaseModel):
     pitMethod: int
     active: bool = False
     numRows: int | None = None
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def coerce_version_to_str(cls, v):
+        return str(v)
 
     @field_validator("frequency", mode="before")
     @classmethod

@@ -28,7 +28,10 @@ class DatasetService:
 
     @staticmethod
     def list_datasets():
-        return sorted(f.name for f in find_files(DATASET_DIR, suffix=".parquet"))
+        return sorted(
+            f.name.removesuffix(".parquet")
+            for f in find_files(DATASET_DIR, suffix=".parquet")
+        )
 
     @staticmethod
     def fetch_benchmark(
