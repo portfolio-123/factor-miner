@@ -122,7 +122,7 @@ class AnalysisService:
         for json_file in find_files(fl_dir, prefix="analysis_", suffix=".json"):
             try:
                 analyses.append(
-                    AnalysisSummary.model_validate_json(json_file.path.read_text())
+                    AnalysisSummary.model_validate_json(Path(json_file).read_text())
                 )
             except Exception:
                 continue
