@@ -7,5 +7,5 @@ def p123_link(fl_id: str, page: str | None = None) -> str | None:
 
 
 def p123_auth_link(fl_id: str | None) -> str:
-    base = f"{P123_BASE_URL}/spr/factorList/factor-miner"
+    base = f"{P123_BASE_URL}/spr/factorMiner"
     return f"{base}/{fl_id}" if fl_id else base
