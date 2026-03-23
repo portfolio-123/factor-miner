@@ -32,7 +32,7 @@ class ParquetDataReader:
         raw = metadata.get(b"datasetMetadata")
         if raw is None:
             return None
-        return raw.decode("utf-8")
+        return raw
 
     def read_columns(self, columns: list) -> pl.DataFrame:
         arrow_table = self._parquet_file.read(columns=columns)

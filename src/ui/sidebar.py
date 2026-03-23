@@ -16,7 +16,7 @@ def sidebar() -> st.navigation:
 
     # get available datasets first to determine default fl_id
     if INTERNAL_MODE:
-        name_map = list_user_datasets(st.session_state.get("user_uid"))
+        name_map = list_user_datasets(st.session_state["user_uid"])
         options = list(name_map)
     else:
         name_map = {}
@@ -29,13 +29,11 @@ def sidebar() -> st.navigation:
 
     # set fl_name in session state
     if fl_id:
-        st.session_state.fl_name = name_map.get(fl_id) or fl_id
+        st.session_state["fl_name"] = name_map.get(fl_id) or fl_id
 
-    if fl_id and (
-        "dataset_details" not in st.session_state
-        or st.session_state.dataset_details.fl_id != fl_id
-    ):
-        st.session_state.dataset_details = DatasetDetails(
+    dataset_details = st.session_state.get("dataset_details")
+    if fl_id and dataset_details is not None and dataset_details.fl_id != fl_id:
+        st.session_state["dataset_details"] = DatasetDetails(
             fl_id=fl_id, user_uid=st.session_state.get("user_uid")
         )
 
@@ -69,10 +67,9 @@ def sidebar() -> st.navigation:
             )
 
             if selected and selected != fl_id:
-                st.session_state.fl_name = name_map.get(selected) or selected
-                if (
-                    "id" in st.query_params
-                ):  # if in results page, switch to history page
+                st.session_state["fl_name"] = name_map.get(selected) or selected
+                id = st.query_params.get("id")
+                if id is not None:  # if in results page, switch to history page
                     st.switch_page(history_page, query_params={"fl_id": selected})
                 else:
                     st.query_params["fl_id"] = selected

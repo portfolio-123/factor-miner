@@ -12,22 +12,23 @@ def _authenticate(jwt_token: str, save_cookie: bool = True) -> None:
     if not payload.user_uid:
         raise ValueError("User UID not found in token")
     access_token = get_access_token(apiId=payload.apiId, apiKey=payload.apiKey)
-    st.session_state.access_token = access_token
-    st.session_state.user_uid = payload.user_uid
+    st.session_state["access_token"] = access_token
+    st.session_state["user_uid"] = payload.user_uid
     if save_cookie:
         set_cookie(AUTH_COOKIE_KEY, jwt_token, days=1)
 
 
-def login():
+def log_in():
     # already authenticated this session
     if st.session_state.get("access_token") and st.session_state.get("user_uid"):
         return
 
     # url token (webapp redirect) or cookie
-    jwt_token = st.query_params.get("token") or get_cookie(AUTH_COOKIE_KEY)
+    qp_token = st.query_params.get("token")
+    jwt_token = qp_token or get_cookie(AUTH_COOKIE_KEY)
     if jwt_token:
         try:
-            if "token" in st.query_params:
+            if qp_token:
                 del st.query_params["token"]
             _authenticate(jwt_token)
             return

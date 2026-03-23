@@ -29,7 +29,7 @@ class DatasetService:
     @staticmethod
     def list_datasets():
         return sorted(
-            f.name.removesuffix(".parquet")
+            f.name[:-8]  # Remove ".parquet" suffix
             for f in find_files(DATASET_DIR, suffix=".parquet")
         )
 
@@ -95,7 +95,7 @@ class DatasetService:
             num_rows = self._reader._parquet_file.metadata.num_rows
             dataset_metadata_raw = source_metadata.get(b"datasetMetadata")
             if dataset_metadata_raw:
-                dataset_metadata = json.loads(dataset_metadata_raw.decode("utf-8"))
+                dataset_metadata = json.loads(dataset_metadata_raw)
                 dataset_metadata["numRows"] = num_rows
                 dataset_metadata["version"] = str(dataset_metadata.get("version", ""))
                 with open(dest_path, "w") as f:
@@ -114,7 +114,7 @@ class BackupDatasetService:
         return Path(self.backup_dir, f"dataset_{version}.json")
 
     def get_metadata(self, version: str) -> DatasetConfig:
-        raw = self.get_backup_path(version).read_text()
+        raw = self.get_backup_path(version).read_bytes()
         metadata = DatasetConfig.model_validate_json(raw)
         metadata.version = version
         current = DatasetService(self.dataset_details).current_version

@@ -43,15 +43,18 @@ class AnalysisService:
                 tmp.write(analysis.model_dump_json(indent=2))
                 tmp_path = tmp.name
             os.replace(tmp_path, path)
+            tmp_path = None
         finally:
             if tmp_path:
-                with contextlib.suppress(OSError):  # catch possible errors
+                try:
                     os.remove(tmp_path)  # cleanup temp file
+                except OSError:
+                    pass  # ignore possible errors
 
     def get(self, fl_id: str, analysis_id: str) -> Analysis | None:
         path = self._get_path(fl_id, analysis_id)
         try:
-            return Analysis.model_validate_json(path.read_text())
+            return Analysis.model_validate_json(path.read_bytes())
         except (FileNotFoundError, OSError, ValidationError):
             return None
 
@@ -122,7 +125,7 @@ class AnalysisService:
         for json_file in find_files(fl_dir, prefix="analysis_", suffix=".json"):
             try:
                 analyses.append(
-                    AnalysisSummary.model_validate_json(Path(json_file).read_text())
+                    AnalysisSummary.model_validate_json(Path(json_file).read_bytes())
                 )
             except Exception:
                 continue

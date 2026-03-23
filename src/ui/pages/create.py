@@ -49,7 +49,9 @@ def _load_last_analysis_params() -> None:
 def _submit_analysis() -> None:
     fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
-    dataset_version = DatasetService(st.session_state.dataset_details).current_version
+    dataset_version = DatasetService(
+        st.session_state["dataset_details"]
+    ).current_version
     analysis_id = AnalysisService(user_uid).next_analysis_id(fl_id)
 
     try:
@@ -90,7 +92,7 @@ def create_form() -> None:
     fl_id = st.query_params.get("fl_id")
 
     try:
-        with DatasetService(st.session_state.dataset_details) as svc:
+        with DatasetService(st.session_state["dataset_details"]) as svc:
             active_dataset_metadata = svc.get_metadata()
     except FileNotFoundError:
         st.warning(

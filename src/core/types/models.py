@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from pathlib import Path
 from typing import TypedDict
@@ -9,9 +10,8 @@ from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
 
 
-class DatasetDetails(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
+@dataclass(repr=False, eq=False, slots=True)
+class DatasetDetails:
     fl_id: str
     user_uid: str | None = None
 

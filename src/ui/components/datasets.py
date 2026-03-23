@@ -124,7 +124,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     key=f"preview_dataset_{dataset_metadata.version}",
                     type="secondary",
                 ):
-                    with DatasetService(st.session_state.dataset_details) as svc:
+                    with DatasetService(st.session_state["dataset_details"]) as svc:
                         preview_df, stats = svc.get_review_data()
                     show_preview_modal(preview_df, stats)
 

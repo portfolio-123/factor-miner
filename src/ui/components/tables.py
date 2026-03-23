@@ -234,7 +234,7 @@ def render_results_table(
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
     datasets = BackupDatasetService(
-        st.session_state.dataset_details
+        st.session_state["dataset_details"]
     ).load_all_versions()
 
     rows_data = []
