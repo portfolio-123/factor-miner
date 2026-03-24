@@ -274,8 +274,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
 
         rows_data.append(
             {
-                "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M")
-                + " UTC",
+                "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M UTC"),
                 "Run Time": format_runtime(a.started_at, a.finished_at),
                 "Universe": dataset.universeName if dataset else "N/A",
                 "Best Factors": factors_display,
@@ -286,8 +285,9 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                     f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"
                 ),
                 "Period": period_value,
-                "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M")
-                + " UTC"
+                "Dataset Created": format_timestamp(
+                    a.dataset_version, "%Y-%m-%d %H:%M UTC"
+                )
                 + (" 🟢" if dataset and dataset.active else ""),
                 "Parameters": params_json,
                 "Status": a.status.display,

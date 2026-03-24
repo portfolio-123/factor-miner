@@ -7,7 +7,7 @@ from src.internal.links import p123_auth_link
 from src.internal.p123_client import authenticate as get_access_token
 
 
-def _authenticate(jwt_token: str, save_cookie: bool = True) -> None:
+def _authenticate(jwt_token: str, save_cookie=True) -> None:
     payload = decrypt_token(jwt_token)
     if not payload.user_uid:
         raise ValueError("User UID not found in token")

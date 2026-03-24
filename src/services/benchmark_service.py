@@ -36,7 +36,7 @@ def fetch_benchmark_external(
     yf_ticker = convert_to_yfinance_ticker(ticker)
     data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
 
-    if data.empty:
+    if data is None or data.empty:
         raise ValueError(
             f"No data found for '{ticker}' (yfinance: '{yf_ticker}') "
             f"between {start_date} and {end_date}. "

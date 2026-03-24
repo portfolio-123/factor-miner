@@ -57,13 +57,12 @@ def _render_failure_message(fl_id: str, error: str | None):
 
 
 def _render_progress_bar(progress: AnalysisProgress | None):
-    has_progress = progress and progress.total > 0
-    progress_value = (progress.completed / progress.total) if has_progress else 0
-    progress_text = (
-        f"{progress.completed} / {progress.total} factors analyzed"
-        if has_progress
-        else "Preparing analysis..."
-    )
+    if progress and progress.total > 0:
+        progress_value = progress.completed / progress.total
+        progress_text = f"{progress.completed} / {progress.total} factors analyzed"
+    else:
+        progress_value = 0
+        progress_text = "Preparing analysis..."
 
     with st.columns([1, 2, 1])[1]:
         st.space(100)

@@ -58,11 +58,11 @@ def _submit_analysis() -> None:
         rank_by = st.session_state.get("rank_by", "Alpha")
         params = AnalysisParams(
             min_alpha=st.session_state.get("min_alpha", DEFAULT_MIN_ALPHA),
-            top_pct=st.session_state.get("top_pct"),
-            bottom_pct=st.session_state.get("bottom_pct"),
-            correlation_threshold=st.session_state.get("correlation_threshold"),
-            n_factors=st.session_state.get("n_factors"),
-            max_na_pct=st.session_state.get("max_na_pct"),
+            top_pct=st.session_state["top_pct"],
+            bottom_pct=st.session_state["bottom_pct"],
+            correlation_threshold=st.session_state["correlation_threshold"],
+            n_factors=st.session_state["n_factors"],
+            max_na_pct=st.session_state["max_na_pct"],
             min_ic=float(st.session_state.get("min_ic", DEFAULT_MIN_IC)),
             rank_by=rank_by,
         )
@@ -83,10 +83,10 @@ def create_form() -> None:
     if analysis_id := st.session_state.pop("_redirect_to_results", None):
         st.switch_page(
             st.session_state["pages"]["results"],
-            query_params={
-                "fl_id": st.query_params.get("fl_id"),
-                "id": analysis_id,
-            },
+            query_params=(
+                ("fl_id", st.query_params.get("fl_id")),
+                ("id", analysis_id),
+            ),
         )
 
     fl_id = st.query_params.get("fl_id")

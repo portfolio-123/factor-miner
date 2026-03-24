@@ -91,6 +91,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             header_left, _, header_formulas, header_status = st.columns(
                 [3, 0.9, 0.9, 0.15], vertical_alignment="center"
             )
+            header_preview = None
         with header_left:
             fl_name = st.session_state.get("fl_name", fl_id)
             subtitle = (
@@ -116,7 +117,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             ):
                 show_formulas_modal(dataset_metadata.formulas_df)
 
-        if is_active:
+        if header_preview is not None:
             with header_preview:
                 if st.button(
                     "Preview",
@@ -160,6 +161,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
         else:
             col_left = st.container()
+            col_right = None
 
         with col_left:
             items = [
@@ -178,7 +180,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                 f'{get_section_label_html("Other Settings")}<div style="display: flex; gap: 24px;">{"".join(render_info_item(l, v) for l, v in items)}</div>'
             )
 
-        if has_normalization:
+        if col_right is not None:
             with col_right:
                 norm_content = "".join(_build_norm_items(dataset_metadata.preprocessor))
                 st.html(

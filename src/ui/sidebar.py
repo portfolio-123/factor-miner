@@ -10,7 +10,7 @@ from src.ui.pages.create import create_form
 from src.ui.pages.results import results
 
 
-def sidebar() -> st.navigation:
+def sidebar():
     fl_id = st.query_params.get("fl_id")
 
     # get available datasets first to determine default fl_id
@@ -69,7 +69,7 @@ def sidebar() -> st.navigation:
                 st.session_state["fl_name"] = name_map.get(selected) or selected
                 id = st.query_params.get("id")
                 if id is not None:  # if in results page, switch to history page
-                    st.switch_page(history_page, query_params={"fl_id": selected})
+                    st.switch_page(history_page, query_params=(("fl_id", selected),))
                 else:
                     st.query_params["fl_id"] = selected
                     st.rerun()
@@ -84,19 +84,19 @@ def sidebar() -> st.navigation:
             history_page,
             label="Your Results",
             icon=":material/analytics:",
-            query_params={"fl_id": fl_id},
+            query_params=(("fl_id", fl_id),),
         )
         st.page_link(
             create_page,
             label="New Analysis",
             icon=":material/add:",
-            query_params={"fl_id": fl_id},
+            query_params=(("fl_id", fl_id),),
         )
         st.page_link(
             about_page,
             label="About",
             icon=":material/info:",
-            query_params={"fl_id": fl_id},
+            query_params=(("fl_id", fl_id),),
         )
 
     if not fl_id:

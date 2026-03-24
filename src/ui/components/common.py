@@ -45,7 +45,7 @@ def section_header(title: str):
     )
 
 
-def render_info_item(label: str, value: str, muted=False):
+def render_info_item(label: str, value: str | int | float, muted=False):
     value_color = "#6c757d" if muted else "#212529"
     return f"""<div style="display: flex; flex-direction: column;">
         <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">{label}</div>
@@ -53,7 +53,7 @@ def render_info_item(label: str, value: str, muted=False):
     </div>"""
 
 
-def render_big_info_item(label: str, value: str):
+def render_big_info_item(label: str, value: str | int | float):
     return f"""<div style="display: flex; flex-direction: column;">
         <div style="font-size: 12px; font-weight: 600; color: #2196F3; margin-bottom: 1px; text-transform: uppercase;">{label}</div>
         <div style="font-size: 18px; font-weight: 600; color: #1a1a1a; line-height: 1.2;">{value}</div>
