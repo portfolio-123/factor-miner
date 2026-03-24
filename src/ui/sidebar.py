@@ -31,7 +31,7 @@ def sidebar() -> st.navigation:
         st.session_state["fl_name"] = name_map.get(fl_id) or fl_id
 
     dataset_details = st.session_state.get("dataset_details")
-    if fl_id and dataset_details is not None and dataset_details.fl_id != fl_id:
+    if fl_id and (dataset_details is None or dataset_details.fl_id != fl_id):
         st.session_state["dataset_details"] = DatasetDetails(
             fl_id=fl_id, user_uid=st.session_state.get("user_uid")
         )
