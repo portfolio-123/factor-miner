@@ -80,7 +80,6 @@ def _get_date_display(dataset_metadata: DatasetConfig) -> tuple[str, str]:
 
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
     fl_id = st.query_params.get("fl_id")
-    user_uid = st.session_state.get("user_uid") if INTERNAL_MODE else None
 
     with st.container(border=True):
         is_active = dataset_metadata.active
@@ -94,10 +93,11 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             )
         with header_left:
             fl_name = st.session_state.get("fl_name", fl_id)
-            if INTERNAL_MODE:
-                subtitle = f'Generated using <a href="{p123_link(fl_id)}" target="_blank" style="color: #666;">{fl_name}</a>'
-            else:
-                subtitle = fl_name
+            subtitle = (
+                f'Generated using <a href="{p123_link(fl_id)}" target="_blank" style="color: #666;">{fl_name}</a>'
+                if INTERNAL_MODE
+                else fl_name
+            )
             st.html(
                 f'<p style="font-size: 1.5rem; font-weight: 700; margin: 0;">Dataset <span style="font-size: 0.875rem; font-weight: 400; color: #666; margin-left: 12px;">{subtitle}</span></p>'
             )
@@ -124,7 +124,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     key=f"preview_dataset_{dataset_metadata.version}",
                     type="secondary",
                 ):
-                    with DatasetService(fl_id, user_uid) as svc:
+                    with DatasetService(st.session_state["dataset_details"]) as svc:
                         preview_df, stats = svc.get_review_data()
                     show_preview_modal(preview_df, stats)
 
@@ -152,7 +152,9 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
         spacer(6)
 
-        has_normalization = dataset_metadata.normalization is not None
+        has_normalization = (
+            dataset_metadata.normalization and dataset_metadata.preprocessor is not None
+        )
 
         if has_normalization:
             col_left, col_right = st.columns([0.9, 1], vertical_alignment="top")
@@ -168,7 +170,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                         dataset_metadata.pitMethod, dataset_metadata.pitMethod
                     ),
                 ),
-                ("Benchmark", dataset_metadata.benchmark),
+                ("Benchmark", dataset_metadata.benchName),
             ]
             if not has_normalization:
                 items.append(("Normalization", "Raw"))
@@ -178,9 +180,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
 
         if has_normalization:
             with col_right:
-                norm_content = "".join(
-                    _build_norm_items(dataset_metadata.normalization)
-                )
+                norm_content = "".join(_build_norm_items(dataset_metadata.preprocessor))
                 st.html(
                     f'{get_section_label_html("Normalization")}<div style="display: flex; gap: 24px;">{norm_content}</div>'
                 )

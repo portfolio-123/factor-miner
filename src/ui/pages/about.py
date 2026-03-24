@@ -1,5 +1,6 @@
 import streamlit as st
 
+from src.core.config.environment import INTERNAL_MODE
 from src.internal.content import get_about_intro
 from src.internal.links import p123_link
 
@@ -9,9 +10,9 @@ def about() -> None:
 
     fl_id = st.query_params.get("fl_id")
 
-    if link := p123_link(fl_id):  # internal
-        st.markdown(get_about_intro(fl_id, link))
-    else:  # external
+    if INTERNAL_MODE:
+        st.markdown(get_about_intro(fl_id, p123_link(fl_id)))
+    else:
         st.markdown(
             f"""
 FactorMiner is a tool designed to run analyses over datasets and identify the factors with highest returns relative to a benchmark. It automates the process of analyzing factor performance, determining alpha and beta, and selecting uncorrelated factors in your portfolio.
@@ -22,9 +23,9 @@ FactorMiner is a tool designed to run analyses over datasets and identify the fa
 3. View your results in **Your Results**
 """
         )
-    st.markdown("### Analysis Parameters")
-    st.markdown(
-        """
+    st.markdown("""
+### Analysis Parameters
+
 When configuring a new analysis, you can adjust the following parameters:
 
 | Parameter | Default | Description |
@@ -37,16 +38,12 @@ When configuring a new analysis, you can adjust the following parameters:
 | **Max. Factors** | 10 | Maximum number of factors to select in the final result set |
 | **Max NA (%)** | 40.0 | Maximum percentage of missing values allowed before a factor is excluded |
 | **Correlation Threshold** | 0.5 | Maximum allowed correlation between selected factors to ensure diversification |
-"""
-    )
 
-    st.markdown("### Analysis Results")
-    st.markdown(
-        """
+### Analysis Results
+
 After running an analysis, you'll be able to access the following results:
 
 - **Best Factors** - The factors with the highest absolute annualized alpha, after alpha and correlation filters.
 - **All Factors** - All factors ranked by abs. annual alpha, despite alpha or correlation filters.
 - **Correlation Matrix** - The correlation matrix for the best performing factors.
-"""
-    )
+""")

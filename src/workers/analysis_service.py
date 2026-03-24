@@ -1,19 +1,22 @@
-import json
+import contextlib
 import logging
+import os
 import subprocess
 import sys
-import time
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core.utils.common import find_files
-from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
+from src.core.utils.common import find_files
+from pydantic import ValidationError
+from src.core.config.paths import get_user_base_dir
 from src.core.types.models import (
     Analysis,
     AnalysisParams,
     AnalysisSummary,
     AnalysisStatus,
     AnalysisUpdate,
+    DatasetDetails,
 )
 from src.services.dataset_service import BackupDatasetService, DatasetService
 
@@ -23,36 +26,37 @@ logger = logging.getLogger(__name__)
 class AnalysisService:
     def __init__(self, user_uid: str | None = None):
         self.user_uid = user_uid
-        if INTERNAL_MODE and user_uid:
-            self.base_dir = Path(DATASET_DIR, user_uid, "FactorMiner")
-        else:
-            self.base_dir = Path(DATASET_DIR, "FactorMiner")
+        self.base_dir = Path(get_user_base_dir(user_uid), "FactorMiner")
 
     def _get_path(self, fl_id: str, analysis_id: str):
         return Path(self.base_dir, fl_id, f"{analysis_id}.json")
 
     def _write(self, analysis: Analysis):
         path = self._get_path(analysis.fl_id, analysis.id)
-        with open(path, "w") as f:
-            json.dump(analysis.model_dump(), f, indent=2)
-
-    def get(self, fl_id: str, analysis_id: str, retries=2) -> Analysis | None:
-        path = self._get_path(fl_id, analysis_id)
-        tries = 0
-        while True:
-            with open(path, "r") as f:
+        tmp_path: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=path.parent,  # target same directory as original file
+                delete=False,
+            ) as tmp:
+                tmp.write(analysis.model_dump_json(indent=2))
+                tmp_path = tmp.name
+            os.replace(tmp_path, path)
+            tmp_path = None
+        finally:
+            if tmp_path:
                 try:
-                    data = json.load(f)
-                except (FileNotFoundError, IOError):
-                    return None
-                except json.JSONDecodeError:
-                    if (tries := tries + 1) < retries:
-                        # to avoid race conditions in the progress functions which triggers this every second
-                        time.sleep(0.1)
-                        continue
-                    return None
+                    os.remove(tmp_path)  # cleanup temp file
+                except OSError:
+                    pass  # ignore possible errors
 
-                return Analysis.model_validate(data)
+    def get(self, fl_id: str, analysis_id: str) -> Analysis | None:
+        path = self._get_path(fl_id, analysis_id)
+        try:
+            return Analysis.model_validate_json(path.read_bytes())
+        except (FileNotFoundError, OSError, ValidationError):
+            return None
 
     def create(
         self, fl_id: str, analysis_id: str, dataset_version: str, params: AnalysisParams
@@ -73,11 +77,12 @@ class AnalysisService:
         fl_dir.mkdir(parents=True, exist_ok=True)
 
         # Create backup of dataset metadata if it doesn't exist
-        dest_path = BackupDatasetService(self.user_uid, fl_id).get_backup_path(
+        dataset_details = DatasetDetails(fl_id=fl_id, user_uid=self.user_uid)
+        dest_path = BackupDatasetService(dataset_details).get_backup_path(
             dataset_version
         )
         if not dest_path.exists():
-            with DatasetService(fl_id, self.user_uid) as dataset_svc:
+            with DatasetService(dataset_details) as dataset_svc:
                 dataset_svc.back_up_metadata(dest_path)
 
         try:
@@ -118,12 +123,12 @@ class AnalysisService:
 
         analyses: list[AnalysisSummary] = []
         for json_file in find_files(fl_dir, prefix="analysis_", suffix=".json"):
-            with open(json_file.path, "r") as f:
-                try:
-                    data = json.load(f)
-                    analyses.append(AnalysisSummary.model_validate(data))
-                except Exception:
-                    continue
+            try:
+                analyses.append(
+                    AnalysisSummary.model_validate_json(Path(json_file).read_bytes())
+                )
+            except Exception:
+                continue
 
         if analyses:
             analyses = sorted(analyses, key=lambda a: a.created_at, reverse=True)
@@ -154,7 +159,6 @@ class AnalysisService:
     ) -> Analysis:
         analysis = self.create(fl_id, analysis_id, dataset_version, params)
 
-        project_root = Path(__file__).resolve().parent.parent.parent
         log_dir = Path(self.base_dir, fl_id, "logs")
         log_dir.mkdir(parents=True, exist_ok=True)
         stderr_path = Path(log_dir, f"{analysis_id}.stderr.log")
@@ -170,7 +174,6 @@ class AnalysisService:
                 self.user_uid or "",
                 access_token or "",
             ],
-            cwd=str(project_root),
             start_new_session=True,
             stdout=subprocess.DEVNULL,
             stderr=stderr_file,

@@ -23,16 +23,17 @@ def render_correlation_matrix(
 ) -> None:
     st.subheader(title)
 
-    rounded = corr_matrix_df.with_columns(cs.numeric().round(4))
+    if "factor" in corr_matrix_df.columns:
+        corr_matrix_df = corr_matrix_df.rename({"factor": ""})
 
-    if "factor" in rounded.columns:
-        rounded = rounded.rename({"factor": ""})
+    format_spec = {col: ".4f" for col in corr_matrix_df.columns[1:]}
 
     render_table(
-        rounded,
+        corr_matrix_df,
         max_height=400,
         small_headers=True,
         column_widths={"": "180px"},
+        format_spec=format_spec,
     )
 
     file_name = (
@@ -42,8 +43,8 @@ def render_correlation_matrix(
     )
 
     render_copy_download_buttons(
-        csv_copy=rounded.write_csv(separator="\t"),
-        csv_download=rounded.write_csv(),
+        csv_copy=corr_matrix_df.write_csv(separator="\t"),
+        csv_download=corr_matrix_df.write_csv(),
         file_name=file_name,
         key_prefix=f"corr_matrix{key_suffix}",
         toast_msg="Correlation matrix copied to clipboard",
@@ -53,16 +54,15 @@ def render_correlation_matrix(
 def show_preview_modal(
     preview_df: pl.DataFrame,
     stats: dict,
-    title: str = "Dataset Preview",
 ) -> None:
-    @st.dialog(title, width="large")
+    @st.dialog("Dataset Preview", width="large")
     def _render() -> None:
         cols = st.columns(6, gap="small")
         stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
         stat_items = [
-            ("Rows", stats["num_rows"]),
-            ("Dates", stats["num_dates"]),
-            ("Columns", stats["num_columns"]),
+            ("Rows", stats["numRows"]),
+            ("Dates", stats["numDates"]),
+            ("Columns", stats["numColumns"]),
         ]
         for col, (label, value) in zip(cols, stat_items):
             with col:
@@ -86,30 +86,24 @@ def show_preview_modal(
     _render()
 
 
-def show_formulas_modal(
-    formulas_df: pl.DataFrame,
-    title: str = "Dataset Formulas",
-) -> None:
-    @st.dialog(title, width="large")
-    def _render() -> None:
-        subset = formulas_df.select(["formula", "name", "tag"])
+@st.dialog("Dataset Formulas", width="large")
+def show_formulas_modal(formulas_df: pl.DataFrame) -> None:
+    subset = formulas_df.select(["formula", "name", "tag"])
 
-        render_table(
-            subset,
-            max_height=400,
-            zebra=True,
-            column_widths={"formula": "45%", "name": "35%", "tag": "20%"},
-        )
+    render_table(
+        subset,
+        max_height=400,
+        zebra=True,
+        column_widths={"formula": "45%", "name": "35%", "tag": "20%"},
+    )
 
-        render_copy_download_buttons(
-            csv_copy=subset.write_csv(separator="\t"),
-            csv_download=subset.write_csv(),
-            file_name="dataset_factors.csv",
-            key_prefix="factors_modal",
-            toast_msg="Factors copied to clipboard",
-        )
-
-    _render()
+    render_copy_download_buttons(
+        csv_copy=subset.write_csv(separator="\t"),
+        csv_download=subset.write_csv(),
+        file_name="dataset_factors.csv",
+        key_prefix="factors_modal",
+        toast_msg="Factors copied to clipboard",
+    )
 
 
 def render_results_table(
@@ -239,9 +233,8 @@ def render_results_table(
 
 
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
-    fl_id = st.query_params.get("fl_id")
     datasets = BackupDatasetService(
-        st.session_state.get("user_uid"), fl_id
+        st.session_state["dataset_details"]
     ).load_all_versions()
 
     rows_data = []
@@ -287,7 +280,7 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 "Universe": dataset.universeName if dataset else "N/A",
                 "Best Factors": factors_display,
                 "Rows": (
-                    f"{dataset.num_rows:,}" if dataset and dataset.num_rows else "N/A"
+                    f"{dataset.numRows:,}" if dataset and dataset.numRows else "N/A"
                 ),
                 "Avg|α|": (
                     f"{a.avg_abs_alpha:.2f}%" if a.avg_abs_alpha is not None else "N/A"

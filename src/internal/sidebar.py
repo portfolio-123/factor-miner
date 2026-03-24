@@ -1,48 +1,44 @@
-import json
 from pathlib import Path
 
-from core.utils.common import find_files
+from src.core.utils.common import find_files
 from src.core.config.environment import DATASET_DIR
-from src.services.readers import ParquetDataReader
+from src.core.types.models import DatasetDetails
+from src.services.dataset_service import BackupDatasetService, DatasetService
 
 
-def list_user_datasets(user_uid: str) -> list[tuple[str, str]]:
+def list_user_datasets(user_uid: str) -> dict[str, str]:
     user_dir = Path(DATASET_DIR, user_uid)
-
-    try:
-        fl_ids = {f.name for f in user_dir.iterdir() if f.is_file()}
-    except (FileNotFoundError, NotADirectoryError):
-        return []
-
     factor_miner_dir = Path(user_dir, "FactorMiner")
+    results = {}
+
     try:
-        fl_ids.union(
-            d.name
-            for d in factor_miner_dir.iterdir()
-            if any(find_files(d, suffix=".json"))
-        )
+        for f in filter(Path.is_file, user_dir.iterdir()):
+            try:
+                with DatasetService(
+                    DatasetDetails(fl_id=f.name, user_uid=user_uid)
+                ) as svc:
+                    results[f.name] = svc.get_metadata().factorListName
+            except Exception:
+                pass
+    except (FileNotFoundError, NotADirectoryError):
+        return {}
+
+    try:
+        for d in factor_miner_dir.iterdir():
+            fl_id = d.name
+            if fl_id in results or not any(
+                find_files(d, prefix="dataset_", suffix=".json")
+            ):
+                continue
+            try:
+                latest = BackupDatasetService(
+                    DatasetDetails(fl_id=fl_id, user_uid=user_uid)
+                ).load_latest_version()
+                if latest:
+                    results[fl_id] = latest.factorListName
+            except Exception:
+                pass
     except (FileNotFoundError, NotADirectoryError):
         pass
 
-    results = []
-    for fl_id in sorted(fl_ids):
-        name = None
-        try:
-            try:
-                with ParquetDataReader(Path(user_dir, fl_id)) as reader:
-                    name = reader.get_dataset_info().factorListName
-            except FileNotFoundError:
-                backup = max(
-                    find_files(
-                        Path(factor_miner_dir, fl_id), prefix="dataset_", suffix=".json"
-                    ),
-                    key=lambda p: p.name,
-                    default=None,
-                )
-                if backup:
-                    with open(backup.path) as f:
-                        name = json.load(f).get("factorListName")
-        except Exception:
-            pass
-        results.append((fl_id, name or fl_id))
-    return results
+    return dict(sorted(results.items()))

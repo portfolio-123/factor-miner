@@ -3,7 +3,10 @@ import logging
 import sys
 import traceback
 from datetime import date, datetime, timedelta
+from time import monotonic
 from typing import TypedDict
+import polars as pl
+import polars.selectors as cs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,9 +15,7 @@ logging.basicConfig(
 )
 stderr_logger = logging.getLogger("worker")
 
-import polars.selectors as cs
 
-from src.core.config.environment import INTERNAL_MODE
 from src.core.config.constants import PRICE_COLUMN_NAMES, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
     AnalysisParams,
@@ -22,6 +23,7 @@ from src.core.types.models import (
     AnalysisProgress,
     AnalysisResults,
     AnalysisUpdate,
+    DatasetDetails,
     DatasetType,
 )
 from src.core.utils.common import (
@@ -31,8 +33,6 @@ from src.core.utils.common import (
 )
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
-from src.internal.p123_client import fetch_benchmark_data
-from src.services.benchmark_service import fetch_benchmark_external
 from src.core.calculations.forward_returns import (
     calculate_benchmark_returns,
     calculate_future_performance,
@@ -62,6 +62,8 @@ def run_analysis(
     params: AnalysisParams,
     dataset_svc: DatasetService,
 ) -> AnalysisRunResult:
+    progress_min_interval_seconds = 3
+    last_progress_write_at = monotonic()
 
     dataset_info = dataset_svc.get_metadata()
 
@@ -74,37 +76,39 @@ def run_analysis(
 
     start_dt = datetime.strptime(dataset_info.startDt[:10], "%Y-%m-%d")
     # extend by full rebalance period + 7 days buffer
-    forward_days = dataset_info.frequency.weeks * 7 + 7
+    forward_days = dataset_info.frequency.calendar_days + 7
     end_dt_raw = datetime.strptime(dataset_info.endDt[:10], "%Y-%m-%d") + timedelta(
         days=forward_days
     )
-    end_dt = min(end_dt_raw, date.today())
-    benchmark_ticker = extract_benchmark_ticker(dataset_info.benchmark)
+    end_dt = min(end_dt_raw, datetime.now())
+    benchmark_ticker = extract_benchmark_ticker(dataset_info.benchName)
 
     logger.info(f"Fetching benchmark data for {benchmark_ticker}...")
     date_range = (start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"))
-    if INTERNAL_MODE:  # internal
-        benchmark_data = fetch_benchmark_data(
-            benchmark_ticker=benchmark_ticker,
-            access_token=access_token,
-            start_date=date_range[0],
-            end_date=date_range[1],
-        )
-    else:  # external
-        benchmark_data = fetch_benchmark_external(
-            ticker=benchmark_ticker,
-            start_date=date_range[0],
-            end_date=date_range[1],
-        )
+    benchmark_data = DatasetService.fetch_benchmark(
+        ticker=benchmark_ticker,
+        start_date=date_range[0],
+        end_date=date_range[1],
+        access_token=access_token,
+    )
 
     logger.info("Benchmark data fetched successfully")
 
     def on_progress(completed: int, total: int) -> None:
-        percent = (completed * 100) // total
-        prev_percent = ((completed - 1) * 100) // total if completed > 1 else -1
-        if percent // 10 > prev_percent // 10 or completed == total:
-            logger.info(f"Progress: {percent}% ({completed}/{total} factors)")
+        nonlocal last_progress_write_at
+        now = monotonic()
+        elapsed = now - last_progress_write_at >= progress_min_interval_seconds
+
+        if not (
+            completed == total or elapsed
+        ):  # every 3s or if analysis has finished, update
+            return
+
+        logger.info(
+            f"Progress: {(completed * 100) // total}% ({completed}/{total} factors)"
+        )
         update({"progress": AnalysisProgress(completed=completed, total=total)})
+        last_progress_write_at = now
 
     factor_columns = [
         col for col in dataset_svc.column_names if col not in required_columns
@@ -150,8 +154,8 @@ def run_analysis(
     logger.info("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(results_df)
 
-    metrics_df = metrics_df.with_columns(cs.numeric().round(4))
-    corr_matrix = corr_matrix.with_columns(cs.numeric().round(4))
+    metrics_df = metrics_df.cast({cs.by_dtype(pl.Float64): pl.Float32})
+    corr_matrix = corr_matrix.cast({cs.by_dtype(pl.Float64): pl.Float32})
 
     avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
     logger.info(f"Average absolute alpha: {avg_abs_alpha:.2f}%")
@@ -218,7 +222,9 @@ def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str |
         update({"status": AnalysisStatus.RUNNING})
         stderr_logger.info("Starting analysis...")
         stderr_logger.info(f"Processing dataset: {fl_id}")
-        with DatasetService(fl_id) as dataset_svc:
+        with DatasetService(
+            DatasetDetails(fl_id=fl_id, user_uid=user_uid)
+        ) as dataset_svc:
             results = run_analysis(
                 update, stderr_logger, access_token, analysis.params, dataset_svc
             )
@@ -232,4 +238,4 @@ def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str |
 
 
 if __name__ == "__main__":
-    main(*sys.argv)
+    main(*sys.argv[1:])

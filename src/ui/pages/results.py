@@ -34,15 +34,15 @@ def results() -> None:
         return
 
     try:
-        dataset_metadata = BackupDatasetService(user_uid, fl_id).get_metadata(
-            analysis.dataset_version
-        )
-        st.session_state.formulas_data = dataset_metadata.formulas_df
+        dataset_metadata = BackupDatasetService(
+            st.session_state["dataset_details"]
+        ).get_metadata(analysis.dataset_version)
+        st.session_state["formulas_data"] = dataset_metadata.formulas_df
     except Exception as e:
         st.error(f"Failed to load dataset metadata: {e}")
         return
     created_on = format_timestamp(analysis.created_at)
-    is_complete = analysis.status == AnalysisStatus.SUCCESS
+    status = analysis.status
 
     header_left, header_right = st.columns([8, 1])
     with header_left:
@@ -52,15 +52,15 @@ def results() -> None:
             f"</p>"
         )
     with header_right:
-        if is_complete or analysis.status == AnalysisStatus.FAILED:
+        if status == AnalysisStatus.SUCCESS or status == AnalysisStatus.FAILED:
             if st.button("Logs", type="primary", key="header_logs", width="stretch"):
                 show_analysis_logs_modal(fl_id, analysis_id)
 
-    if analysis.status == AnalysisStatus.FAILED:
+    if status == AnalysisStatus.FAILED:
         st.error(format_analysis_error(fl_id, analysis.error or "Analysis failed"))
         return
 
-    if analysis.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
+    if status == AnalysisStatus.PENDING or status == AnalysisStatus.RUNNING:
         render_analysis_progress(fl_id, analysis_id)
         return
 
@@ -105,7 +105,7 @@ def results() -> None:
                 ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
-                ("Benchmark", dataset_metadata.benchmark),
+                ("Benchmark", dataset_metadata.benchName),
                 ("Top X (Long)", f"{p.top_pct}%"),
                 ("Bottom X (Short)", f"{p.bottom_pct}%"),
             ]

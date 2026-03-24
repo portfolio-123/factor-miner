@@ -1,8 +1,8 @@
-import json
 from pathlib import Path
 from typing import Any
 
 import polars as pl
+import polars.selectors as cs
 import pyarrow.parquet as pq
 
 from src.core.types.models import DatasetConfig
@@ -33,12 +33,12 @@ class ParquetDataReader:
         raw = metadata.get(b"datasetMetadata")
         if raw is None:
             return None
-        return raw.decode("utf-8")
+        return raw
 
     def read_columns(self, columns: list) -> pl.DataFrame:
         arrow_table = self._parquet_file.read(columns=columns)
         df = pl.from_arrow(arrow_table)
-        return df
+        return df.cast({cs.by_dtype(pl.Float64): pl.Float32})
 
     def read_preview(self, num_rows: int = 10) -> pl.DataFrame:
         pf = self._parquet_file
@@ -69,7 +69,7 @@ class ParquetDataReader:
 
     def get_review_metadata(self) -> dict[str, Any]:
         return {
-            "num_rows": self._parquet_file.metadata.num_rows,
+            "numRows": self._parquet_file.metadata.num_rows,
             "unique_dates": self.read_columns(["Date"])["Date"].n_unique(),
         }
 
@@ -77,15 +77,7 @@ class ParquetDataReader:
         raw = self._get_dataset_metadata_raw()
         if raw is None:
             raise ValueError("Missing datasetMetadata in parquet file")
-
-        dataset_info = json.loads(raw)
-        dataset_info["version"] = str(dataset_info.get("version", ""))
-
-        if dataset_info.get("normalization") is True and "preprocessor" in dataset_info:
-            dataset_info["normalization"] = dataset_info["preprocessor"]
-        dataset_info.pop("preprocessor", None)
-
-        return DatasetConfig(**dataset_info)
+        return DatasetConfig.model_validate_json(raw)
 
     def get_schema_metadata(self) -> dict[bytes, bytes] | None:
         return self._parquet_file.schema_arrow.metadata

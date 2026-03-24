@@ -348,7 +348,7 @@ def analyze_factors(
                 {
                     "Date": np.concatenate(all_dates),
                     "factor": np.concatenate(all_factors),
-                    "ret": np.concatenate(all_rets),
+                    "ret": np.concatenate(all_rets).astype(np.float32),
                 }
             ),
             factor_stats_dict,
@@ -356,7 +356,7 @@ def analyze_factors(
     else:
         return (
             pl.DataFrame(
-                schema={"Date": pl.Utf8, "factor": pl.Utf8, "ret": pl.Float64}
+                schema={"Date": pl.Utf8, "factor": pl.Utf8, "ret": pl.Float32}
             ),
             factor_stats_dict,
         )
@@ -432,7 +432,7 @@ def calculate_factor_metrics(
     valid_factors = n_valid >= 2
     valid_factor_names = np.array(factor_names)[valid_factors].tolist()
 
-    stats_df = pl.DataFrame(factor_stats.values())
+    stats_df = pl.DataFrame(list(factor_stats.values()))
 
     result = pl.DataFrame(
         {

@@ -71,11 +71,11 @@ def format_runtime(started_at: str | None, finished_at: str | None) -> str:
 
 def serialize_dataframe(df: pl.DataFrame) -> str:
     buffer = BytesIO()
-    df.write_ipc(buffer)
+    df.write_ipc(buffer, compression="zstd")
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def deserialize_dataframe(data: str) -> pl.DataFrame | tuple[pl.DataFrame, ...]:
+def deserialize_dataframe(data: str) -> pl.DataFrame:
     return pl.read_ipc(BytesIO(base64.b64decode(data)))
 
 

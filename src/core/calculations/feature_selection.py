@@ -27,7 +27,7 @@ def calculate_correlation_matrix(results_df: pl.DataFrame) -> pl.DataFrame:
     # only use dates where all factors have returns, drop nan's
     clean_df = factor_df.drop_nulls()
 
-    corr_matrix = np.corrcoef(clean_df.to_numpy(), rowvar=False)
+    corr_matrix = np.corrcoef(clean_df.to_numpy(), rowvar=False).astype(np.float32)
     corr_df = pl.DataFrame(corr_matrix, schema=factor_names)
     return corr_df.insert_column(0, pl.Series("factor", factor_names))
 

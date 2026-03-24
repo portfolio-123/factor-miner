@@ -1,7 +1,7 @@
 import streamlit as st
 
 from src.core.config.environment import INTERNAL_MODE
-from src.internal.links import p123_link
+from src.core.types.models import DatasetDetails
 from src.internal.sidebar import list_user_datasets
 from src.services.dataset_service import DatasetService
 from src.ui.pages.about import about
@@ -12,6 +12,29 @@ from src.ui.pages.results import results
 
 def sidebar() -> st.navigation:
     fl_id = st.query_params.get("fl_id")
+
+    # get available datasets first to determine default fl_id
+    if INTERNAL_MODE:
+        name_map = list_user_datasets(st.session_state["user_uid"])
+        options = list(name_map)
+    else:
+        name_map = {}
+        options = DatasetService.list_datasets()
+
+    # set default fl_id if not provided
+    if not fl_id and options:
+        fl_id = options[0]
+        st.query_params["fl_id"] = fl_id
+
+    # set fl_name in session state
+    if fl_id:
+        st.session_state["fl_name"] = name_map.get(fl_id) or fl_id
+
+    dataset_details = st.session_state.get("dataset_details")
+    if fl_id and (dataset_details is None or dataset_details.fl_id != fl_id):
+        st.session_state["dataset_details"] = DatasetDetails(
+            fl_id=fl_id, user_uid=st.session_state.get("user_uid")
+        )
 
     history_page = st.Page(
         history, title="Your Results", icon=":material/list:", default=True
@@ -30,56 +53,22 @@ def sidebar() -> st.navigation:
     }
 
     with st.sidebar:
-        st.markdown(
-            "<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>",
-            unsafe_allow_html=True,
-        )
-
-        if INTERNAL_MODE:
-            fl_name = st.session_state.get("fl_name", "Dataset")
-            link = p123_link(fl_id)
-            display_name = f"{fl_name} ({fl_id})" if fl_id else fl_name
-            header = (
-                f"<a href='{link}' target='_blank' style='text-decoration: underline;'>{display_name}</a>"
-                if link
-                else f"<span style='color: #666;'>{display_name}</span>"
-            )
-            st.markdown(header, unsafe_allow_html=True)
-
-            user_uid = st.session_state.get("user_uid")
-            datasets = list_user_datasets(user_uid) if user_uid else []
-            options = [fl_id for fl_id, _ in datasets]
-            name_map = {fl_id: name for fl_id, name in datasets}
-            label = "Factor Lists"
-            format_func = lambda x: (
-                f"{name_map.get(x)} ({x})"
-                if name_map.get(x) and str(name_map.get(x)) != str(x)
-                else str(x)
-            )
-        else:
-            options = DatasetService.list_datasets()
-            label = "Datasets"
-            format_func = str
+        st.html("<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>")
 
         if options:
-            try:
-                current_index = options.index(fl_id or "")
-            except ValueError:
-                current_index = 0
+            current_index = options.index(fl_id) if fl_id in options else 0
 
             selected = st.selectbox(
-                label, options=options, index=current_index, format_func=format_func
+                "Datasets",
+                options=options,
+                index=current_index,
+                format_func=lambda v: name_map.get(v) or v,
             )
 
             if selected and selected != fl_id:
-                # update fl_name
-                if INTERNAL_MODE:
-                    st.session_state.fl_name = name_map.get(selected, selected)
-                else:
-                    st.session_state.fl_name = selected
-
-                # navigate
-                if "id" in st.query_params:
+                st.session_state["fl_name"] = name_map.get(selected) or selected
+                id = st.query_params.get("id")
+                if id is not None:  # if in results page, switch to history page
                     st.switch_page(history_page, query_params={"fl_id": selected})
                 else:
                     st.query_params["fl_id"] = selected
@@ -89,10 +78,7 @@ def sidebar() -> st.navigation:
 
         st.session_state["pages"] = new_pages
 
-        st.markdown(
-            "<hr style='margin: 0.5rem 0;'>",
-            unsafe_allow_html=True,
-        )
+        st.html("<hr style='margin: 0.5rem 0;'>")
 
         st.page_link(
             history_page,
@@ -112,6 +98,10 @@ def sidebar() -> st.navigation:
             icon=":material/info:",
             query_params={"fl_id": fl_id},
         )
+
+    if not fl_id:
+        st.warning("No datasets available. Please generate a dataset in Portfolio123.")
+        st.stop()
 
     return st.navigation(
         [history_page, create_page, results_page, about_page], position="hidden"
