@@ -52,17 +52,16 @@ def render_correlation_matrix(
 
 
 def show_preview_modal(
-    preview_df: pl.DataFrame,
-    stats: dict,
+    data: pl.DataFrame, num_rows: int, num_dates: int, formula_count: int
 ) -> None:
     @st.dialog("Dataset Preview", width="large")
     def _render() -> None:
         cols = st.columns(6, gap="small")
         stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
         stat_items = [
-            ("Rows", stats["numRows"]),
-            ("Dates", stats["numDates"]),
-            ("Columns", stats["numColumns"]),
+            ("Rows", num_rows),
+            ("Dates", num_dates),
+            ("Formulas", formula_count),
         ]
         for col, (label, value) in zip(cols, stat_items):
             with col:
@@ -71,7 +70,7 @@ def show_preview_modal(
 
         st.caption("Showing first and last 10 rows")
 
-        display_df = preview_df.rename({"_row_idx": "Row"})
+        display_df = data.rename({"_row_idx": "Row"})
         render_table(
             display_df,
             max_height=500,

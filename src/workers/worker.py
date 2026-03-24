@@ -66,11 +66,12 @@ def run_analysis(
     last_progress_write_at = monotonic()
 
     dataset_info = dataset_svc.get_metadata()
+    column_names = dataset_svc.column_names
 
     if dataset_info.type == DatasetType.DATE:
         raise ValueError("[single-date]")
 
-    price_column = find_price_column(dataset_svc.column_names, PRICE_COLUMN_NAMES)
+    price_column = find_price_column(column_names, PRICE_COLUMN_NAMES)
     # Exclude all price column names from analysis (never analyze them)
     required_columns = BASE_REQUIRED_COLUMNS + PRICE_COLUMN_NAMES
 
@@ -110,9 +111,7 @@ def run_analysis(
         update({"progress": AnalysisProgress(completed=completed, total=total)})
         last_progress_write_at = now
 
-    factor_columns = [
-        col for col in dataset_svc.column_names if col not in required_columns
-    ]
+    factor_columns = [col for col in column_names if col not in required_columns]
     logger.info(f"Found {len(factor_columns)} factor columns")
 
     update({"progress": AnalysisProgress(completed=0, total=len(factor_columns))})

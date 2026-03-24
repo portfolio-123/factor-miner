@@ -66,7 +66,7 @@ class DatasetService:
             return None
 
     @property
-    def column_names(self) -> list[str]:
+    def column_names(self):
         return self._reader.column_names
 
     def get_metadata(self) -> DatasetConfig:
@@ -75,16 +75,8 @@ class DatasetService:
         metadata.active = True
         return metadata
 
-    def get_review_data(self) -> tuple[pl.DataFrame, dict]:
-        preview_df = self._reader.read_preview(num_rows=10)
-        metadata = self._reader.get_review_metadata()
-
-        stats = {
-            "numRows": metadata.get("numRows"),
-            "numColumns": len(preview_df.columns),
-            "numDates": metadata.get("unique_dates"),
-        }
-        return preview_df, stats
+    def get_preview_data(self):
+        return self._reader.read_preview(num_rows=10)
 
     def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
         return self._reader.read_columns_pl(columns)
@@ -95,7 +87,7 @@ class DatasetService:
     def back_up_metadata(self, dest_path: Path) -> None:
         source_metadata = self._reader.get_schema_metadata()
         if source_metadata:
-            num_rows = self._reader._parquet_file.metadata.num_rows
+            num_rows = self._reader.get_metadata().num_rows
             dataset_metadata_raw = source_metadata.get(b"datasetMetadata")
             if dataset_metadata_raw:
                 dataset_metadata = json.loads(dataset_metadata_raw)

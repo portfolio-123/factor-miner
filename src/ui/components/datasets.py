@@ -126,8 +126,8 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
                     type="secondary",
                 ):
                     with DatasetService(st.session_state["dataset_details"]) as svc:
-                        preview_df, stats = svc.get_review_data()
-                    show_preview_modal(preview_df, stats)
+                        preview = svc.get_preview_data()
+                    show_preview_modal(**preview, formula_count=formula_count)
 
         with header_status:
             status_color = "#22c55e" if is_active else "#ef4444"

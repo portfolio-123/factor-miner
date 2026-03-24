@@ -1,5 +1,6 @@
+from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 import polars as pl
 import pyarrow as pa
@@ -8,7 +9,13 @@ import pyarrow.parquet as pq
 from src.core.types.models import DatasetConfig
 
 
-class ParquetDataReader:
+class Preview(TypedDict):
+    data: pl.DataFrame
+    num_rows: int
+    num_dates: int
+
+
+class ParquetDataReader(AbstractContextManager):
     def __init__(self, file_path: Path | str):
         self.path = str(file_path)
         self._parquet_file = pq.ParquetFile(file_path)
@@ -16,11 +23,8 @@ class ParquetDataReader:
     def close(self) -> None:
         self._parquet_file.close()
 
-    def __enter__(self):
-        return self
-
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        self._parquet_file.close()
         return False
 
     @property
@@ -31,10 +35,7 @@ class ParquetDataReader:
         metadata = self._parquet_file.schema_arrow.metadata
         if metadata is None:
             return None
-        raw = metadata.get(b"datasetMetadata")
-        if raw is None:
-            return None
-        return raw
+        return metadata.get(b"datasetMetadata")
 
     def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
         return pl.read_parquet(self.path, columns=columns)
@@ -42,7 +43,7 @@ class ParquetDataReader:
     def read_column_pa(self, column: str) -> pa.Array:
         return self._parquet_file.read([column]).column(0)
 
-    def read_preview(self, num_rows=10) -> pl.DataFrame:
+    def read_preview(self, num_rows=10) -> Preview:
         pf = self._parquet_file
         total_rows = pf.metadata.num_rows
 
@@ -67,19 +68,20 @@ class ParquetDataReader:
             (pl.col("_row_idx") + (total_rows - last_rows.height)).alias("_row_idx")
         )
 
-        return pl.concat([first_rows, last_rows])
-
-    def get_review_metadata(self) -> dict[str, Any]:
         return {
-            "numRows": self._parquet_file.metadata.num_rows,
-            "unique_dates": self.read_columns_pl(["Date"])["Date"].n_unique(),
+            "data": pl.concat([first_rows, last_rows]),
+            "num_rows": total_rows,
+            "num_dates": self.read_columns_pl(["Date"])["Date"].n_unique(),
         }
 
     def get_dataset_info(self) -> DatasetConfig:
         raw = self._get_dataset_metadata_raw()
         if raw is None:
-            raise ValueError("Missing datasetMetadata in parquet file")
+            raise ValueError("Missing datasetMetadata in Parquet file")
         return DatasetConfig.model_validate_json(raw)
 
     def get_schema_metadata(self) -> dict[bytes, bytes] | None:
         return self._parquet_file.schema_arrow.metadata
+
+    def get_metadata(self):
+        return self._parquet_file.metadata
