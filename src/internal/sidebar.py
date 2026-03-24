@@ -8,45 +8,37 @@ from src.services.dataset_service import BackupDatasetService, DatasetService
 
 def list_user_datasets(user_uid: str) -> dict[str, str]:
     user_dir = Path(DATASET_DIR, user_uid)
+    factor_miner_dir = Path(user_dir, "FactorMiner")
+    results = {}
 
     try:
-        fl_ids = {f.name for f in user_dir.iterdir() if f.is_file()}
+        for f in filter(Path.is_file, user_dir.iterdir()):
+            try:
+                with DatasetService(
+                    DatasetDetails(fl_id=f.name, user_uid=user_uid)
+                ) as svc:
+                    results[f.name] = svc.get_metadata().factorListName
+            except Exception:
+                pass
     except (FileNotFoundError, NotADirectoryError):
         return {}
 
-    factor_miner_dir = Path(user_dir, "FactorMiner")
     try:
-        fl_ids |= {
-            d.name
-            for d in factor_miner_dir.iterdir()
-            if any(find_files(d, suffix=".json"))
-        }
+        for d in factor_miner_dir.iterdir():
+            fl_id = d.name
+            if fl_id in results or not any(
+                find_files(d, prefix="dataset_", suffix=".json")
+            ):
+                continue
+            try:
+                latest = BackupDatasetService(
+                    DatasetDetails(fl_id=fl_id, user_uid=user_uid)
+                ).load_latest_version()
+                if latest:
+                    results[fl_id] = latest.factorListName
+            except Exception:
+                pass
     except (FileNotFoundError, NotADirectoryError):
         pass
-
-    results = {}
-
-    # load backups first
-    for fl_id in fl_ids:
-        dataset_details = DatasetDetails(fl_id=fl_id, user_uid=user_uid)
-        try:
-            versions = BackupDatasetService(dataset_details).load_all_versions()
-            if versions:
-                results[fl_id] = versions[max(versions.keys())].factorListName
-        except Exception:
-            results[fl_id] = fl_id
-
-    # overlay with active file if present
-    for fl_id in fl_ids:
-        dataset_details = DatasetDetails(fl_id=fl_id, user_uid=user_uid)
-        base_path = dataset_details.get_base_path()
-        # skip empty files
-        if not base_path.exists() or base_path.stat().st_size == 0:
-            continue
-        try:
-            with DatasetService(dataset_details) as svc:
-                results[fl_id] = svc.get_metadata().factorListName
-        except (FileNotFoundError, Exception):
-            pass  # no active file, keep backup name
 
     return dict(sorted(results.items()))

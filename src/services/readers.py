@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 
 import polars as pl
+import polars.selectors as cs
 import pyarrow.parquet as pq
 
 from src.core.types.models import DatasetConfig
@@ -37,7 +38,7 @@ class ParquetDataReader:
     def read_columns(self, columns: list) -> pl.DataFrame:
         arrow_table = self._parquet_file.read(columns=columns)
         df = pl.from_arrow(arrow_table)
-        return df
+        return df.cast({cs.by_dtype(pl.Float64): pl.Float32})
 
     def read_preview(self, num_rows: int = 10) -> pl.DataFrame:
         pf = self._parquet_file

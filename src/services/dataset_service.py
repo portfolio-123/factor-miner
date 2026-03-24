@@ -121,6 +121,14 @@ class BackupDatasetService:
         metadata.active = current is not None and version == current
         return metadata
 
+    def load_latest_version(self) -> DatasetConfig | None:
+        files = find_files(self.backup_dir, prefix="dataset_", suffix=".json")
+        latest_file = max(files, key=lambda f: f.name, default=None)
+        if not latest_file:
+            return None
+        version = latest_file.name[8:-5]  # slice "dataset_" and ".json"
+        return self.get_metadata(version)
+
     def load_all_versions(self) -> dict[str, DatasetConfig]:
         files = list(find_files(self.backup_dir, prefix="dataset_", suffix=".json"))
 

@@ -4,7 +4,6 @@ from os import cpu_count
 import traceback
 import numpy as np
 import polars as pl
-import polars.selectors as cs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.services.dataset_service import DatasetService
@@ -494,7 +493,5 @@ def calculate_factor_metrics(
             "annualized alpha %",
         ]
     )
-
-    result = result.cast({cs.by_dtype(pl.Float64): pl.Float32})
 
     return result

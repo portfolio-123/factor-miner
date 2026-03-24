@@ -5,6 +5,8 @@ import traceback
 from datetime import date, datetime, timedelta
 from time import monotonic
 from typing import TypedDict
+import polars as pl
+import polars.selectors as cs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,7 +15,6 @@ logging.basicConfig(
 )
 stderr_logger = logging.getLogger("worker")
 
-import polars.selectors as cs
 
 from src.core.config.constants import PRICE_COLUMN_NAMES, BASE_REQUIRED_COLUMNS
 from src.core.types.models import (
@@ -153,8 +154,8 @@ def run_analysis(
     logger.info("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(results_df)
 
-    metrics_df = metrics_df.with_columns(cs.numeric().round(4))
-    corr_matrix = corr_matrix.with_columns(cs.numeric().round(4))
+    metrics_df = metrics_df.cast({cs.by_dtype(pl.Float64): pl.Float32})
+    corr_matrix = corr_matrix.cast({cs.by_dtype(pl.Float64): pl.Float32})
 
     avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
     logger.info(f"Average absolute alpha: {avg_abs_alpha:.2f}%")

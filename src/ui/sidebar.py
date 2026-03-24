@@ -2,7 +2,6 @@ import streamlit as st
 
 from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import DatasetDetails
-from src.internal.links import p123_link
 from src.internal.sidebar import list_user_datasets
 from src.services.dataset_service import DatasetService
 from src.ui.pages.about import about
@@ -99,6 +98,10 @@ def sidebar() -> st.navigation:
             icon=":material/info:",
             query_params={"fl_id": fl_id},
         )
+
+    if not fl_id:
+        st.warning("No datasets available. Please generate a dataset in Portfolio123.")
+        st.stop()
 
     return st.navigation(
         [history_page, create_page, results_page, about_page], position="hidden"
