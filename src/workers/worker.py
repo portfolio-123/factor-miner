@@ -118,7 +118,8 @@ def run_analysis(
     update({"progress": AnalysisProgress(completed=0, total=len(factor_columns))})
 
     logger.info("Calculating future performance...")
-    core_df = dataset_svc.read_columns(["Date", "Ticker", price_column])
+    core_df = dataset_svc.read_columns_pl(["Date", "Ticker", price_column])
+    core_df = core_df.cast({price_column: pl.Float32})
     future_perf_df = calculate_future_performance(core_df, price_column)
 
     logger.info("Analyzing factors...")

@@ -253,7 +253,6 @@ def analyze_factors(
     factor_columns: list[str],
     top_pct=10.0,
     bottom_pct=10.0,
-    batch_size=10,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> tuple[pl.DataFrame, dict[str, dict]]:
     """
@@ -298,48 +297,49 @@ def analyze_factors(
     completed_count = 0
     max_workers = min(8, cpu_count() or 4)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for batch_start in range(0, total_factors, batch_size):
-            batch_cols = factor_columns[batch_start : batch_start + batch_size]
-            batch_df = dataset_svc.read_columns(batch_cols)
 
-            future_to_col = {
-                executor.submit(
-                    _process_factor,
-                    col,
-                    batch_df[col].to_numpy()[valid_indices],
-                    perf_arr,
-                    perf_is_valid,
-                    date_index_by_row,
-                    unique_dates,
-                    n_dates,
-                    top_pct,
-                    bottom_pct,
-                ): col
-                for col in batch_cols
-            }
+        def do_process_factor(col):
+            factor_arr = (
+                dataset_svc.read_column_pa(col)
+                .to_numpy()[valid_indices]
+                .astype(np.float32)
+            )
+            return _process_factor(
+                col,
+                factor_arr,
+                perf_arr,
+                perf_is_valid,
+                date_index_by_row,
+                unique_dates,
+                n_dates,
+                top_pct,
+                bottom_pct,
+            )
 
-            # as_completed() yields futures as they finish.
-            for future in as_completed(future_to_col):
-                col = future_to_col[future]
-                try:
-                    dates_arr, factors_arr, rets_arr, factor_stats = future.result()
-                except Exception as e:
-                    logger.error(
-                        f"THREAD CRASHED - Factor {col}: {type(e).__name__}: {e}"
-                    )
-                    logger.error(traceback.format_exc())
-                    completed_count += 1
-                    if on_progress:
-                        on_progress(completed_count, total_factors)
-                    continue
-                factor_stats_dict[col] = factor_stats
-                if len(dates_arr) > 0:
-                    all_dates.append(dates_arr)
-                    all_factors.append(factors_arr)
-                    all_rets.append(rets_arr)
+        future_to_col = {
+            executor.submit(do_process_factor, col): col for col in factor_columns
+        }
+
+        # as_completed() yields futures as they finish.
+        for future in as_completed(future_to_col):
+            col = future_to_col[future]
+            try:
+                dates_arr, factors_arr, rets_arr, factor_stats = future.result()
+            except Exception as e:
+                logger.error(f"ANALYSIS FAILED - Factor {col}: {type(e).__name__}: {e}")
+                logger.error(traceback.format_exc())
                 completed_count += 1
                 if on_progress:
                     on_progress(completed_count, total_factors)
+                continue
+            factor_stats_dict[col] = factor_stats
+            if len(dates_arr) > 0:
+                all_dates.append(dates_arr)
+                all_factors.append(factors_arr)
+                all_rets.append(rets_arr)
+            completed_count += 1
+            if on_progress:
+                on_progress(completed_count, total_factors)
 
     # concatenate all arrays and build DataFrame once
     if all_dates:

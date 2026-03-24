@@ -1,9 +1,9 @@
 import json
 from os import stat
 from pathlib import Path
-from typing import Self
 
 import polars as pl
+import pyarrow as pa
 
 from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
 from src.core.types.models import DatasetConfig, DatasetDetails
@@ -15,7 +15,7 @@ class DatasetService:
     def __init__(self, dataset_details: DatasetDetails):
         self.dataset_details = dataset_details
 
-    def __enter__(self) -> Self:
+    def __enter__(self):
         self._reader = ParquetDataReader(self.base_path)
         return self
 
@@ -86,8 +86,11 @@ class DatasetService:
         }
         return preview_df, stats
 
-    def read_columns(self, columns: list) -> pl.DataFrame:
-        return self._reader.read_columns(columns)
+    def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
+        return self._reader.read_columns_pl(columns)
+
+    def read_column_pa(self, column: str) -> pa.Array:
+        return self._reader.read_column_pa(column)
 
     def back_up_metadata(self, dest_path: Path) -> None:
         source_metadata = self._reader.get_schema_metadata()
