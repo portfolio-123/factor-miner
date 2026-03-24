@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import logging
 from os import cpu_count
+import threading
 import traceback
 import numpy as np
 import polars as pl
@@ -297,13 +298,15 @@ def analyze_factors(
     completed_count = 0
     max_workers = min(8, cpu_count() or 4)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        lock = threading.Lock()
 
         def do_process_factor(col):
-            factor_arr = (
-                dataset_svc.read_column_pa(col)
-                .to_numpy()[valid_indices]
-                .astype(np.float32)
-            )
+            with lock:
+                factor_arr = (
+                    dataset_svc.read_column_pa(col)
+                    .to_numpy()[valid_indices]
+                    .astype(np.float32)
+                )
             return _process_factor(
                 col,
                 factor_arr,
