@@ -129,6 +129,7 @@ def run_analysis(
         factor_columns=factor_columns,
         top_pct=params.top_pct,
         bottom_pct=params.bottom_pct,
+        max_return_pct=params.max_return_pct,
         on_progress=on_progress,
     )
 

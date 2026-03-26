@@ -10,12 +10,13 @@ INTERNAL_FUTURE_PERF_COL: Final[str] = "__future_perf__"
 INTERNAL_BENCHMARK_COL: Final[str] = "__benchmark__"
 
 DEFAULT_MIN_ALPHA: Final[float] = 0.5
-DEFAULT_TOP_PCT: Final[float] = 10.0
-DEFAULT_BOTTOM_PCT: Final[float] = 10.0
+DEFAULT_TOP_PCT: Final[float] = 10
+DEFAULT_BOTTOM_PCT: Final[float] = 10
 DEFAULT_CORRELATION_THRESHOLD: Final[float] = 0.5
 DEFAULT_N_FACTORS: Final[int] = 10
-DEFAULT_MAX_NA_PCT: Final[float] = 40.0
+DEFAULT_MAX_NA_PCT: Final[float] = 40
 DEFAULT_MIN_IC: Final[float] = 0.015
+DEFAULT_MAX_RETURN_PCT: Final[float] = 200
 AUTH_COOKIE_KEY: Final[str] = "p123_access_token"
 
 SCALING_LABELS: Final[dict[ScalingMethod, str]] = {

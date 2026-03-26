@@ -8,6 +8,7 @@ from src.core.config.constants import (
     DEFAULT_N_FACTORS,
     DEFAULT_MAX_NA_PCT,
     DEFAULT_MIN_IC,
+    DEFAULT_MAX_RETURN_PCT,
 )
 from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import AnalysisParams
@@ -28,6 +29,7 @@ def _get_default_settings() -> dict:
         "n_factors": DEFAULT_N_FACTORS,
         "max_na_pct": DEFAULT_MAX_NA_PCT,
         "correlation_threshold": DEFAULT_CORRELATION_THRESHOLD,
+        "max_return_pct": DEFAULT_MAX_RETURN_PCT,
     }
 
 
@@ -65,6 +67,9 @@ def _submit_analysis() -> None:
             max_na_pct=st.session_state["max_na_pct"],
             min_ic=float(st.session_state.get("min_ic", DEFAULT_MIN_IC)),
             rank_by=rank_by,
+            max_return_pct=st.session_state.get(
+                "max_return_pct", DEFAULT_MAX_RETURN_PCT
+            ),
         )
         AnalysisService(user_uid).start(
             fl_id,
@@ -161,7 +166,7 @@ def _render_settings() -> None:
 
     section_header("Analysis Filters")
     rank_by = st.session_state.get("rank_by", "Alpha")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         if rank_by == "Alpha":
             st.number_input(
@@ -205,4 +210,13 @@ def _render_settings() -> None:
             step=0.05,
             key="correlation_threshold",
             help="Maximum allowed correlation between selected factors",
+        )
+    with col5:
+        st.number_input(
+            "Max. Return %",
+            min_value=50.0,
+            max_value=1000.0,
+            step=10.0,
+            key="max_return_pct",
+            help="Exclude date-stock pairs where return exceeds this %",
         )

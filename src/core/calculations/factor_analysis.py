@@ -254,6 +254,7 @@ def analyze_factors(
     factor_columns: list[str],
     top_pct=10.0,
     bottom_pct=10.0,
+    max_return_pct: float | None = None,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> tuple[pl.DataFrame, dict[str, dict]]:
     """
@@ -291,6 +292,10 @@ def analyze_factors(
         merged_base["Date"].to_numpy(), return_inverse=True
     )
     perf_is_valid = ~np.isnan(perf_arr)
+
+    if max_return_pct is not None:
+        max_return_threshold = max_return_pct / 100
+        perf_is_valid = perf_is_valid & (perf_arr <= max_return_threshold)
 
     n_dates = len(unique_dates)
     del base_df, merged_base

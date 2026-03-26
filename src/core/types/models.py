@@ -123,6 +123,7 @@ class AnalysisParams(BaseModel):
     max_na_pct: float
     min_ic: float
     rank_by: str = "Alpha"
+    max_return_pct: float = 200
 
 
 class NormalizationConfig(BaseModel):
