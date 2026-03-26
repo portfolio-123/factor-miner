@@ -16,7 +16,11 @@ logging.basicConfig(
 stderr_logger = logging.getLogger("worker")
 
 
-from src.core.config.constants import PRICE_COLUMN_NAMES, BASE_REQUIRED_COLUMNS
+from src.core.config.constants import (
+    INTERNAL_BENCHMARK_COL,
+    PRICE_COLUMN_NAMES,
+    BASE_REQUIRED_COLUMNS,
+)
 from src.core.types.models import (
     AnalysisParams,
     AnalysisStatus,
@@ -39,7 +43,7 @@ from src.core.calculations.forward_returns import (
 )
 from src.core.calculations.factor_analysis import (
     analyze_factors,
-    calculate_factor_metrics,
+    calculate_factor_metric,
 )
 from src.core.calculations.feature_selection import (
     calculate_correlation_matrix,
@@ -145,12 +149,35 @@ def run_analysis(
         raise ValueError("No results from factor analysis")
 
     logger.info("Calculating factor metrics...")
-    metrics_df = calculate_factor_metrics(
-        results_df,
-        raw_data,
-        periods_per_year=dataset_info.frequency.periods_per_year,
-        factor_stats=factor_stats,
+
+    # get benchmark returns per date
+    benchmark_returns = raw_data.select(["Date", INTERNAL_BENCHMARK_COL]).unique()
+    results_df = results_df.with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
+
+    # reshape as date=rows and factor=columns
+    factor_returns_wide = results_df.pivot(
+        index="Date", on="factor", values="ret", aggregate_function="first"
     )
+
+    # inner join to filter dates where both factor and benchmark have returns
+    factor_returns_with_benchmark = factor_returns_wide.join(
+        benchmark_returns, on="Date", how="inner"
+    )
+
+    factors = (c for c in factor_returns_wide.columns if c != "Date")
+
+    results = []
+    for factor in factors:
+        result = calculate_factor_metric(
+            factor_returns_wide[factor],  # factor returns per date
+            factor_returns_with_benchmark[
+                INTERNAL_BENCHMARK_COL
+            ],  # benchmark returns per date
+            dataset_info.frequency.periods_per_year,
+        )
+        results.append(result)
+
+    metrics_df = pl.DataFrame(results)
 
     logger.info("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(results_df)

@@ -6,7 +6,7 @@ import traceback
 import numpy as np
 import polars as pl
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from scipy import stats
 from src.services.dataset_service import DatasetService
 from src.core.config.constants import (
     INTERNAL_FUTURE_PERF_COL,
@@ -503,3 +503,20 @@ def calculate_factor_metrics(
     )
 
     return result
+
+
+def calculate_factor_metric(
+    y: pl.Series, x: pl.Series, periods_per_year: float
+):  # y factor returns, x benchmark returns
+
+    mask = y.is_finite() & x.is_finite()  # exclude invalid returns
+
+    y = y.filter(mask).to_numpy()
+    x = x.filter(mask).to_numpy()
+
+    beta, alpha = np.polyfit(x, y, 1)
+    annualized_alpha = 100 * ((1 + alpha) ** periods_per_year - 1)
+
+    t_stat, _ = stats.ttest_1samp(y, popmean=0)
+
+    return {"beta": beta, "t-stat": t_stat, "annualized alpha %": annualized_alpha}
