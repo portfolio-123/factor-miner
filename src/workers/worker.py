@@ -2,9 +2,8 @@ from collections.abc import Callable
 import logging
 import sys
 import traceback
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from time import monotonic
-from typing import TypedDict
 import polars as pl
 import polars.selectors as cs
 
@@ -23,6 +22,7 @@ from src.core.config.constants import (
 )
 from src.core.types.models import (
     AnalysisParams,
+    AnalysisRunResult,
     AnalysisStatus,
     AnalysisProgress,
     AnalysisResults,
@@ -49,14 +49,6 @@ from src.core.calculations.feature_selection import (
     calculate_correlation_matrix,
     select_best_features,
 )
-
-
-class AnalysisRunResult(TypedDict):
-    all_metrics: str
-    all_corr_matrix: str
-    avg_abs_alpha: float
-    best_feature_names: list[str]
-    factor_classifications: dict[str, str]
 
 
 def run_analysis(
@@ -166,18 +158,50 @@ def run_analysis(
 
     factors = (c for c in factor_returns_wide.columns if c != "Date")
 
+    periods_per_year = dataset_info.frequency.periods_per_year
+
     results = []
     for factor in factors:
-        result = calculate_factor_metric(
+        metrics = calculate_factor_metric(
             factor_returns_wide[factor],  # factor returns per date
             factor_returns_with_benchmark[
                 INTERNAL_BENCHMARK_COL
             ],  # benchmark returns per date
-            dataset_info.frequency.periods_per_year,
+            periods_per_year,
         )
-        results.append(result)
+
+        stats = factor_stats.get(factor, {})
+
+        results.append({"column": factor, **metrics, **stats})
 
     metrics_df = pl.DataFrame(results)
+
+    annualized_long = 100 * (
+        (1 + metrics_df["cumulative_long_ret"])
+        ** (periods_per_year / metrics_df["n_long_periods"])
+        - 1
+    )
+    annualized_short = 100 * (
+        (1 + metrics_df["cumulative_short_ret"])
+        ** (periods_per_year / metrics_df["n_short_periods"])
+        - 1
+    )
+
+    metrics_df = metrics_df.with_columns(
+        [
+            annualized_long.alias("annualized_long_pct"),
+            annualized_short.alias("annualized_short_pct"),
+        ]
+    )
+
+    metrics_df = metrics_df.drop(
+        [
+            "cumulative_long_ret",
+            "cumulative_short_ret",
+            "n_long_periods",
+            "n_short_periods",
+        ]
+    )
 
     logger.info("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(results_df)
@@ -185,7 +209,7 @@ def run_analysis(
     metrics_df = metrics_df.cast({cs.by_dtype(pl.Float64): pl.Float32})
     corr_matrix = corr_matrix.cast({cs.by_dtype(pl.Float64): pl.Float32})
 
-    avg_abs_alpha = float(metrics_df["annualized alpha %"].abs().mean())
+    avg_abs_alpha = float(metrics_df["annualized_alpha_pct"].abs().mean())
     logger.info(f"Average absolute alpha: {avg_abs_alpha:.2f}%")
 
     best_feature_names, factor_classifications = select_best_features(

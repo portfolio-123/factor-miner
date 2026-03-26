@@ -10,6 +10,20 @@ from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
 
 
+class FactorMetricResult(TypedDict):
+    beta: float
+    t_stat: float
+    annualized_alpha_pct: float
+
+
+class AnalysisRunResult(TypedDict):
+    all_metrics: str
+    all_corr_matrix: str
+    avg_abs_alpha: float
+    best_feature_names: list[str]
+    factor_classifications: dict[str, str]
+
+
 @dataclass(repr=False, eq=False, slots=True)
 class DatasetDetails:
     fl_id: str

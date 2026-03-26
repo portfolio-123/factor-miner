@@ -115,7 +115,7 @@ def render_results_table(
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
 
-    sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
+    sort_col = "IC" if rank_by == "IC" else "annualized_alpha_pct"
     sorted_metrics = metrics.sort(pl.col(sort_col).abs(), descending=True)
 
     if "rank" not in sorted_metrics.columns:
@@ -124,15 +124,15 @@ def render_results_table(
     display = sorted_metrics.rename(
         {
             "column": "Factor",
-            "annualized alpha %": "Ann. Alpha %",
-            "annualized long %": "Ann. Long %",
-            "annualized short %": "Ann. Short %",
-            "NA %": "NA %",
-            "T-Stat": "T-Stat",
+            "annualized_alpha_pct": "Ann. Alpha %",
+            "annualized_long_pct": "Ann. Long %",
+            "annualized_short_pct": "Ann. Short %",
+            "na_pct": "NA %",
+            "t_stat": "T-Stat",
             "beta": "Beta",
             "rank": "Rank",
             "IC": "IC",
-            "IC t-stat": "IC t-stat",
+            "ic_t_stat": "IC t-stat",
         }
     )
 

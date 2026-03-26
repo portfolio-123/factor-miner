@@ -7,6 +7,7 @@ import numpy as np
 import polars as pl
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from scipy import stats
+from src.core.types.models import FactorMetricResult
 from src.services.dataset_service import DatasetService
 from src.core.config.constants import (
     INTERNAL_FUTURE_PERF_COL,
@@ -225,9 +226,9 @@ def _process_factor(
 
     factor_stats = {
         "column": col,
-        "NA %": round(na_pct, 2),
+        "na_pct": round(na_pct, 2),
         "IC": mean_ic,
-        "IC t-stat": ic_tstat,
+        "ic_t_stat": ic_tstat,
         "cumulative_long_ret": cumulative_long_ret,
         "cumulative_short_ret": cumulative_short_ret,
         "n_long_periods": n_long_periods,
@@ -507,7 +508,7 @@ def calculate_factor_metrics(
 
 def calculate_factor_metric(
     y: pl.Series, x: pl.Series, periods_per_year: float
-):  # y factor returns, x benchmark returns
+) -> FactorMetricResult:
 
     mask = y.is_finite() & x.is_finite()  # exclude invalid returns
 
@@ -519,4 +520,4 @@ def calculate_factor_metric(
 
     t_stat, _ = stats.ttest_1samp(y, popmean=0)
 
-    return {"beta": beta, "t-stat": t_stat, "annualized alpha %": annualized_alpha}
+    return {"beta": beta, "t_stat": t_stat, "annualized_alpha_pct": annualized_alpha}

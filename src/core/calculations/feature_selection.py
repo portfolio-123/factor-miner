@@ -49,15 +49,15 @@ def select_best_features(
     Args:
         metrics_df: DataFrame with feature metrics. Required columns:
             - "column"
-            - "annualized alpha %"
-            - "NA %" (optional; if missing, NA% is treated as 0)
+            - "annualized_alpha_pct"
+            - "na_pct" (optional; if missing, NA% is treated as 0)
             - "IC" (required when rank_by is "IC")
         correlation_matrix: Correlation matrix with required columns:
             - "factor" containing factor names
             - one numeric column per factor in "factor"
         n: Number of features to select
         correlation_threshold: Maximum allowed correlation
-        a_min: Minimum absolute annualized alpha %
+        a_min: Minimum absolute annualized_alpha_pct
         max_na_pct: Maximum allowed NA percentage
         min_ic: Minimum absolute IC threshold
         rank_by: Metric to rank by, either "Alpha" or "IC"
@@ -71,7 +71,7 @@ def select_best_features(
 
     normalized_rank_by = rank_by.strip().upper()
 
-    required_metrics_cols = {"column", "annualized alpha %"}
+    required_metrics_cols = {"column", "annualized_alpha_pct"}
     missing_metrics_cols = required_metrics_cols - set(metrics_df.columns)
     if missing_metrics_cols:
         raise ValueError(f"Missing required columns: {sorted(missing_metrics_cols)}")
@@ -84,18 +84,18 @@ def select_best_features(
     corr_arr = correlation_matrix.select(pl.exclude("factor")).to_numpy()
     col_to_idx = {c: i for i, c in enumerate(factor_names)}
 
-    sort_col = "IC" if normalized_rank_by == "IC" else "annualized alpha %"
+    sort_col = "IC" if normalized_rank_by == "IC" else "annualized_alpha_pct"
     if sort_col not in metrics_df.columns:
         raise ValueError(f"Missing required column for ranking: '{sort_col}'")
     sorted_metrics = metrics_df.sort(pl.col(sort_col).abs(), descending=True)
 
-    has_na_col = "NA %" in sorted_metrics.columns
+    has_na_col = "na_pct" in sorted_metrics.columns
     has_ic_col = "IC" in sorted_metrics.columns
 
     columns = sorted_metrics["column"].to_numpy()
-    alphas = sorted_metrics["annualized alpha %"].to_numpy()
+    alphas = sorted_metrics["annualized_alpha_pct"].to_numpy()
     na_pcts = (
-        sorted_metrics["NA %"].to_numpy()
+        sorted_metrics["na_pct"].to_numpy()
         if has_na_col
         else np.zeros(len(sorted_metrics))
     )

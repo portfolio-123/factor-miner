@@ -69,7 +69,7 @@ def results() -> None:
     rank_by = analysis.params.rank_by
 
     # add rank column
-    sort_col = "IC" if rank_by == "IC" else "annualized alpha %"
+    sort_col = "IC" if rank_by == "IC" else "annualized_alpha_pct"
     all_metrics_df = all_metrics_df.sort(pl.col(sort_col).abs(), descending=True)
     all_metrics_df = all_metrics_df.with_row_index("rank", offset=1)
 
