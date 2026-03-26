@@ -2,7 +2,7 @@
 set -e
 
 IMAGE=factorminer
-REGISTRY=quay300.portfolio123.com/misc
+REGISTRY=${REGISTRY}
 
 if [[ -z "$1" ]]; then
   echo "Usage: $0 <tag>"
