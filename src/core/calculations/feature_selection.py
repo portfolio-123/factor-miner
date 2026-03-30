@@ -1,144 +1,61 @@
 import numpy as np
 import polars as pl
 
-from src.core.config.constants import (
-    DEFAULT_CORRELATION_THRESHOLD,
-    DEFAULT_MIN_ALPHA,
-    DEFAULT_MAX_NA_PCT,
-    DEFAULT_MIN_IC,
-    DEFAULT_N_FACTORS,
-)
+from src.core.types.models import AnalysisParams
 
 
-def calculate_correlation_matrix(results_df: pl.DataFrame) -> pl.DataFrame:
-    """
-    Calculate correlation matrix between factors.
-
-    Args:
-        results_df: DataFrame with factor returns (Date, factor, ret)
-
-    Returns:
-        Correlation matrix DataFrame
-    """
-    pivot_df = results_df.pivot(index="Date", on="factor", values="ret")
-    factor_names = [c for c in pivot_df.columns if c != "Date"]
-    factor_df = pivot_df.select(factor_names)
-
-    # only use dates where all factors have returns, drop nan's
-    clean_df = factor_df.drop_nulls()
-
-    corr_matrix = np.corrcoef(clean_df.to_numpy(), rowvar=False).astype(np.float32)
-    corr_df = pl.DataFrame(corr_matrix, schema=factor_names)
-    return corr_df.insert_column(0, pl.Series("factor", factor_names))
+def calculate_correlation_matrix(factor_returns_wide: pl.DataFrame) -> pl.DataFrame:
+    return (
+        factor_returns_wide.drop_nulls()
+        .corr(label="factor")
+        .with_columns(pl.all().exclude("factor"))
+    )
 
 
-def select_best_features(
+def select_best_factors(
     metrics_df: pl.DataFrame,
-    correlation_matrix: pl.DataFrame,
-    n=DEFAULT_N_FACTORS,
-    correlation_threshold=DEFAULT_CORRELATION_THRESHOLD,
-    a_min=DEFAULT_MIN_ALPHA,
-    max_na_pct=DEFAULT_MAX_NA_PCT,
-    min_ic=DEFAULT_MIN_IC,
-    rank_by="Alpha",
+    corr_matrix: pl.DataFrame,
+    params: AnalysisParams,
 ) -> tuple[list[str], dict[str, str]]:
-    """
-    Select n best features based on absolute Alpha or IC and low correlation.
-    Also classifies all candidate factors.
+    # iterate all factors from strongest to weakest (based on rank_by metric). adds a classification to every factor, indicating why it was excluded or "best" if it passed all the filters
 
-    Args:
-        metrics_df: DataFrame with feature metrics. Required columns:
-            - "column"
-            - "annualized_alpha_pct"
-            - "na_pct" (optional; if missing, NA% is treated as 0)
-            - "IC" (required when rank_by is "IC")
-        correlation_matrix: Correlation matrix with required columns:
-            - "factor" containing factor names
-            - one numeric column per factor in "factor"
-        n: Number of features to select
-        correlation_threshold: Maximum allowed correlation
-        a_min: Minimum absolute annualized_alpha_pct
-        max_na_pct: Maximum allowed NA percentage
-        min_ic: Minimum absolute IC threshold
-        rank_by: Metric to rank by, either "Alpha" or "IC"
+    # assign an index to each factor to later look up its correlation pairs as corr_arr[idx, idx_pair]
+    corr_arr = corr_matrix.select(pl.exclude("factor")).to_numpy()
+    col_to_idx = {c: i for i, c in enumerate(corr_matrix["factor"].to_list())}
 
-    Returns:
-        Tuple of (selected feature names, classifications dict)
-        Classifications: "best", "below_alpha", "correlation_conflict", "n_limit", "high_na", or "below_ic"
-    """
-    if n < 0:
-        raise ValueError("n must be >= 0")
+    # sort factors by rank_by metric, best first
+    sorted_metrics = metrics_df.sort(pl.col(params.rank_by).abs(), descending=True)
+    # array containing all factor names
+    factors = sorted_metrics["column"].to_list()
+    factor_idx = np.array([col_to_idx[f] for f in factors])
 
-    normalized_rank_by = rank_by.strip().upper()
-
-    required_metrics_cols = {"column", "annualized_alpha_pct"}
-    missing_metrics_cols = required_metrics_cols - set(metrics_df.columns)
-    if missing_metrics_cols:
-        raise ValueError(f"Missing required columns: {sorted(missing_metrics_cols)}")
+    valid_rank_by = np.abs(sorted_metrics[params.rank_by].to_numpy()) >= getattr(
+        params, f"min_{params.rank_by}"
+    )
+    valid_na = sorted_metrics["na_pct"].to_numpy() <= params.max_na_pct
 
     classifications = {}
     selected_features = []
     selected_indices = []
 
-    factor_names = correlation_matrix["factor"].to_list()
-    corr_arr = correlation_matrix.select(pl.exclude("factor")).to_numpy()
-    col_to_idx = {c: i for i, c in enumerate(factor_names)}
-
-    sort_col = "IC" if normalized_rank_by == "IC" else "annualized_alpha_pct"
-    if sort_col not in metrics_df.columns:
-        raise ValueError(f"Missing required column for ranking: '{sort_col}'")
-    sorted_metrics = metrics_df.sort(pl.col(sort_col).abs(), descending=True)
-
-    has_na_col = "na_pct" in sorted_metrics.columns
-    has_ic_col = "IC" in sorted_metrics.columns
-
-    columns = sorted_metrics["column"].to_numpy()
-    alphas = sorted_metrics["annualized_alpha_pct"].to_numpy()
-    na_pcts = (
-        sorted_metrics["na_pct"].to_numpy()
-        if has_na_col
-        else np.zeros(len(sorted_metrics))
-    )
-    ics = sorted_metrics["IC"].to_numpy() if has_ic_col else None
-
-    missing_features = sorted(set(columns) - set(factor_names))
-    if missing_features:
-        raise ValueError(
-            "Features missing from correlation_matrix['factor']: " f"{missing_features}"
-        )
-    feat_indices = np.array([col_to_idx[c] for c in columns])
-
-    valid_na = na_pcts <= max_na_pct
-
-    if normalized_rank_by == "IC":
-        valid_metric = (
-            np.abs(ics) >= min_ic
-            if ics is not None
-            else np.ones(len(columns), dtype=bool)
-        )
-        metric_fail_label = "below_ic"
-    else:
-        valid_metric = (
-            np.abs(alphas) >= a_min
-            if a_min >= 1e-9
-            else np.ones(len(alphas), dtype=bool)
-        )
-        metric_fail_label = "below_alpha"
-
-    for i, feature in enumerate(columns):
+    # go through each factor, check filters 1 by 1. if all filters pass, classify as best factor
+    for i, feature in enumerate(factors):
         if not valid_na[i]:
-            classifications[feature] = "high_na"
-        elif not valid_metric[i]:
-            classifications[feature] = metric_fail_label
-        elif len(selected_features) >= n:
-            classifications[feature] = "n_limit"
+            label = "high_na"
+        elif not valid_rank_by[i]:
+            label = f"below_{params.rank_by}"
+        elif len(selected_indices) >= params.n_factors:
+            label = "n_limit"
         elif selected_indices and np.any(
-            np.abs(corr_arr[feat_indices[i], selected_indices]) >= correlation_threshold
+            np.abs(corr_arr[factor_idx[i], selected_indices])
+            >= params.correlation_threshold
         ):
-            classifications[feature] = "correlation_conflict"
+            label = "correlation_conflict"
         else:
             selected_features.append(feature)
-            selected_indices.append(feat_indices[i])
-            classifications[feature] = "best"
+            selected_indices.append(factor_idx[i])
+            label = "best"
+
+        classifications[feature] = label
 
     return selected_features, classifications

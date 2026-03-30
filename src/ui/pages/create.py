@@ -1,7 +1,7 @@
 import streamlit as st
 
 from src.core.config.constants import (
-    DEFAULT_MIN_ALPHA,
+    DEFAULT_MIN_ANNUALIZED_ALPHA_PCT,
     DEFAULT_TOP_PCT,
     DEFAULT_BOTTOM_PCT,
     DEFAULT_CORRELATION_THRESHOLD,
@@ -9,6 +9,7 @@ from src.core.config.constants import (
     DEFAULT_MAX_NA_PCT,
     DEFAULT_MIN_IC,
     DEFAULT_MAX_RETURN_PCT,
+    RANK_CONFIG,
 )
 from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import AnalysisParams
@@ -19,12 +20,21 @@ from src.ui.components.datasets import render_dataset_card
 from src.workers.analysis_service import AnalysisService
 
 
+def _collect_params() -> AnalysisParams:
+    return AnalysisParams(
+        **{
+            key: st.session_state.get(key, default)
+            for key, default in _get_default_settings().items()
+        }
+    )
+
+
 def _get_default_settings() -> dict:
     return {
-        "rank_by": "Alpha",
+        "rank_by": "annualized_alpha_pct",
         "top_pct": DEFAULT_TOP_PCT,
         "bottom_pct": DEFAULT_BOTTOM_PCT,
-        "min_alpha": DEFAULT_MIN_ALPHA,
+        "min_annualized_alpha_pct": DEFAULT_MIN_ANNUALIZED_ALPHA_PCT,
         "min_ic": DEFAULT_MIN_IC,
         "n_factors": DEFAULT_N_FACTORS,
         "max_na_pct": DEFAULT_MAX_NA_PCT,
@@ -57,20 +67,7 @@ def _submit_analysis() -> None:
     analysis_id = AnalysisService(user_uid).next_analysis_id(fl_id)
 
     try:
-        rank_by = st.session_state.get("rank_by", "Alpha")
-        params = AnalysisParams(
-            min_alpha=st.session_state.get("min_alpha", DEFAULT_MIN_ALPHA),
-            top_pct=st.session_state["top_pct"],
-            bottom_pct=st.session_state["bottom_pct"],
-            correlation_threshold=st.session_state["correlation_threshold"],
-            n_factors=st.session_state["n_factors"],
-            max_na_pct=st.session_state["max_na_pct"],
-            min_ic=float(st.session_state.get("min_ic", DEFAULT_MIN_IC)),
-            rank_by=rank_by,
-            max_return_pct=st.session_state.get(
-                "max_return_pct", DEFAULT_MAX_RETURN_PCT
-            ),
-        )
+        params = _collect_params()
         AnalysisService(user_uid).start(
             fl_id,
             analysis_id,
@@ -140,7 +137,8 @@ def _render_settings() -> None:
     with col1:
         st.radio(
             "Rank By",
-            options=["Alpha", "Information Coefficient (IC)"],
+            options=RANK_CONFIG,
+            format_func=lambda v: RANK_CONFIG[v]["metric_label"],
             key="rank_by",
             horizontal=True,
             help="Select metric to rank factors by",
@@ -165,25 +163,14 @@ def _render_settings() -> None:
         )
 
     section_header("Analysis Filters")
-    rank_by = st.session_state.get("rank_by", "Alpha")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        if rank_by == "Alpha":
-            st.number_input(
-                "Min. Abs. Annual Alpha (%)",
-                min_value=0.0,
-                max_value=100.0,
-                step=0.1,
-                key="min_alpha",
-            )
-        else:
-            st.number_input(
-                "Min. IC",
-                min_value=0.0,
-                max_value=1.0,
-                step=0.01,
-                key="min_ic",
-            )
+        rank_by = RANK_CONFIG[st.session_state["rank_by"]]
+        st.number_input(
+            f"Min. {rank_by["metric_label"]}",
+            **rank_by["input_settings"],
+            key=f"min_{st.session_state['rank_by']}",
+        )
     with col2:
         st.number_input(
             "Max. Factors",

@@ -1,8 +1,11 @@
+import streamlit as st
+
 from src.core.config.environment import INTERNAL_MODE
 from src.internal.links import p123_link
 
 
-def format_analysis_error(fl_id: str, error: str) -> str:
+def format_analysis_error(error: str) -> str:
+    fl_id = st.query_params.get("fl_id")
     msg = error.split("\n")[0]
 
     if "[column-not-found]" in msg:

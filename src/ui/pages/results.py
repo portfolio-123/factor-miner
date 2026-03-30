@@ -1,6 +1,7 @@
 import streamlit as st
 import polars as pl
 
+from core.config.constants import RANK_CONFIG
 from src.core.types.models import AnalysisStatus
 from src.internal.errors import format_analysis_error
 from src.ui.components.common import render_info_item
@@ -52,12 +53,11 @@ def results() -> None:
             f"</p>"
         )
     with header_right:
-        if status == AnalysisStatus.SUCCESS or status == AnalysisStatus.FAILED:
-            if st.button("Logs", type="primary", key="header_logs", width="stretch"):
-                show_analysis_logs_modal(fl_id, analysis_id)
+        if st.button("Logs", type="primary", key="header_logs", width="stretch"):
+            show_analysis_logs_modal(analysis_id)
 
     if status == AnalysisStatus.FAILED:
-        st.error(format_analysis_error(fl_id, analysis.error or "Analysis failed"))
+        st.error(format_analysis_error(analysis.error or "Analysis failed"))
         return
 
     if status == AnalysisStatus.PENDING or status == AnalysisStatus.RUNNING:
@@ -66,12 +66,14 @@ def results() -> None:
 
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
-    rank_by = analysis.params.rank_by
 
-    # add rank column
-    sort_col = "IC" if rank_by == "IC" else "annualized_alpha_pct"
-    all_metrics_df = all_metrics_df.sort(pl.col(sort_col).abs(), descending=True)
-    all_metrics_df = all_metrics_df.with_row_index("rank", offset=1)
+    rank_by = RANK_CONFIG[analysis.params.rank_by]
+
+    all_metrics_df = all_metrics_df.sort(
+        pl.col(rank_by).abs(), descending=True
+    ).with_row_index(
+        "rank", offset=1
+    )  # TODO: necessary to sort or not?
 
     best_feature_names = analysis.results.best_feature_names
     factor_classifications = analysis.results.factor_classifications
@@ -94,14 +96,12 @@ def results() -> None:
         with st.container(border=True):
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
             p = analysis.params
-            clean_min_alpha = 0 if p.min_alpha < 1e-9 else p.min_alpha
             settings = [
-                ("Rank By", rank_by),
+                ("Rank By", rank_by["metric_label"]),
                 ("Max. Factors", p.n_factors),
                 (
-                    ("Min. IC", p.min_ic)
-                    if rank_by == "IC"
-                    else ("Min. Annual Alpha", f"{clean_min_alpha}%")
+                    rank_by["filter_label"],
+                    rank_by["format_filter"](p[f"min_{rank_by}"]),
                 ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
@@ -118,9 +118,10 @@ def results() -> None:
 
         render_analysis_notes(analysis)
 
+    metric_label = RANK_CONFIG[rank_by]["metric_label"]
+
     with best_factors_tab:
         if best_feature_names:
-            metric_label = "IC" if rank_by == "IC" else "absolute annualized alpha"
             st.caption(f"Best factors ranked by {metric_label} (highest first)")
 
             render_results_table(
@@ -151,7 +152,6 @@ def results() -> None:
             )
 
     with all_factors_tab:
-        metric_label = "IC" if rank_by == "IC" else "absolute annualized alpha"
         st.caption(
             f"All factors ranked by {metric_label} (highest first). Click column headers to sort."
         )

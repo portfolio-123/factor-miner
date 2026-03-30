@@ -8,7 +8,8 @@ from src.workers.analysis_service import AnalysisService
 
 
 @st.dialog("Analysis Logs", width="large")
-def show_analysis_logs_modal(fl_id: str, analysis_id: str):
+def show_analysis_logs_modal(analysis_id: str):
+    fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
     logs = AnalysisService(user_uid).get_logs(fl_id, analysis_id)
     if not logs:
@@ -52,10 +53,6 @@ def render_analysis_notes(analysis: Analysis):
             AnalysisService(user_uid).save(analysis, {"notes": notes_value})
 
 
-def _render_failure_message(fl_id: str, error: str | None):
-    st.error(format_analysis_error(fl_id, error or "Analysis failed"))
-
-
 def _render_progress_bar(progress: AnalysisProgress | None):
     if progress and progress.total > 0:
         progress_value = progress.completed / progress.total
@@ -79,7 +76,7 @@ def render_analysis_progress(fl_id: str, analysis_id: str):
         st.rerun(scope="app")
 
     if analysis and analysis.status == AnalysisStatus.FAILED:
-        _render_failure_message(fl_id, analysis.error)
+        st.error(format_analysis_error(analysis.error or "Analysis failed"))
         return
 
     _render_progress_bar(analysis.progress if analysis else None)

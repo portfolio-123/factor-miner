@@ -79,15 +79,6 @@ def deserialize_dataframe(data: str) -> pl.DataFrame:
     return pl.read_ipc(BytesIO(base64.b64decode(data)))
 
 
-def find_price_column(column_names: list[str], price_column_names: list[str]) -> str:
-    for name in price_column_names:
-        if name in column_names:
-            return name
-    raise ValueError(
-        f"[price-column-not-found] Dataset must include one of: {', '.join(price_column_names)}"
-    )
-
-
 def add_formula_column(
     download_df: pl.DataFrame, formulas_df: pl.DataFrame, factor_col="Factor"
 ) -> pl.DataFrame:

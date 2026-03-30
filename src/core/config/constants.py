@@ -3,13 +3,13 @@ from typing import Final
 from src.core.types.models import Frequency, ScalingMethod
 
 
-PRICE_COLUMN_NAMES: Final[list[str]] = ["Next Close", "Future Return"]
+PRICE_COLUMN: Final[str] = "NEXT_CLOSE"
 BASE_REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID"]
 
 INTERNAL_FUTURE_PERF_COL: Final[str] = "__future_perf__"
 INTERNAL_BENCHMARK_COL: Final[str] = "__benchmark__"
 
-DEFAULT_MIN_ALPHA: Final[float] = 0.5
+DEFAULT_MIN_ANNUALIZED_ALPHA_PCT: Final[float] = 0.5
 DEFAULT_TOP_PCT: Final[float] = 10
 DEFAULT_BOTTOM_PCT: Final[float] = 10
 DEFAULT_CORRELATION_THRESHOLD: Final[float] = 0.5
@@ -44,7 +44,21 @@ CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {
     "best": ("#a5d6a7", "Best Factor"),
     "correlation_conflict": ("#ef9a9a", "Correlation Conflict"),
     "high_na": ("#fff59d", "High NA %"),
-    "below_alpha": ("#ffcc80", "Below Min Alpha"),
+    "below_annualized_alpha_pct": ("#ffcc80", "Below Min Annualized Alpha"),
     "below_ic": ("#ce93d8", "Below Min IC"),
     "n_limit": ("#b0bec5", "Max. Factors Reached"),
+}
+
+
+RANK_CONFIG = {
+    "annualized_alpha_pct": {
+        "metric_label": "Absolute Annual Alpha",
+        "format_filter": lambda v: f"{v}%",
+        "input_settings": {"min_value": 0.0, "max_value": 100.0, "step": 0.1},
+    },
+    "ic": {
+        "metric_label": "IC",
+        "format_filter": lambda v: v,
+        "input_settings": {"min_value": 0.0, "max_value": 1.0, "step": 0.01},
+    },
 }

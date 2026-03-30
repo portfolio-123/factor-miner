@@ -1,13 +1,19 @@
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, NamedTuple
 
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
-
+import numpy as np
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
+
+
+class DateFactorResult(NamedTuple):
+    ic: float
+    long_ret: float
+    short_ret: float
 
 
 class FactorMetricResult(TypedDict):
@@ -16,12 +22,13 @@ class FactorMetricResult(TypedDict):
     annualized_alpha_pct: float
 
 
-class AnalysisRunResult(TypedDict):
-    all_metrics: str
-    all_corr_matrix: str
-    avg_abs_alpha: float
-    best_feature_names: list[str]
-    factor_classifications: dict[str, str]
+class ProcessFactorResult(FactorMetricResult):
+    na_pct: float
+    ic: float
+    ic_t_stat: float
+    annualized_long_pct: float
+    annualized_short_pct: float
+    returns: np.ndarray
 
 
 @dataclass(repr=False, eq=False, slots=True)
@@ -72,6 +79,7 @@ class AnalysisResults(BaseModel):
     all_corr_matrix: str
     best_feature_names: list[str] = []
     factor_classifications: dict[str, str] = {}
+    avg_abs_alpha: float = 0
 
 
 class TokenPayload(BaseModel):
@@ -129,15 +137,15 @@ class Frequency(IntEnum):
 
 
 class AnalysisParams(BaseModel):
-    min_alpha: float
+    min_annualized_alpha_pct: float
     top_pct: float
     bottom_pct: float
     correlation_threshold: float
     n_factors: int
     max_na_pct: float
     min_ic: float
-    rank_by: str = "Alpha"
-    max_return_pct: float = 200
+    rank_by: str = "annualized_alpha_pct"
+    max_return_pct: float
 
 
 class NormalizationConfig(BaseModel):

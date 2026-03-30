@@ -3,12 +3,12 @@ from src.ui.components.tables import show_formulas_modal, show_preview_modal
 from src.core.config.constants import (
     FREQUENCY_LABELS,
     PIT_METHOD_LABELS,
-    PRICE_COLUMN_NAMES,
+    PRICE_COLUMN,
     SCALING_LABELS,
 )
 from src.core.config.environment import INTERNAL_MODE
 from src.internal.links import p123_link
-from src.core.types.models import DatasetConfig, DatasetType, ScalingMethod, ScopeType
+from src.core.types.models import DatasetConfig, ScalingMethod, ScopeType
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import (
     render_info_item,
@@ -62,19 +62,8 @@ def _build_norm_items(normalization) -> list[str]:
 
 def _get_date_display(dataset_metadata: DatasetConfig) -> tuple[str, str]:
     fmt = "%Y-%m-%d"
-    if dataset_metadata.type == DatasetType.DATE:
-        value = (
-            format_date(dataset_metadata.asOfDt, fmt)
-            if dataset_metadata.asOfDt
-            else "N/A"
-        )
-        return "Date", value
-    start = (
-        format_date(dataset_metadata.startDt, fmt)
-        if dataset_metadata.startDt
-        else "N/A"
-    )
-    end = format_date(dataset_metadata.endDt, fmt) if dataset_metadata.endDt else "N/A"
+    start = format_date(dataset_metadata.startDt, fmt) or "N/A"
+    end = format_date(dataset_metadata.endDt, fmt) or "N/A"
     return "Period", f"{start} — {end}"
 
 
@@ -104,9 +93,7 @@ def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
             )
 
         formula_count = sum(
-            1
-            for f in dataset_metadata.formulas
-            if f.get("name") not in PRICE_COLUMN_NAMES
+            1 for f in dataset_metadata.formulas if f.get("name") != PRICE_COLUMN
         )
         with header_formulas:
             if st.button(
