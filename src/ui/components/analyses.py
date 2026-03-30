@@ -67,7 +67,7 @@ def _render_progress_bar(progress: AnalysisProgress | None):
         st.progress(progress_value, text=progress_text)
 
 
-@st.fragment(run_every="1s")
+@st.fragment(run_every="3s")
 def render_analysis_progress(fl_id: str, analysis_id: str):
     user_uid = st.session_state.get("user_uid")
     analysis = AnalysisService(user_uid).get(fl_id, analysis_id)

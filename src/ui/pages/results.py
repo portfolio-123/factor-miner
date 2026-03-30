@@ -1,7 +1,7 @@
 import streamlit as st
 import polars as pl
 
-from core.config.constants import RANK_CONFIG
+from src.core.config.constants import RANK_CONFIG
 from src.core.types.models import AnalysisStatus
 from src.internal.errors import format_analysis_error
 from src.ui.components.common import render_info_item
