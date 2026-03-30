@@ -19,8 +19,8 @@ Create a `.env` file with the following variables:
 DATASET_DIR=/path/to/your/data
 ```
 
-| Variable | Description |
-|----------|-------------|
+| Variable      | Description                                         |
+| ------------- | --------------------------------------------------- |
 | `DATASET_DIR` | Directory containing your `.parquet` dataset files. |
 
 ### Usage
@@ -35,10 +35,11 @@ streamlit run app.py
 
 ### Data Format
 
-Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas. A factor called "Next Close"
+Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas. A factor called "Next Close" is required.
 
 ### Results Storage
 
 Analysis results are stored in `{DATASET_DIR}/FactorMiner/`. A directory is created for each dataset, containing:
+
 - JSON files with analysis results (one per analysis)
 - A `logs/` folder with execution logs

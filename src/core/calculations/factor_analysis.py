@@ -1,11 +1,14 @@
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 from os import cpu_count
-import threading
-import traceback
 import numpy as np
 import polars as pl
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from scipy.stats import ttest_1samp
+import threading
+import traceback
+from typing import Any
+
 from src.core.calculations.utils import (
     annualize_return,
     calculate_factor_metric,
@@ -14,10 +17,7 @@ from src.core.calculations.utils import (
 )
 from src.core.types.models import AnalysisParams, DateFactorResult, ProcessFactorResult
 from src.services.dataset_service import DatasetService
-from src.core.config.constants import (
-    INTERNAL_FUTURE_PERF_COL,
-)
-from scipy.stats import ttest_1samp
+from src.core.config.constants import INTERNAL_FUTURE_PERF_COL
 
 logger = logging.getLogger("calculations")
 
@@ -28,7 +28,7 @@ def _process_factor_per_date(
     top_pct: float,
     bottom_pct: float,
     max_return_pct: float,
-) -> dict[str, float]:
+) -> DateFactorResult:
     # filter out stocks where factor or perf are nan
     valid_mask = ~np.isnan(perf_arr) & ~np.isnan(factor_arr)
     # filter out stocks where perf is over max ret %
@@ -90,20 +90,25 @@ def analyze_factors(
                     .astype(np.float32)
                 )
 
-            factor_stats_per_date: list[DateFactorResult] = [
-                _process_factor_per_date(
-                    factor_arr[mask],
-                    perf_arr[mask],
-                    params.top_pct,
-                    params.bottom_pct,
-                    params.max_return_pct,
-                )
-                for mask in factor_arr_per_date
-            ]
+            factor_stats_per_date = np.fromiter(
+                (
+                    _process_factor_per_date(
+                        factor_arr[mask],
+                        perf_arr[mask],
+                        params.top_pct,
+                        params.bottom_pct,
+                        params.max_return_pct,
+                    )
+                    for mask in factor_arr_per_date
+                ),
+                dtype="3f",
+            )
 
-            ic_per_date, long_rets, short_rets = zip(*factor_stats_per_date)
+            ic_per_date = factor_stats_per_date[:, 0]
+            long_rets = factor_stats_per_date[:, 1]
+            short_rets = factor_stats_per_date[:, 2]
 
-            longshort_rets = np.array(long_rets) - np.array(short_rets)
+            longshort_rets = long_rets - short_rets
 
             factor_metrics = calculate_factor_metric(
                 longshort_rets,
@@ -111,12 +116,12 @@ def analyze_factors(
                 periods_per_year,
             )
 
-            ic_t_stat, _ = ttest_1samp(ic_per_date, popmean=0)
+            ic_t_stat: Any = ttest_1samp(ic_per_date, popmean=0)[0]
 
             return {
                 "na_pct": round(calculate_na_pct(factor_arr), 2),
-                "ic": np.nanmean(ic_per_date),
-                "ic_t_stat": ic_t_stat,
+                "ic": float(np.nanmean(ic_per_date)),
+                "ic_t_stat": float(ic_t_stat),
                 "annualized_long_pct": annualize_return(long_rets, periods_per_year),
                 "annualized_short_pct": annualize_return(short_rets, periods_per_year),
                 "returns": longshort_rets,

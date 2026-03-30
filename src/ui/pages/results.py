@@ -67,7 +67,8 @@ def results() -> None:
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 
-    rank_by = RANK_CONFIG[analysis.params.rank_by]
+    rank_by = analysis.params.rank_by
+    rank_config = RANK_CONFIG[rank_by]
 
     all_metrics_df = all_metrics_df.sort(
         pl.col(rank_by).abs(), descending=True
@@ -97,11 +98,11 @@ def results() -> None:
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
             p = analysis.params
             settings = [
-                ("Rank By", rank_by["metric_label"]),
+                ("Rank By", rank_config["metric_label"]),
                 ("Max. Factors", p.n_factors),
                 (
-                    rank_by["filter_label"],
-                    rank_by["format_filter"](p[f"min_{rank_by}"]),
+                    rank_config["filter_label"],
+                    rank_config["format_filter"](p[f"min_{rank_by}"]),
                 ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
@@ -118,7 +119,7 @@ def results() -> None:
 
         render_analysis_notes(analysis)
 
-    metric_label = RANK_CONFIG[rank_by]["metric_label"]
+    metric_label = rank_config["metric_label"]
 
     with best_factors_tab:
         if best_feature_names:

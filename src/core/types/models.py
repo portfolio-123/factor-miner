@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
+import numpy as np
 from pathlib import Path
-from typing import TypedDict, NamedTuple
-
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
-import numpy as np
+from typing import TypedDict, NamedTuple
+
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
 
@@ -29,6 +29,18 @@ class ProcessFactorResult(FactorMetricResult):
     annualized_long_pct: float
     annualized_short_pct: float
     returns: np.ndarray
+
+
+process_factor_result_scalars = (
+    "beta",
+    "t_stat",
+    "annualized_alpha_pct",
+    "na_pct",
+    "ic",
+    "ic_t_stat",
+    "annualized_long_pct",
+    "annualized_short_pct",
+)
 
 
 @dataclass(repr=False, eq=False, slots=True)
@@ -79,7 +91,7 @@ class AnalysisResults(BaseModel):
     all_corr_matrix: str
     best_feature_names: list[str] = []
     factor_classifications: dict[str, str] = {}
-    avg_abs_alpha: float = 0
+    avg_abs_alpha: float = 0.0
 
 
 class TokenPayload(BaseModel):

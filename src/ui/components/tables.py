@@ -1,11 +1,10 @@
 from collections import Counter
 from itertools import cycle
-
 import polars as pl
 import streamlit as st
 
 from src.core.config.constants import CLASSIFICATION_COLORS, RANK_CONFIG
-from src.core.types.models import AnalysisSummary, DatasetType
+from src.core.types.models import AnalysisSummary
 from src.core.utils.common import (
     add_formula_column,
     format_date,

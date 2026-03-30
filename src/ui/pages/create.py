@@ -165,11 +165,12 @@ def _render_settings() -> None:
     section_header("Analysis Filters")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        rank_by = RANK_CONFIG[st.session_state["rank_by"]]
+        rank_by = st.session_state["rank_by"]
+        rank_config = RANK_CONFIG[rank_by]
         st.number_input(
-            f"Min. {rank_by["metric_label"]}",
-            **rank_by["input_settings"],
-            key=f"min_{st.session_state['rank_by']}",
+            f"Min. {rank_config["metric_label"]}",
+            **rank_config["input_settings"],
+            key=f"min_{rank_by}",
         )
     with col2:
         st.number_input(
