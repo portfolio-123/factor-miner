@@ -1,7 +1,7 @@
-from typing import Callable, Final
+from collections.abc import Callable
+from typing import Final, TypedDict
 
 from src.core.types.models import Frequency, ScalingMethod
-
 
 PRICE_COLUMN: Final[str] = "Next Close"
 BASE_REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID"]
@@ -49,9 +49,20 @@ CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {
     "n_limit": ("#b0bec5", "Max. Factors Reached"),
 }
 
-RANK_CONFIG: dict[
-    str, dict[str, str | Callable[[float], str | float] | dict[str, float]]
-] = {
+
+class RankConfigInputSettings(TypedDict):
+    min_value: float
+    max_value: float
+    step: float
+
+
+class RankConfigItem(TypedDict):
+    metric_label: str
+    format_filter: Callable[[float], str | float]
+    input_settings: RankConfigInputSettings
+
+
+RANK_CONFIG: dict[str, RankConfigItem] = {
     "annualized_alpha_pct": {
         "metric_label": "Absolute Annual Alpha",
         "format_filter": lambda v: f"{v}%",

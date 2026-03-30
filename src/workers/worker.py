@@ -1,11 +1,12 @@
 from collections.abc import Callable
 from datetime import datetime, timedelta
 import logging
+import polars as pl
+import numpy as np
 import sys
 import traceback
 from time import monotonic
-import polars as pl
-import polars.selectors as cs
+
 
 from src.core.config.constants import (
     INTERNAL_BENCHMARK_COL,
@@ -20,26 +21,20 @@ from src.core.types.models import (
     AnalysisUpdate,
     DatasetDetails,
     DatasetType,
-    ProcessFactorResult,
+    process_factor_result_scalars,
 )
-from src.core.utils.common import (
-    serialize_dataframe,
-    extract_benchmark_ticker,
-)
+from src.core.utils.common import serialize_dataframe, extract_benchmark_ticker
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
 from src.core.calculations.forward_returns import (
     add_future_performance_column,
     calculate_benchmark_returns,
 )
-from src.core.calculations.factor_analysis import (
-    analyze_factors,
-)
+from src.core.calculations.factor_analysis import analyze_factors
 from src.core.calculations.feature_selection import (
     calculate_correlation_matrix,
     select_best_factors,
 )
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -104,7 +99,7 @@ def run_analysis(
     logger.info("Benchmark data fetched successfully")
 
     logger.info("Analyzing factors...")
-    factor_stats: dict[str, ProcessFactorResult] = analyze_factors(
+    factor_stats = analyze_factors(
         core_df,
         benchmark_df[INTERNAL_BENCHMARK_COL].to_numpy(),
         dataset_svc,
@@ -121,21 +116,26 @@ def run_analysis(
 
     logger.info("Calculating factor metrics...")
     benchmark_df = benchmark_df.head(len(benchmark_df) - 1)
-    wide_data = {"Date": benchmark_df["Date"]}
-    results = []
+    wide_data: dict[str, np.ndarray] = {}
+    results: list[dict[str, str | float]] = []
     for factor, data in factor_stats.items():
-        wide_data[factor] = data["returns"]
-        results.append(
-            {"column": factor, **{k: v for k, v in data.items() if k != "returns"}}
-        )
+        data["column"] = factor  # type: ignore
+        wide_data[factor] = data.pop("returns")  # type: ignore
+        results.append(data)  # type: ignore
 
-    factor_returns_wide = pl.DataFrame(wide_data)
-    metrics_df = pl.DataFrame(results).cast({cs.by_dtype(pl.Float64): pl.Float32})
+    factor_returns_wide = pl.DataFrame(
+        wide_data, schema=[(f, pl.Float32) for f in factor_columns]
+    )
+    metrics_df = pl.DataFrame(
+        results,
+        schema=[
+            ("column", pl.Utf8),
+            *((col, pl.Float32) for col in process_factor_result_scalars),
+        ],
+    )
 
     logger.info("Calculating correlation matrix...")
-    corr_matrix = calculate_correlation_matrix(factor_returns_wide.drop("Date")).cast(
-        {cs.by_dtype(pl.Float64): pl.Float32}
-    )
+    corr_matrix = calculate_correlation_matrix(factor_returns_wide)
 
     best_factors, factor_classifications = select_best_factors(
         metrics_df,
@@ -184,10 +184,11 @@ def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str |
         nonlocal analysis, last_progress_write_at
         assert analysis is not None
 
-        if "progress" in updates:
+        progress = updates.get("progress")
+        if progress is not None:
             now = monotonic()
             if (
-                updates["progress"].completed != updates["progress"].total
+                progress.completed != progress.total
             ) and now - last_progress_write_at < 3:
                 return
             last_progress_write_at = now
