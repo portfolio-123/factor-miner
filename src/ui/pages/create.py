@@ -1,16 +1,6 @@
 import streamlit as st
 
-from src.core.config.constants import (
-    DEFAULT_MIN_ANNUALIZED_ALPHA_PCT,
-    DEFAULT_TOP_PCT,
-    DEFAULT_BOTTOM_PCT,
-    DEFAULT_CORRELATION_THRESHOLD,
-    DEFAULT_N_FACTORS,
-    DEFAULT_MAX_NA_PCT,
-    DEFAULT_MIN_IC,
-    DEFAULT_MAX_RETURN_PCT,
-    RANK_CONFIG,
-)
+from src.core.config.constants import RANK_CONFIG
 from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import AnalysisParams
 from src.internal.links import p123_link
@@ -18,29 +8,6 @@ from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
 from src.ui.components.datasets import render_dataset_card
 from src.workers.analysis_service import AnalysisService
-
-
-def _collect_params() -> AnalysisParams:
-    return AnalysisParams(
-        **{
-            key: st.session_state.get(key, default)
-            for key, default in _get_default_settings().items()
-        }
-    )
-
-
-def _get_default_settings() -> dict:
-    return {
-        "rank_by": "annualized_alpha_pct",
-        "top_pct": DEFAULT_TOP_PCT,
-        "bottom_pct": DEFAULT_BOTTOM_PCT,
-        "min_annualized_alpha_pct": DEFAULT_MIN_ANNUALIZED_ALPHA_PCT,
-        "min_ic": DEFAULT_MIN_IC,
-        "n_factors": DEFAULT_N_FACTORS,
-        "max_na_pct": DEFAULT_MAX_NA_PCT,
-        "correlation_threshold": DEFAULT_CORRELATION_THRESHOLD,
-        "max_return_pct": DEFAULT_MAX_RETURN_PCT,
-    }
 
 
 def _load_last_analysis_params() -> None:
@@ -51,10 +18,7 @@ def _load_last_analysis_params() -> None:
         st.toast("No previous analyses found for this dataset")
         return
 
-    # list_all returns sorted by created_at desc, so first is most recent
-    last_params = analyses[0].params
-
-    for key, value in last_params.model_dump().items():
+    for key, value in analyses[0].params.model_dump().items():
         st.session_state[key] = value
 
 
@@ -67,7 +31,9 @@ def _submit_analysis() -> None:
     analysis_id = AnalysisService(user_uid).next_analysis_id(fl_id)
 
     try:
-        params = _collect_params()
+        params = AnalysisParams(
+            **{field: st.session_state[field] for field in AnalysisParams.model_fields}
+        )
         AnalysisService(user_uid).start(
             fl_id,
             analysis_id,
@@ -126,11 +92,10 @@ def create_form() -> None:
 
 
 def _render_settings() -> None:
-    defaults = _get_default_settings()
-
-    for key, default_value in defaults.items():
+    defaults = AnalysisParams()
+    for key, value in defaults.model_dump().items():
         if key not in st.session_state:
-            st.session_state[key] = default_value
+            st.session_state[key] = value
 
     section_header("Portfolio Settings")
     col1, col2, col3 = st.columns(3)
@@ -202,7 +167,7 @@ def _render_settings() -> None:
     with col5:
         st.number_input(
             "Max. Return %",
-            min_value=50.0,
+            min_value=20.0,
             max_value=1000.0,
             step=10.0,
             key="max_return_pct",

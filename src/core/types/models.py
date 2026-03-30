@@ -149,15 +149,15 @@ class Frequency(IntEnum):
 
 
 class AnalysisParams(BaseModel):
-    min_annualized_alpha_pct: float
-    top_pct: float
-    bottom_pct: float
-    correlation_threshold: float
-    n_factors: int
-    max_na_pct: float
-    min_ic: float
     rank_by: str = "annualized_alpha_pct"
-    max_return_pct: float
+    top_pct: float = 10.0
+    bottom_pct: float = 10.0
+    min_annualized_alpha_pct: float = 0.5
+    min_ic: float = 0.015
+    n_factors: int = 10
+    max_na_pct: float = 40.0
+    correlation_threshold: float = 0.5
+    max_return_pct: float = 200.0
 
 
 class NormalizationConfig(BaseModel):

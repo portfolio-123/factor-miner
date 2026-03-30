@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from datetime import datetime, timedelta
 import logging
 import polars as pl
 import numpy as np
@@ -11,6 +10,7 @@ from time import monotonic
 from src.core.config.constants import (
     INTERNAL_BENCHMARK_COL,
     BASE_REQUIRED_COLUMNS,
+    INTERNAL_FUTURE_PERF_COL,
     PRICE_COLUMN,
 )
 from src.core.types.models import (
@@ -74,27 +74,23 @@ def run_analysis(
         .with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
     )
 
-    # calculate future performance column and add it to the initial dataframe
     core_df = add_future_performance_column(core_df, PRICE_COLUMN).drop(PRICE_COLUMN)
+    core_df = core_df.with_row_index("_orig_idx").filter(
+        pl.col(INTERNAL_FUTURE_PERF_COL).is_not_null()
+    )
 
     logger.info("Calculating benchmark returns...")
 
-    forward_days = dataset_info.frequency.calendar_days + 7
-    end_dt = min(
-        datetime.strptime(dataset_info.endDt[:10], "%Y-%m-%d")
-        + timedelta(days=forward_days),
-        datetime.now(),
-    )
     benchmark_prices = DatasetService.fetch_benchmark(
         ticker=extract_benchmark_ticker(dataset_info.benchName),
         start_date=dataset_info.startDt[:10],
-        end_date=end_dt.strftime("%Y-%m-%d"),
+        end_date=dataset_info.endDt[:10],
         access_token=access_token,
     )
 
-    core_dates = core_df.select("Date").unique().sort("Date")
-    benchmark_df = calculate_benchmark_returns(core_dates, benchmark_prices)
-    benchmark_df = benchmark_df.head(len(core_dates))
+    benchmark_df = calculate_benchmark_returns(
+        core_df.select("Date").unique().sort("Date"), benchmark_prices
+    )
 
     logger.info("Benchmark data fetched successfully")
 
@@ -115,7 +111,6 @@ def run_analysis(
         raise ValueError("No results from factor analysis")
 
     logger.info("Calculating factor metrics...")
-    benchmark_df = benchmark_df.head(len(benchmark_df) - 1)
     wide_data: dict[str, np.ndarray] = {}
     results: list[dict[str, str | float]] = []
     for factor, data in factor_stats.items():

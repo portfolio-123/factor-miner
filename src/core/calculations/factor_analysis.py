@@ -125,10 +125,6 @@ def analyze_factors(
             ic_per_date = np.array(ic_per_date)
             ic_valid = ic_per_date[~np.isnan(ic_per_date)]
             ic_t_stat: Any = ttest_1samp(ic_valid, popmean=0)[0]
-            logger.info(f"mean long_ret per period: {np.nanmean(long_rets)}")
-            logger.info(f"mean short_ret per period: {np.nanmean(short_rets)}")
-            logger.info(f"periods_per_year: {periods_per_year}")
-            logger.info(f"num periods: {len(long_rets)}")
             return {
                 "na_pct": round(calculate_na_pct(factor_arr), 2),
                 "ic": float(np.nanmean(ic_per_date)),
