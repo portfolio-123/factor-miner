@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import datetime, timedelta
 import logging
 import sys
 import traceback
@@ -6,8 +7,6 @@ from time import monotonic
 import polars as pl
 import polars.selectors as cs
 
-
-from src.core.calculations.utils import calculate_factor_metric
 from src.core.config.constants import (
     INTERNAL_BENCHMARK_COL,
     BASE_REQUIRED_COLUMNS,
@@ -85,16 +84,22 @@ def run_analysis(
 
     logger.info("Calculating benchmark returns...")
 
+    forward_days = dataset_info.frequency.calendar_days + 7
+    end_dt = min(
+        datetime.strptime(dataset_info.endDt[:10], "%Y-%m-%d")
+        + timedelta(days=forward_days),
+        datetime.now(),
+    )
     benchmark_prices = DatasetService.fetch_benchmark(
         ticker=extract_benchmark_ticker(dataset_info.benchName),
         start_date=dataset_info.startDt[:10],
-        end_date=dataset_info.endDt[:10],
+        end_date=end_dt.strftime("%Y-%m-%d"),
         access_token=access_token,
     )
 
-    benchmark_df = calculate_benchmark_returns(
-        core_df.select(["Date"]).unique().sort("Date"), benchmark_prices
-    )
+    core_dates = core_df.select("Date").unique().sort("Date")
+    benchmark_df = calculate_benchmark_returns(core_dates, benchmark_prices)
+    benchmark_df = benchmark_df.head(len(core_dates))
 
     logger.info("Benchmark data fetched successfully")
 
@@ -115,7 +120,7 @@ def run_analysis(
         raise ValueError("No results from factor analysis")
 
     logger.info("Calculating factor metrics...")
-
+    benchmark_df = benchmark_df.head(len(benchmark_df) - 1)
     wide_data = {"Date": benchmark_df["Date"]}
     results = []
     for factor, data in factor_stats.items():

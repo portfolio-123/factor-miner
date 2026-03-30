@@ -5,7 +5,7 @@ import polars as pl
 import streamlit as st
 
 from src.core.config.constants import CLASSIFICATION_COLORS, RANK_CONFIG
-from src.core.types.models import AnalysisSummary, DatasetType
+from src.core.types.models import AnalysisSummary
 from src.core.utils.common import (
     add_formula_column,
     format_date,
@@ -25,7 +25,7 @@ COLUMN_RENAMES = {
     "t_stat": "T-Stat",
     "beta": "Beta",
     "rank": "Rank",
-    "IC": "IC",
+    "ic": "IC",
     "ic_t_stat": "IC t-stat",
 }
 
@@ -228,10 +228,6 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         links.append(f"/results?fl_id={a.fl_id}&id={a.id}")
         version_list.append(a.dataset_version)
 
-        metric_str = (
-            f'"{RANK_CONFIG[a.params.rank_by]}": {a.params[f"min_{a.params.rank_by}"]}'
-        )
-
         rows_data.append(
             {
                 "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M UTC"),
@@ -239,14 +235,15 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
                 "Universe": dataset.universeName,
                 "Best Factors": f"{a.best_factors_count or 0}/{len(dataset.formulas)}",
                 "Rows": f"{dataset.numRows:,}",
-                "Avg|α|": f"{a.avg_abs_alpha:.2f}%",
+                "Avg|α|": f"{(a.avg_abs_alpha or 0):.2f}%",
                 "Period": f"{format_date(dataset.startDt, '%Y-%m-%d')} — {format_date(dataset.endDt, '%Y-%m-%d')}",
                 "Dataset Created": (
                     format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M UTC")
                     + (" 🟢" if dataset and dataset.active else "")
                 ),
                 "Parameters": (
-                    f'{{"max.n": {a.params.n_factors}, {metric_str}, '
+                    f'{{"max.n": {a.params.n_factors}, '
+                    f'"{a.params.rank_by}": {getattr(a.params, f"min_{a.params.rank_by}")}, '
                     f'"corr": {a.params.correlation_threshold}, '
                     f'"top": "{int(a.params.top_pct)}%", "btm": "{int(a.params.bottom_pct)}%", '
                     f'"max.ret": "{int(a.params.max_return_pct)}%"}}'

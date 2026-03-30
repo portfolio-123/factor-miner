@@ -67,7 +67,8 @@ def results() -> None:
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 
-    rank_by = RANK_CONFIG[analysis.params.rank_by]
+    rank_by = analysis.params.rank_by
+    rank_config = RANK_CONFIG[rank_by]
 
     all_metrics_df = all_metrics_df.sort(
         pl.col(rank_by).abs(), descending=True
@@ -97,14 +98,15 @@ def results() -> None:
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
             p = analysis.params
             settings = [
-                ("Rank By", rank_by["metric_label"]),
+                ("Rank By", rank_config["metric_label"]),
                 ("Max. Factors", p.n_factors),
                 (
-                    rank_by["filter_label"],
-                    rank_by["format_filter"](p[f"min_{rank_by}"]),
+                    f"Min. {rank_config["metric_label"]}",
+                    rank_config["format_filter"](getattr(p, f"min_{rank_by}")),
                 ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
+                ("Max Return", f"{p.max_return_pct}%"),
                 ("Benchmark", dataset_metadata.benchName),
                 ("Top X (Long)", f"{p.top_pct}%"),
                 ("Bottom X (Short)", f"{p.bottom_pct}%"),
@@ -118,11 +120,11 @@ def results() -> None:
 
         render_analysis_notes(analysis)
 
-    metric_label = RANK_CONFIG[rank_by]["metric_label"]
-
     with best_factors_tab:
         if best_feature_names:
-            st.caption(f"Best factors ranked by {metric_label} (highest first)")
+            st.caption(
+                f"Best factors ranked by {rank_config["metric_label"]} (highest first)"
+            )
 
             render_results_table(
                 all_metrics_df.filter(pl.col("column").is_in(best_feature_names)),
@@ -153,7 +155,7 @@ def results() -> None:
 
     with all_factors_tab:
         st.caption(
-            f"All factors ranked by {metric_label} (highest first). Click column headers to sort."
+            f"All factors ranked by {rank_config["metric_label"]} (highest first). Click column headers to sort."
         )
 
         render_results_table(

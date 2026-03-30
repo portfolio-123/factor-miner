@@ -5,11 +5,8 @@ from src.core.types.models import AnalysisParams
 
 
 def calculate_correlation_matrix(factor_returns_wide: pl.DataFrame) -> pl.DataFrame:
-    return (
-        factor_returns_wide.drop_nulls()
-        .corr(label="factor")
-        .with_columns(pl.all().exclude("factor"))
-    )
+    df = factor_returns_wide.select(pl.exclude("factor")).drop_nulls()
+    return df.corr().insert_column(0, pl.Series("factor", df.columns))
 
 
 def select_best_factors(

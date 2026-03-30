@@ -28,7 +28,7 @@ def _process_factor_per_date(
     top_pct: float,
     bottom_pct: float,
     max_return_pct: float,
-) -> dict[str, float]:
+):
     # filter out stocks where factor or perf are nan
     valid_mask = ~np.isnan(perf_arr) & ~np.isnan(factor_arr)
     # filter out stocks where perf is over max ret %
@@ -75,7 +75,6 @@ def analyze_factors(
     unique_dates, date_index_by_row = np.unique(
         df["Date"].to_numpy(), return_inverse=True
     )
-
     factor_arr_per_date = [date_index_by_row == i for i in range(len(unique_dates))]
 
     completed_count = 0
@@ -103,22 +102,39 @@ def analyze_factors(
 
             ic_per_date, long_rets, short_rets = zip(*factor_stats_per_date)
 
-            longshort_rets = np.array(long_rets) - np.array(short_rets)
+            long_rets = np.array(long_rets)
+            short_rets = np.array(short_rets)
+
+            valid = ~(
+                np.isnan(long_rets) | np.isnan(short_rets) | np.isnan(benchmark_returns)
+            )
+            long_rets = long_rets[valid]
+            short_rets = short_rets[valid]
+            benchmark_returns_valid = benchmark_returns[valid]
+
+            longshort_rets = long_rets - short_rets
 
             factor_metrics = calculate_factor_metric(
-                longshort_rets,
-                benchmark_returns,
+                long_rets,
+                benchmark_returns_valid,
                 periods_per_year,
             )
 
-            ic_t_stat, _ = ttest_1samp(ic_per_date, popmean=0)
-
+            ic_per_date = np.array(ic_per_date)
+            ic_valid = ic_per_date[~np.isnan(ic_per_date)]
+            ic_t_stat, _ = ttest_1samp(ic_valid, popmean=0)
+            logger.info(f"mean long_ret per period: {np.nanmean(long_rets)}")
+            logger.info(f"mean short_ret per period: {np.nanmean(short_rets)}")
+            logger.info(f"periods_per_year: {periods_per_year}")
+            logger.info(f"num periods: {len(long_rets)}")
             return {
                 "na_pct": round(calculate_na_pct(factor_arr), 2),
                 "ic": np.nanmean(ic_per_date),
                 "ic_t_stat": ic_t_stat,
-                "annualized_long_pct": annualize_return(long_rets, periods_per_year),
-                "annualized_short_pct": annualize_return(short_rets, periods_per_year),
+                "annualized_long_pct": annualize_return(long_rets, periods_per_year)
+                * 100,
+                "annualized_short_pct": annualize_return(short_rets, periods_per_year)
+                * 100,
                 "returns": longshort_rets,
                 **factor_metrics,
             }
