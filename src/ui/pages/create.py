@@ -1,6 +1,6 @@
 import streamlit as st
-
-from src.core.config.constants import RANK_CONFIG
+import polars as pl
+from src.core.config.constants import PRICE_COLUMN, RANK_CONFIG
 from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import AnalysisParams
 from src.internal.links import p123_link
@@ -8,6 +8,33 @@ from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
 from src.ui.components.datasets import render_dataset_card
 from src.workers.analysis_service import AnalysisService
+
+
+@st.dialog("Factor Sorting", width="large")
+def factor_sorting_dialog(factors_df: pl.DataFrame, asc_factors: list[str]):
+
+    df_with_check = factors_df.with_columns(
+        pl.col("name").is_in(asc_factors).alias("asc")
+    )
+
+    edited = st.data_editor(
+        df_with_check,
+        column_config={
+            "asc": st.column_config.CheckboxColumn("Asc (Lower Values)", width="small")
+        },
+        disabled=[col for col in factors_df.columns],
+        hide_index=True,
+    )
+
+    _, col_cancel, col_save = st.columns([5, 1, 1])
+    with col_cancel:
+        if st.button("Cancel", width="stretch"):
+            st.rerun()
+    with col_save:
+        if st.button("Save Changes", type="primary", width="stretch"):
+            selected_formulas = edited.filter(pl.col("asc"))["name"].to_list()
+            st.session_state["asc_factors"] = selected_formulas
+            st.rerun()
 
 
 def _load_last_analysis_params() -> None:
@@ -62,6 +89,7 @@ def create_form() -> None:
     try:
         with DatasetService(st.session_state["dataset_details"]) as svc:
             active_dataset_metadata = svc.get_metadata()
+            st.session_state["formulas_data"] = active_dataset_metadata.formulas_df
     except FileNotFoundError:
         st.warning(
             f"No dataset found for this Factor List. [Generate]({p123_link(fl_id, 'generate')})"
@@ -98,7 +126,7 @@ def _render_settings() -> None:
             st.session_state[key] = value
 
     section_header("Portfolio Settings")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.radio(
             "Rank By",
@@ -127,8 +155,29 @@ def _render_settings() -> None:
             help="Percentage of bottom-ranked stocks to short (0 = long-only)",
         )
 
+    with col4:
+        st.number_input(
+            "Max. Return %",
+            min_value=20.0,
+            max_value=1000.0,
+            step=10.0,
+            key="max_return_pct",
+            help="Exclude date-stock pairs where return exceeds this %",
+        )
+
+    analyzable_factors = st.session_state["formulas_data"].filter(
+        pl.col("name") != PRICE_COLUMN
+    )
+
+    asc_factors = st.session_state.get("asc_factors", [])
+
+    if st.button(
+        f"Factor Sorting ({len(analyzable_factors) - len(asc_factors)} desc, {len(asc_factors)} asc)"
+    ):
+        factor_sorting_dialog(analyzable_factors, asc_factors)
+
     section_header("Analysis Filters")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         rank_by = st.session_state["rank_by"]
         rank_config = RANK_CONFIG[rank_by]
@@ -163,13 +212,4 @@ def _render_settings() -> None:
             step=0.05,
             key="correlation_threshold",
             help="Maximum allowed correlation between selected factors",
-        )
-    with col5:
-        st.number_input(
-            "Max. Return %",
-            min_value=20.0,
-            max_value=1000.0,
-            step=10.0,
-            key="max_return_pct",
-            help="Exclude date-stock pairs where return exceeds this %",
         )

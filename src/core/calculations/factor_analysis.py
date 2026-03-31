@@ -28,6 +28,7 @@ def _process_factor_per_date(
     top_pct: float,
     bottom_pct: float,
     max_return_pct: float,
+    ascending: bool,
 ):
     # filter out stocks where factor or perf are nan
     valid_mask = ~np.isnan(perf_arr) & ~np.isnan(factor_arr)
@@ -39,8 +40,8 @@ def _process_factor_per_date(
 
     ic = weighted_ic(factor_valid, perf_valid)
 
-    # sort by factor, ascending. first positions are bottom bucket, last are top bucket
-    sort_by_factor = np.argsort(factor_valid)
+    # sort by factor value. (can be ascending or descending)
+    sort_by_factor = np.argsort(-factor_valid if ascending else factor_valid)
     perf_sorted_by_factor = perf_valid[sort_by_factor]
 
     # amount of stocks that fit in each bucket
@@ -97,6 +98,7 @@ def analyze_factors(
                         params.top_pct,
                         params.bottom_pct,
                         params.max_return_pct,
+                        factor in params.asc_factors,
                     )
                     for mask in factor_arr_per_date
                 ),
@@ -133,6 +135,7 @@ def analyze_factors(
                 * 100,
                 "annualized_short_pct": annualize_return(short_rets, periods_per_year)
                 * 100,
+                "asc": factor in params.asc_factors,
                 "returns": longshort_rets,
                 **factor_metrics,
             }

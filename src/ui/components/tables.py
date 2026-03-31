@@ -3,7 +3,7 @@ from itertools import cycle
 import polars as pl
 import streamlit as st
 
-from src.core.config.constants import CLASSIFICATION_COLORS, RANK_CONFIG
+from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisSummary
 from src.core.utils.common import (
     add_formula_column,
@@ -20,6 +20,7 @@ COLUMN_RENAMES = {
     "annualized_alpha_pct": "Ann. Alpha %",
     "annualized_long_pct": "Ann. Long %",
     "annualized_short_pct": "Ann. Short %",
+    "asc": "Asc",
     "na_pct": "NA %",
     "t_stat": "T-Stat",
     "beta": "Beta",
@@ -31,6 +32,7 @@ COLUMN_RENAMES = {
 DISPLAY_COLUMNS = [
     "Rank",
     "Factor",
+    "Asc",
     "Tag",
     "Ann. Alpha %",
     "Beta",
@@ -182,6 +184,10 @@ def render_results_table(
         ).rename({"tag": "Tag"})
     else:
         display = display.with_columns(pl.lit("").alias("Tag"))
+
+    display = display.with_columns(
+        pl.when(pl.col("Asc") == 1).then(pl.lit("✓")).otherwise(pl.lit("")).alias("Asc")
+    )
 
     display = display.select(DISPLAY_COLUMNS)
 

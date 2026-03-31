@@ -7,6 +7,7 @@ import traceback
 from time import monotonic
 
 
+from src.core.calculations.utils import annualize_return, cumulative_return
 from src.core.config.constants import (
     INTERNAL_BENCHMARK_COL,
     BASE_REQUIRED_COLUMNS,
@@ -92,7 +93,20 @@ def run_analysis(
         core_df.select("Date").unique().sort("Date"), benchmark_prices
     )
 
-    logger.info("Benchmark data fetched successfully")
+    valid_benchmark = benchmark_df[INTERNAL_BENCHMARK_COL].drop_nulls().to_numpy()
+
+    logger.info(
+        "Benchmark: cumulative %+.2f%%, annualized %+.2f%%",
+        cumulative_return(valid_benchmark) * 100,
+        annualize_return(valid_benchmark, periods_per_year) * 100,
+    )
+
+    # log all the benchmark prices by date
+    lines = "\n".join(
+        f"{row[0]}  {'N/A' if row[1] is None else f'{row[1] * 100:+.2f}%'}"
+        for row in benchmark_df.iter_rows()
+    )
+    logger.info("Benchmark returns by period:\n%s", lines)
 
     logger.info("Analyzing factors...")
     factor_stats = analyze_factors(

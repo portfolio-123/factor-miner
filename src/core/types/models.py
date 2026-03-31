@@ -29,6 +29,7 @@ class ProcessFactorResult(FactorMetricResult):
     annualized_long_pct: float
     annualized_short_pct: float
     returns: np.ndarray
+    asc: bool
 
 
 process_factor_result_scalars = (
@@ -40,6 +41,7 @@ process_factor_result_scalars = (
     "ic_t_stat",
     "annualized_long_pct",
     "annualized_short_pct",
+    "asc",
 )
 
 
@@ -158,6 +160,7 @@ class AnalysisParams(BaseModel):
     max_na_pct: float = 40.0
     correlation_threshold: float = 0.5
     max_return_pct: float = 200.0
+    asc_factors: list[str] = []
 
 
 class NormalizationConfig(BaseModel):
