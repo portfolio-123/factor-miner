@@ -17,7 +17,7 @@ def factor_sorting_dialog(factors_df: pl.DataFrame, asc_factors: list[str]):
         pl.col("name").is_in(asc_factors).alias("asc")
     )
 
-    edited = st.data_editor(
+    edited: pl.DataFrame = st.data_editor(  # type: ignore[assignment]
         df_with_check,
         column_config={
             "asc": st.column_config.CheckboxColumn("Asc (Lower Values)", width="small")
@@ -32,10 +32,7 @@ def factor_sorting_dialog(factors_df: pl.DataFrame, asc_factors: list[str]):
             st.rerun()
     with col_save:
         if st.button("Save Changes", type="primary", width="stretch"):
-            edited_pl = pl.from_pandas(
-                edited
-            )  # st.data_editor returns a pandas dataframe, convert back to polars
-            selected_formulas = edited_pl.filter(pl.col("asc"))["name"].to_list()
+            selected_formulas = edited.filter(pl.col("asc"))["name"].to_list()
             st.session_state["asc_factors"] = selected_formulas
             st.rerun()
 
