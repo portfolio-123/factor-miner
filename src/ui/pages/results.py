@@ -44,7 +44,7 @@ def results() -> None:
 
     analysis_service = AnalysisService(user_uid)
     analysis = analysis_service.get(fl_id, analysis_id)
-    if not analysis or not analysis.results:
+    if not analysis:
         st.error("Analysis not found")
         return
 
@@ -78,6 +78,9 @@ def results() -> None:
         render_analysis_progress(fl_id, analysis_id)
         return
 
+    if not analysis.results:
+        st.error("No results found for this analysis")
+        return
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 

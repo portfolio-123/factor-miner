@@ -85,7 +85,7 @@ class DatasetService:
     def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
         return self._reader.read_columns_pl(columns)
 
-    def read_column_pa(self, column: str) -> pa.ChunkedArray[pa.DoubleScalar]:
+    def read_column_pa(self, column: str) -> pa.ChunkedArray:
         return self._reader.read_column_pa(column)
 
     def back_up_metadata(self, dest_path: Path) -> None:

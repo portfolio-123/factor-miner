@@ -201,7 +201,7 @@ class DatasetConfig(BaseModel):
     precision: int
     normalization: bool = False
     preprocessor: NormalizationConfig | None = None
-    formulas: FormulasDataFrame
+    formulas: list[FormulasDataFrame]
     pitMethod: int
     active: bool = False
     numRows: int | None = None

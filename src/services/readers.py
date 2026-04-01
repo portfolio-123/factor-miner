@@ -46,7 +46,7 @@ class ParquetDataReader(AbstractContextManager["ParquetDataReader"]):
     def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
         return pl.read_parquet(self.path, columns=columns)
 
-    def read_column_pa(self, column: str) -> pa.ChunkedArray[pa.DoubleScalar]:
+    def read_column_pa(self, column: str) -> pa.ChunkedArray:
         return self._parquet_file.read([column]).column(0)  # type: ignore[arg-type]
 
     def read_preview(self, num_rows: int = 10) -> Preview:
