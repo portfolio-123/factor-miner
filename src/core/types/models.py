@@ -110,6 +110,11 @@ class TokenPayload(BaseModel):
     user_uid: str | None = Field(default=None, alias="sub")
 
 
+class P123AuthKeys(TypedDict):
+    apiId: int
+    apiKey: str
+
+
 class ScalingMethod(StrEnum):
     NORMAL = "normal"
     MINMAX = "minmax"
@@ -171,7 +176,7 @@ class AnalysisParams(BaseModel):
 class NormalizationConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    scaling: str
+    scaling: ScalingMethod
     scope: str
     trimPct: float | None = None
     outliers: str | None = None
@@ -190,7 +195,7 @@ class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     version: str
-    factorListName: str | None = None
+    factorListName: str
     universeName: str
     frequency: Frequency
     currency: str

@@ -9,7 +9,7 @@ from src.services.dataset_service import BackupDatasetService, DatasetService
 def list_user_datasets(user_uid: str) -> dict[str, str]:
     user_dir = Path(DATASET_DIR, user_uid)
     factor_miner_dir = Path(user_dir, "FactorMiner")
-    results = {}
+    results: dict[str, str] = {}
 
     try:
         for f in filter(Path.is_file, user_dir.iterdir()):

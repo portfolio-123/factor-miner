@@ -8,7 +8,7 @@ def get_cookie(key: str) -> str | None:
     return st.context.cookies.get(key)
 
 
-def set_cookie(name: str, value: str, days=1):
+def set_cookie(name: str, value: str, days: int = 1):
     html = f"""<script>document.cookie = "{name}={value}; path=/; max-age={days * 86400}";</script>"""
     components.html(html, height=0)
 

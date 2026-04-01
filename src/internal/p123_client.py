@@ -1,17 +1,30 @@
+from typing import Any
+
 import polars as pl
 import requests
 
+from src.core.types.models import P123AuthKeys
 from src.internal.config import API_BASE_URL
 
 
 def _request(
-    method: str, endpoint: str, token: str | None = None, timeout: int = 30, **kwargs
+    method: str,
+    endpoint: str,
+    token: str | None = None,
+    timeout: int = 30,
+    json: Any = None,
+    params: Any = None,
 ) -> requests.Response:
     headers = {"Content-Type": "application/json", "Source": "FactorMiner"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     response = requests.request(
-        method, f"{API_BASE_URL}{endpoint}", headers=headers, timeout=timeout, **kwargs
+        method,
+        f"{API_BASE_URL}{endpoint}",
+        headers=headers,
+        timeout=timeout,
+        json=json,
+        params=params,
     )
     response.raise_for_status()
     return response
@@ -19,7 +32,7 @@ def _request(
 
 def authenticate(apiId: int, apiKey: str) -> str:
     try:
-        auth_data = {"apiId": apiId, "apiKey": apiKey}
+        auth_data: P123AuthKeys = {"apiId": apiId, "apiKey": apiKey}
         response = _request("POST", "/auth", json=auth_data, timeout=10)
         return response.text.strip('"')
     except Exception:

@@ -23,7 +23,7 @@ def select_best_factors(
     # sort factors by rank_by metric, best first
     sorted_metrics = metrics_df.sort(pl.col(params.rank_by).abs(), descending=True)
     # array containing all factor names
-    factors = sorted_metrics["column"].to_list()
+    factors: list[str] = sorted_metrics["column"].to_list()
     factor_idx = np.array([col_to_idx[f] for f in factors])
 
     valid_rank_by = np.abs(sorted_metrics[params.rank_by].to_numpy()) >= getattr(
@@ -31,9 +31,9 @@ def select_best_factors(
     )
     valid_na = sorted_metrics["na_pct"].to_numpy() <= params.max_na_pct
 
-    classifications = {}
-    selected_features = []
-    selected_indices = []
+    classifications: dict[str, str] = {}
+    selected_features: list[str] = []
+    selected_indices: list[int] = []
 
     # go through each factor, check filters 1 by 1. if all filters pass, classify as best factor
     for i, feature in enumerate(factors):

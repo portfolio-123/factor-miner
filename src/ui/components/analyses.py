@@ -10,6 +10,7 @@ from src.workers.analysis_service import AnalysisService
 @st.dialog("Analysis Logs", width="large")
 def show_analysis_logs_modal(analysis_id: str):
     fl_id = st.query_params.get("fl_id")
+    assert fl_id
     user_uid = st.session_state.get("user_uid")
     logs = AnalysisService(user_uid).get_logs(fl_id, analysis_id)
     if not logs:

@@ -7,7 +7,7 @@ def render_copy_download_buttons(
     csv_download: str,
     file_name: str,
     key_prefix: str,
-    toast_msg="Copied to clipboard",
+    toast_msg: str = "Copied to clipboard",
 ):
     """Render copy-to-clipboard and download CSV buttons."""
     _, col1, col2 = st.columns([3, 1, 1])
@@ -45,7 +45,7 @@ def section_header(title: str):
     )
 
 
-def render_info_item(label: str, value: str | int | float, muted=False):
+def render_info_item(label: str, value: str | int | float, muted: bool = False):
     value_color = "#6c757d" if muted else "#212529"
     return f"""<div style="display: flex; flex-direction: column;">
         <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">{label}</div>
@@ -70,5 +70,5 @@ def get_card_header_html(title: str):
     )
 
 
-def spacer(height=16):
+def spacer(height: int = 16):
     st.html(f'<div style="height: {height}px;"></div>')

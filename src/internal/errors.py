@@ -6,6 +6,7 @@ from src.internal.links import p123_link
 
 def format_analysis_error(error: str) -> str:
     fl_id = st.query_params.get("fl_id")
+    assert fl_id
     msg = error.split("\n")[0]
 
     if "[column-not-found]" in msg:
