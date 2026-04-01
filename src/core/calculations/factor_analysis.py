@@ -82,6 +82,8 @@ def analyze_factors(
     with ThreadPoolExecutor(max_workers=min(8, cpu_count() or 4)) as executor:
         lock = threading.Lock()
 
+        first_factor_already_logged = False
+
         def do_process_factor(factor: str) -> ProcessFactorResult:
             with lock:
                 factor_arr = (
@@ -127,6 +129,35 @@ def analyze_factors(
             ic_per_date = np.array(ic_per_date)
             ic_valid = ic_per_date[~np.isnan(ic_per_date)]
             ic_t_stat: Any = ttest_1samp(ic_valid, popmean=0)[0]
+
+            # log first factor metrics for debugging
+            nonlocal first_factor_already_logged
+            if not first_factor_already_logged:
+                first_factor_already_logged = True
+                total_alpha_pct = 100 * (
+                    (1 + factor_metrics["annualized_alpha_pct"] / 100)
+                    ** (len(unique_dates) / periods_per_year)
+                    - 1
+                )
+                lines = "\n".join(
+                    f"  {date}"
+                    f"  long={factor_stats_per_date[i, 1]*100:.2f}%"
+                    f"  short={factor_stats_per_date[i, 2]*100:.2f}%"
+                    f"  factor={np.nanmean(factor_arr[factor_arr_per_date[i]]):.2f}"
+                    f"  perf={np.nanmean(perf_arr[factor_arr_per_date[i]])*100:.2f}%"
+                    for i, date in enumerate(unique_dates)
+                )
+                logger.info(
+                    "First factor breakdown by date [%s]:\n"
+                    "  Total alpha: %.2f%%\n"
+                    "  Annualized alpha: %.2f%%\n"
+                    "%s",
+                    factor,
+                    total_alpha_pct,
+                    factor_metrics["annualized_alpha_pct"],
+                    lines,
+                )
+
             return {
                 "na_pct": round(calculate_na_pct(factor_arr), 2),
                 "ic": float(np.nanmean(ic_per_date)),
