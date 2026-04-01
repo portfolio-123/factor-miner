@@ -54,7 +54,7 @@ def _process_factor_per_date(
     return DateFactorResult(
         ic=ic,
         long_ret=high_stocks.mean(),
-        short_ret=low_stocks.mean(),
+        short_ret=low_stocks.mean() if low_quantile_amount > 0 else 0,
     )
 
 
@@ -111,9 +111,14 @@ def analyze_factors(
             long_rets = factor_stats_per_date[:, 1]
             short_rets = factor_stats_per_date[:, 2]
 
-            valid = ~(
-                np.isnan(long_rets) | np.isnan(short_rets) | np.isnan(benchmark_returns)
-            )
+            if params.low_quantile == 0:
+                valid = ~(np.isnan(long_rets) | np.isnan(benchmark_returns))
+            else:
+                valid = ~(
+                    np.isnan(long_rets)
+                    | np.isnan(short_rets)
+                    | np.isnan(benchmark_returns)
+                )
             long_rets = long_rets[valid]
             short_rets = short_rets[valid]
             benchmark_returns_valid = benchmark_returns[valid]
@@ -164,8 +169,11 @@ def analyze_factors(
                 "ic_t_stat": float(ic_t_stat),
                 "annualized_long_pct": annualize_return(long_rets, periods_per_year)
                 * 100,
-                "annualized_short_pct": annualize_return(short_rets, periods_per_year)
-                * 100,
+                "annualized_short_pct": (
+                    annualize_return(short_rets, periods_per_year) * 100
+                    if params.low_quantile > 0
+                    else 0
+                ),
                 "asc": factor in params.asc_factors,
                 "returns": longshort_rets,
                 **factor_metrics,
