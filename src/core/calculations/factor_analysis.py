@@ -25,8 +25,8 @@ logger = logging.getLogger("calculations")
 def _process_factor_per_date(
     factor_arr: np.ndarray,
     perf_arr: np.ndarray,
-    top_pct: float,
-    bottom_pct: float,
+    high_quantile: float,
+    low_quantile: float,
     max_return_pct: float,
     ascending: bool,
 ):
@@ -45,16 +45,16 @@ def _process_factor_per_date(
     perf_sorted_by_factor = perf_valid[sort_by_factor]
 
     # amount of stocks that fit in each bucket
-    top_bucket_amount = int(len(factor_valid) * (top_pct / 100))
-    bottom_bucket_amount = int(len(factor_valid) * (bottom_pct / 100))
+    high_quantile_amount = int(len(factor_valid) * (high_quantile / 100))
+    low_quantile_amount = int(len(factor_valid) * (low_quantile / 100))
 
-    top_stocks = perf_sorted_by_factor[-top_bucket_amount:]
-    bottom_stocks = perf_sorted_by_factor[:bottom_bucket_amount]
+    high_stocks = perf_sorted_by_factor[-high_quantile_amount:]
+    low_stocks = perf_sorted_by_factor[:low_quantile_amount]
 
     return DateFactorResult(
         ic=ic,
-        long_ret=top_stocks.mean(),
-        short_ret=bottom_stocks.mean(),
+        long_ret=high_stocks.mean(),
+        short_ret=low_stocks.mean(),
     )
 
 
@@ -64,7 +64,7 @@ def analyze_factors(
     dataset_svc: DatasetService,
     factor_columns: list[str],
     params: AnalysisParams,
-    periods_per_year: int,
+    periods_per_year: float,
     on_progress: Callable[[int, int], None],
 ) -> dict[str, ProcessFactorResult]:
     df = df.with_row_index("_row_idx")
@@ -82,7 +82,7 @@ def analyze_factors(
     with ThreadPoolExecutor(max_workers=min(8, cpu_count() or 4)) as executor:
         lock = threading.Lock()
 
-        def do_process_factor(factor) -> ProcessFactorResult:
+        def do_process_factor(factor: str) -> ProcessFactorResult:
             with lock:
                 factor_arr = (
                     dataset_svc.read_column_pa(factor)
@@ -95,8 +95,8 @@ def analyze_factors(
                     _process_factor_per_date(
                         factor_arr[mask],
                         perf_arr[mask],
-                        params.top_pct,
-                        params.bottom_pct,
+                        params.high_quantile,
+                        params.low_quantile,
                         params.max_return_pct,
                         factor in params.asc_factors,
                     )

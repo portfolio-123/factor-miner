@@ -9,6 +9,11 @@ def about() -> None:
     st.title("FactorMiner")
 
     fl_id = st.query_params.get("fl_id")
+    if not fl_id:
+        st.warning(
+            "No Factor List selected. Please select a Factor List to view analysis history."
+        )
+        return
 
     if INTERNAL_MODE:
         st.markdown(get_about_intro(fl_id, p123_link(fl_id)))
@@ -23,7 +28,8 @@ FactorMiner is a tool designed to run analyses over datasets and identify the fa
 3. View your results in **Your Results**
 """
         )
-    st.markdown("""
+    st.markdown(
+        """
 ### Analysis Parameters
 
 When configuring a new analysis, you can adjust the following parameters:
@@ -31,8 +37,8 @@ When configuring a new analysis, you can adjust the following parameters:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | **Rank By** | Alpha | Metric to rank factors by (Alpha or IC) |
-| **Top X (%)** | 10.0 | Percentage of top-ranked stocks to include in the long portfolio |
-| **Bottom X (%)** | 10.0 | Percentage of bottom-ranked stocks to include in the short portfolio |
+| **High Quantile (%)** | 10.0 | Percentage of top-ranked stocks to include in the long portfolio |
+| **Low Quantile (%)** | 10.0 | Percentage of bottom-ranked stocks to include in the short portfolio |
 | **Min Absolute Alpha (%)** | 0.5 | Minimum alpha threshold - factors with absolute alpha below this are filtered out |
 | **Min IC** | 0.015 | Minimum information coefficient threshold for factor selection |
 | **Max. Factors** | 10 | Maximum number of factors to select in the final result set |
@@ -46,4 +52,5 @@ After running an analysis, you'll be able to access the following results:
 - **Best Factors** - The factors with the highest absolute annualized alpha, after alpha and correlation filters.
 - **All Factors** - All factors ranked by abs. annual alpha, despite alpha or correlation filters.
 - **Correlation Matrix** - The correlation matrix for the best performing factors.
-""")
+"""
+    )

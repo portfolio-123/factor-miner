@@ -32,15 +32,18 @@ def factor_sorting_dialog(factors_df: pl.DataFrame, asc_factors: list[str]):
             st.rerun()
     with col_save:
         if st.button("Save Changes", type="primary", width="stretch"):
-            selected_formulas = edited.filter(pl.col("asc"))["name"].to_list()
+            edited_pl = pl.from_pandas(
+                edited
+            )  # st.data_editor returns a pandas dataframe, convert back to polars
+            selected_formulas = edited_pl.filter(pl.col("asc"))["name"].to_list()
             st.session_state["asc_factors"] = selected_formulas
             st.rerun()
 
 
-def _load_last_analysis_params() -> None:
+def _load_last_analysis_params(fl_id: str) -> None:
     analyses = AnalysisService(
         st.session_state.get("user_uid") if INTERNAL_MODE else None
-    ).list_all(st.query_params.get("fl_id"))
+    ).list_all(fl_id)
     if not analyses:
         st.toast("No previous analyses found for this dataset")
         return
@@ -49,8 +52,7 @@ def _load_last_analysis_params() -> None:
         st.session_state[key] = value
 
 
-def _submit_analysis() -> None:
-    fl_id = st.query_params.get("fl_id")
+def _submit_analysis(fl_id: str) -> None:
     user_uid = st.session_state.get("user_uid")
     dataset_version = DatasetService(
         st.session_state["dataset_details"]
@@ -75,16 +77,22 @@ def _submit_analysis() -> None:
 
 
 def create_form() -> None:
+
+    fl_id = st.query_params.get("fl_id")
+    if not fl_id:
+        st.warning(
+            "No Factor List selected. Please select a Factor List to view analysis history."
+        )
+        return
+
     if analysis_id := st.session_state.pop("_redirect_to_results", None):
         st.switch_page(
             st.session_state["pages"]["results"],
             query_params=(
-                ("fl_id", st.query_params.get("fl_id")),
+                ("fl_id", fl_id),
                 ("id", analysis_id),
             ),
         )
-
-    fl_id = st.query_params.get("fl_id")
 
     try:
         with DatasetService(st.session_state["dataset_details"]) as svc:
@@ -111,11 +119,16 @@ def create_form() -> None:
             "Use Last Settings",
             type="secondary",
             on_click=_load_last_analysis_params,
+            args=(fl_id,),
             width="stretch",
         )
     with col_run:
         st.button(
-            "Run Analysis", type="primary", on_click=_submit_analysis, width="stretch"
+            "Run Analysis",
+            type="primary",
+            on_click=_submit_analysis,
+            args=(fl_id,),
+            width="stretch",
         )
 
 
@@ -138,20 +151,20 @@ def _render_settings() -> None:
         )
     with col2:
         st.number_input(
-            "Top X (Long) %",
+            "High Quantile (%)",
             min_value=1.0,
             max_value=100.0,
             step=1.0,
-            key="top_pct",
+            key="high_quantile",
             help="Percentage of top-ranked stocks to go long",
         )
     with col3:
         st.number_input(
-            "Bottom X (Short) %",
+            "Low Quantile (%)",
             min_value=0.0,
             max_value=100.0,
             step=1.0,
-            key="bottom_pct",
+            key="low_quantile",
             help="Percentage of bottom-ranked stocks to short (0 = long-only)",
         )
 
@@ -184,7 +197,7 @@ def _render_settings() -> None:
         st.number_input(
             f"Min. {rank_config["metric_label"]}",
             **rank_config["input_settings"],
-            key=f"min_{rank_by}",
+            key="min_rank_metric",
         )
     with col2:
         st.number_input(

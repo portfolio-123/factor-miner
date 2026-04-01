@@ -27,7 +27,7 @@ def select_best_factors(
     factor_idx = np.array([col_to_idx[f] for f in factors])
 
     valid_rank_by = np.abs(sorted_metrics[params.rank_by].to_numpy()) >= getattr(
-        params, f"min_{params.rank_by}"
+        params, "min_rank_metric"
     )
     valid_na = sorted_metrics["na_pct"].to_numpy() <= params.max_na_pct
 
@@ -40,7 +40,7 @@ def select_best_factors(
         if not valid_na[i]:
             label = "high_na"
         elif not valid_rank_by[i]:
-            label = f"below_{params.rank_by}"
+            label = f"below_rank_metric"
         elif len(selected_indices) >= params.n_factors:
             label = "n_limit"
         elif selected_indices and np.any(

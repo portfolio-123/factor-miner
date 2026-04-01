@@ -1,6 +1,5 @@
 import base64
 from collections.abc import Callable
-import json
 from io import BytesIO
 from os import DirEntry, scandir
 from pathlib import Path
@@ -13,7 +12,7 @@ def extract_benchmark_ticker(benchmark: str) -> str:
 
 
 # "2024-01-15T14:30:00" -> "2024-01-15"
-def format_date(date_value: str | None, format_str="%Y-%m-%d") -> str:
+def format_date(date_value: str | None, format_str: str = "%Y-%m-%d") -> str:
     if not date_value:
         return "N/A"
     try:
@@ -31,7 +30,7 @@ def format_version_timestamp(unix_ts: float) -> str:
 
 # "Jan 15, 2024 at 02:30 PM UTC"
 def format_timestamp(
-    timestamp: str | None, format_str="%b %d, %Y at %I:%M %p UTC"
+    timestamp: str | None, format_str: str = "%b %d, %Y at %I:%M %p UTC"
 ) -> str:
     if not timestamp:
         return "N/A"
@@ -80,7 +79,7 @@ def deserialize_dataframe(data: str) -> pl.DataFrame:
 
 
 def add_formula_column(
-    download_df: pl.DataFrame, formulas_df: pl.DataFrame, factor_col="Factor"
+    download_df: pl.DataFrame, formulas_df: pl.DataFrame, factor_col: str = "Factor"
 ) -> pl.DataFrame:
     if "Formula" in download_df.columns:
         return download_df

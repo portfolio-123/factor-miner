@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
-from typing import TypedDict, NamedTuple
+from typing import NotRequired, TypedDict, NamedTuple
 
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
@@ -88,12 +88,18 @@ class AnalysisProgress(BaseModel):
     total: int
 
 
+class BenchmarkDisplayResults(TypedDict):
+    total_benchmark_return: float
+    annualized_benchmark_return: float
+
+
 class AnalysisResults(BaseModel):
     all_metrics: str
     all_corr_matrix: str
     best_feature_names: list[str] = []
     factor_classifications: dict[str, str] = {}
     avg_abs_alpha: float = 0.0
+    benchmark: BenchmarkDisplayResults
 
 
 class TokenPayload(BaseModel):
@@ -152,10 +158,9 @@ class Frequency(IntEnum):
 
 class AnalysisParams(BaseModel):
     rank_by: str = "annualized_alpha_pct"
-    top_pct: float = 10.0
-    bottom_pct: float = 10.0
-    min_annualized_alpha_pct: float = 0.5
-    min_ic: float = 0.015
+    high_quantile: float = 10.0
+    low_quantile: float = 10.0
+    min_rank_metric: float = 0.5
     n_factors: int = 10
     max_na_pct: float = 40.0
     correlation_threshold: float = 0.5
@@ -175,30 +180,35 @@ class NormalizationConfig(BaseModel):
     naFill: str
 
 
+class FormulasDataFrame(TypedDict):
+    formula: str
+    name: str
+    tag: NotRequired[str]
+
+
 class DatasetConfig(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    version: str = ""
+    version: str
     factorListName: str | None = None
     universeName: str
     frequency: Frequency
     currency: str
     type: DatasetType = DatasetType.PERIOD
-    startDt: str | None = None
-    endDt: str | None = None
-    asOfDt: str | None = None
+    startDt: str
+    endDt: str
     benchName: str
     precision: int
     normalization: bool = False
     preprocessor: NormalizationConfig | None = None
-    formulas: list | None = None
+    formulas: FormulasDataFrame
     pitMethod: int
     active: bool = False
     numRows: int | None = None
 
     @field_validator("version", mode="before")
     @classmethod
-    def coerce_version_to_str(cls, v):
+    def coerce_version_to_str(cls, v: int):
         return str(v)
 
     @field_validator("frequency", mode="before")

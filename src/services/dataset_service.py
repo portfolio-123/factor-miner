@@ -1,6 +1,7 @@
 import json
 from os import stat
 from pathlib import Path
+from types import TracebackType
 
 import polars as pl
 import pyarrow as pa
@@ -19,7 +20,12 @@ class DatasetService:
         self._reader = ParquetDataReader(self.base_path)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self._reader.close()
 
     @property
@@ -43,6 +49,7 @@ class DatasetService:
         if INTERNAL_MODE:
             from src.internal.p123_client import fetch_benchmark_data
 
+            assert access_token is not None
             return fetch_benchmark_data(
                 benchmark_ticker=ticker,
                 access_token=access_token,
@@ -59,11 +66,8 @@ class DatasetService:
             )
 
     @property
-    def current_version(self) -> str | None:
-        try:
-            return format_version_timestamp(stat(self.base_path).st_mtime)
-        except FileNotFoundError:
-            return None
+    def current_version(self) -> str:
+        return format_version_timestamp(stat(self.base_path).st_mtime)
 
     @property
     def column_names(self):
@@ -81,7 +85,7 @@ class DatasetService:
     def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
         return self._reader.read_columns_pl(columns)
 
-    def read_column_pa(self, column: str) -> pa.Array:
+    def read_column_pa(self, column: str) -> pa.ChunkedArray[pa.DoubleScalar]:
         return self._reader.read_column_pa(column)
 
     def back_up_metadata(self, dest_path: Path) -> None:
@@ -113,7 +117,7 @@ class BackupDatasetService:
         metadata = DatasetConfig.model_validate_json(raw)
         metadata.version = version
         current = DatasetService(self.dataset_details).current_version
-        metadata.active = current is not None and version == current
+        metadata.active = version == current
         return metadata
 
     def load_latest_version(self) -> DatasetConfig | None:
@@ -124,16 +128,16 @@ class BackupDatasetService:
         version = latest_file.name[8:-5]  # slice "dataset_" and ".json"
         return self.get_metadata(version)
 
-    def load_all_versions(self) -> dict[str, DatasetConfig]:
+    def load_all_versions(self):
         files = list(find_files(self.backup_dir, prefix="dataset_", suffix=".json"))
 
-        result = {}
+        result: dict[str, DatasetConfig] = {}
         if files:
             current = DatasetService(self.dataset_details).current_version
             for f in files:
                 version = f.name[8:-5]  # slice "dataset_" and ".json"
                 dataset = self.get_metadata(version)
-                dataset.active = current is not None and version == current
+                dataset.active = version == current
                 result[version] = dataset
 
         return result

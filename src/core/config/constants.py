@@ -36,8 +36,7 @@ CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {
     "best": ("#a5d6a7", "Best Factor"),
     "correlation_conflict": ("#ef9a9a", "Correlation Conflict"),
     "high_na": ("#fff59d", "High NA %"),
-    "below_annualized_alpha_pct": ("#ffcc80", "Below Min Annualized Alpha"),
-    "below_ic": ("#ce93d8", "Below Min IC"),
+    "below_rank_metric": ("#ffcc80", "Below Min. Rank Metric"),
     "n_limit": ("#b0bec5", "Max. Factors Reached"),
 }
 
@@ -63,6 +62,6 @@ RANK_CONFIG: dict[str, RankConfigItem] = {
     "ic": {
         "metric_label": "IC",
         "format_filter": lambda v: v,
-        "input_settings": {"min_value": 0.0, "max_value": 1.0, "step": 0.01},
+        "input_settings": {"min_value": 0.0, "max_value": 1.0, "step": 0.005},
     },
 }

@@ -4,7 +4,7 @@ import polars as pl
 import streamlit as st
 
 from src.core.config.constants import CLASSIFICATION_COLORS
-from src.core.types.models import AnalysisSummary
+from src.core.types.models import AnalysisSummary, DatasetConfig
 from src.core.utils.common import (
     add_formula_column,
     format_date,
@@ -35,9 +35,9 @@ DISPLAY_COLUMNS = [
     "Asc",
     "Tag",
     "Ann. Alpha %",
+    "IC",
     "Beta",
     "T-Stat",
-    "IC",
     "IC t-stat",
     "Ann. Long %",
     "Ann. Short %",
@@ -58,13 +58,10 @@ FORMAT_SPEC = {
 
 def _build_legend_html(
     factor_classifications: dict[str, str],
-    rank_by: str,
 ) -> str:
     counts = Counter(factor_classifications.values())
-    items = []
+    items: list[str] = []
     for cls_key, (color, label) in CLASSIFICATION_COLORS.items():
-        if cls_key == f"below_{rank_by}":
-            continue
         items.append(
             f'<div style="display: flex; align-items: center; gap: 6px;">'
             f'<span style="display: inline-block; width: 16px; height: 16px; '
@@ -172,18 +169,16 @@ def render_results_table(
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
+    assert isinstance(formulas_data, pl.DataFrame)
 
     display = metrics.sort(pl.col(rank_by).abs(), descending=True).rename(
         COLUMN_RENAMES
     )
 
-    if formulas_data is not None:
-        tag_mapping = formulas_data.unique(subset=["name"]).select(["name", "tag"])
-        display = display.join(
-            tag_mapping, left_on="Factor", right_on="name", how="left"
-        ).rename({"tag": "Tag"})
-    else:
-        display = display.with_columns(pl.lit("").alias("Tag"))
+    tag_mapping = formulas_data.unique(subset=["name"]).select(["name", "tag"])
+    display = display.join(
+        tag_mapping, left_on="Factor", right_on="name", how="left"
+    ).rename({"tag": "Tag"})
 
     display = display.with_columns(
         pl.when(pl.col("Asc") == 1).then(pl.lit("✓")).otherwise(pl.lit("")).alias("Asc")
@@ -193,7 +188,7 @@ def render_results_table(
 
     row_colors = None
     if factor_classifications is not None:
-        st.html(_build_legend_html(factor_classifications, rank_by))
+        st.html(_build_legend_html(factor_classifications))
         row_colors = [
             CLASSIFICATION_COLORS.get(factor_classifications[f], ("#ffffff", None))[0]
             for f in display["Factor"].to_list()
@@ -218,60 +213,65 @@ def render_results_table(
     )
 
 
+def _build_row(a: AnalysisSummary, ds: DatasetConfig) -> dict[str, str]:
+    p = a.params
+    active_marker = " 🟢" if ds.active else ""
+    params_dict: dict[str, object] = {
+        "max.n": p.n_factors,
+        p.rank_by: p.min_rank_metric,
+        "corr": p.correlation_threshold,
+        "high": f"{int(p.high_quantile)}%",
+        "low": f"{int(p.low_quantile)}%",
+        "max.ret": f"{int(p.max_return_pct)}%",
+    }
+    return {
+        "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M UTC"),
+        "Run Time": format_runtime(a.started_at, a.finished_at),
+        "Universe": ds.universeName,
+        "Best Factors": f"{a.best_factors_count or 0}/{len(ds.formulas)}",
+        "Rows": f"{ds.numRows:,}",
+        "Avg|α|": f"{(a.avg_abs_alpha or 0):.2f}%",
+        "Period": f"{format_date(ds.startDt, '%Y-%m-%d')} — {format_date(ds.endDt, '%Y-%m-%d')}",
+        "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M UTC")
+        + active_marker,
+        "Parameters": str(params_dict),
+        "Status": a.status.display,
+        "Notes": a.notes or "",
+    }
+
+
 def render_history_table(analyses: list[AnalysisSummary]) -> None:
+    if not analyses:
+        st.info("No analyses found.")
+        return
+
     datasets = BackupDatasetService(
         st.session_state["dataset_details"]
     ).load_all_versions()
 
-    rows_data = []
-    links = []
-    version_list = []
+    rows_data: list[dict[str, str]] = []
+    row_colors: list[str] = []
+    row_links: list[str] = []
+
+    version_colors: dict[str, str] = {}
+    colors = cycle(("#f8f8f8", "#ffffff"))
 
     for a in analyses:
-        dataset = datasets.get(a.dataset_version)
+        dataset = datasets[a.dataset_version]
 
-        links.append(f"/results?fl_id={a.fl_id}&id={a.id}")
-        version_list.append(a.dataset_version)
+        if a.dataset_version not in version_colors:
+            version_colors[a.dataset_version] = next(colors)
 
-        rows_data.append(
-            {
-                "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M UTC"),
-                "Run Time": format_runtime(a.started_at, a.finished_at),
-                "Universe": dataset.universeName,
-                "Best Factors": f"{a.best_factors_count or 0}/{len(dataset.formulas)}",
-                "Rows": f"{dataset.numRows:,}",
-                "Avg|α|": f"{(a.avg_abs_alpha or 0):.2f}%",
-                "Period": f"{format_date(dataset.startDt, '%Y-%m-%d')} — {format_date(dataset.endDt, '%Y-%m-%d')}",
-                "Dataset Created": (
-                    format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M UTC")
-                    + (" 🟢" if dataset and dataset.active else "")
-                ),
-                "Parameters": (
-                    f'{{"max.n": {a.params.n_factors}, '
-                    f'"{a.params.rank_by}": {getattr(a.params, f"min_{a.params.rank_by}")}, '
-                    f'"corr": {a.params.correlation_threshold}, '
-                    f'"top": "{int(a.params.top_pct)}%", "btm": "{int(a.params.bottom_pct)}%", '
-                    f'"max.ret": "{int(a.params.max_return_pct)}%"}}'
-                ),
-                "Status": a.status.display,
-                "Notes": a.notes or "",
-            }
-        )
+        row_colors.append(version_colors[a.dataset_version])
 
-    if not rows_data:
-        st.info("No analyses found.")
-        return
+        row_links.append(f"/results?fl_id={a.fl_id}&id={a.id}")
+        rows_data.append(_build_row(a, dataset))
 
     df = pl.DataFrame(rows_data)
 
-    unique_versions = list(dict.fromkeys(version_list))
-    version_color_map = {
-        v: c for v, c in zip(unique_versions, cycle(("#f8f8f8", "#ffffff")))
-    }
-
     render_table(
         df,
-        row_colors=[version_color_map[v] for v in version_list],
-        row_links=links,
+        row_colors=row_colors,
+        row_links=row_links,
         max_height=400,
     )

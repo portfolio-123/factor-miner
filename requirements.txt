@@ -1,6 +1,7 @@
 numpy~=2.4.3
 polars[rtcompat]~=1.38.1
 pyarrow~=22.0.0
+pyarrow-stubs~=20.0.0
 pydantic~=2.12.5
 python-dotenv~=1.2.2
 python_jose[cryptography]~=3.5.0
@@ -9,3 +10,4 @@ scipy~=1.17.1
 st_clipboard~=0.0.1
 streamlit~=1.52.2
 yfinance~=1.2.0
+scipy-stubs~=1.17.1.3

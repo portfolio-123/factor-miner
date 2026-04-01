@@ -2,7 +2,7 @@ import streamlit as st
 import polars as pl
 
 from src.core.config.constants import RANK_CONFIG
-from src.core.types.models import AnalysisStatus
+from src.core.types.models import AnalysisStatus, BenchmarkDisplayResults
 from src.internal.errors import format_analysis_error
 from src.ui.components.common import render_info_item
 from src.ui.components.tables import render_results_table, render_correlation_matrix
@@ -21,16 +21,30 @@ from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import BackupDatasetService
 
 
+def render_benchmark_badges(benchmark: BenchmarkDisplayResults) -> None:
+    b1, b2 = st.columns(2)
+    with b1:
+        st.badge(
+            f"Total Bench Ret: {round(benchmark['total_benchmark_return'], 2)}%",
+        )
+    with b2:
+        st.badge(
+            f"Ann. Bench Ret: {round(benchmark['annualized_benchmark_return'], 2)}%",
+        )
+
+
 def results() -> None:
     fl_id = st.query_params.get("fl_id")
     user_uid = st.session_state.get("user_uid")
-    if not (analysis_id := st.query_params.get("id")):
-        st.error("Missing analysis id")
+    analysis_id = st.query_params.get("id")
+
+    if not analysis_id or not fl_id:
+        st.error("Missing analysis details")
         return
 
     analysis_service = AnalysisService(user_uid)
     analysis = analysis_service.get(fl_id, analysis_id)
-    if not analysis:
+    if not analysis or not analysis.results:
         st.error("Analysis not found")
         return
 
@@ -72,9 +86,7 @@ def results() -> None:
 
     all_metrics_df = all_metrics_df.sort(
         pl.col(rank_by).abs(), descending=True
-    ).with_row_index(
-        "rank", offset=1
-    )  # TODO: necessary to sort or not?
+    ).with_row_index("rank", offset=1)
 
     best_feature_names = analysis.results.best_feature_names
     factor_classifications = analysis.results.factor_classifications
@@ -97,19 +109,19 @@ def results() -> None:
         with st.container(border=True):
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
             p = analysis.params
-            settings = [
+            settings: list[tuple[str, str | float | int]] = [
                 ("Rank By", rank_config["metric_label"]),
                 ("Max. Factors", p.n_factors),
                 (
-                    f"Min. {rank_config["metric_label"]}",
-                    rank_config["format_filter"](getattr(p, f"min_{rank_by}")),
+                    f"Min. {rank_config['metric_label']}",
+                    rank_config["format_filter"](p.min_rank_metric),
                 ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
                 ("Max Return", f"{p.max_return_pct}%"),
                 ("Benchmark", dataset_metadata.benchName),
-                ("Top X (Long)", f"{p.top_pct}%"),
-                ("Bottom X (Short)", f"{p.bottom_pct}%"),
+                ("High Quantile (%)", f"{p.high_quantile}%"),
+                ("Low Quantile (%)", f"{p.low_quantile}%"),
             ]
             items_html = "".join(
                 render_info_item(label, value) for label, value in settings
@@ -122,9 +134,13 @@ def results() -> None:
 
     with best_factors_tab:
         if best_feature_names:
-            st.caption(
-                f"Best factors ranked by {rank_config["metric_label"]} (highest first)"
-            )
+            col1, col2 = st.columns([3, 2])
+            with col1:
+                st.caption(
+                    f"Best factors ranked by {rank_config['metric_label']} (highest first)"
+                )
+            with col2:
+                render_benchmark_badges(analysis.results.benchmark)
 
             render_results_table(
                 all_metrics_df.filter(pl.col("column").is_in(best_feature_names)),
@@ -154,9 +170,13 @@ def results() -> None:
             )
 
     with all_factors_tab:
-        st.caption(
-            f"All factors ranked by {rank_config["metric_label"]} (highest first). Click column headers to sort."
-        )
+        col1, col2 = st.columns([3, 2])
+        with col1:
+            st.caption(
+                f"All factors ranked by {rank_config['metric_label']} (highest first). Click column headers to sort."
+            )
+        with col2:
+            render_benchmark_badges(analysis.results.benchmark)
 
         render_results_table(
             all_metrics_df,

@@ -95,10 +95,14 @@ def run_analysis(
 
     valid_benchmark = benchmark_df[INTERNAL_BENCHMARK_COL].drop_nulls().to_numpy()
 
+    total_benchmark_return = cumulative_return(valid_benchmark) * 100
+    annualized_benchmark_return = (
+        annualize_return(valid_benchmark, periods_per_year) * 100
+    )
     logger.info(
         "Benchmark: cumulative %+.2f%%, annualized %+.2f%%",
-        cumulative_return(valid_benchmark) * 100,
-        annualize_return(valid_benchmark, periods_per_year) * 100,
+        total_benchmark_return,
+        annualized_benchmark_return,
     )
 
     # log all the benchmark prices by date
@@ -160,7 +164,11 @@ def run_analysis(
         all_corr_matrix=serialize_dataframe(corr_matrix),
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
-        avg_abs_alpha=float(metrics_df["annualized_alpha_pct"].abs().mean()),
+        avg_abs_alpha=float(metrics_df["annualized_alpha_pct"].abs().mean()),  # type: ignore[arg-type]
+        benchmark={
+            "total_benchmark_return": float(total_benchmark_return),
+            "annualized_benchmark_return": annualized_benchmark_return,
+        },
     )
 
 
