@@ -1,0 +1,18 @@
+# taken from here: https://gist.github.com/palomena/d567d4bdb64a38ddafd181c3606716cc
+
+import streamlit as st
+import streamlit.components.v1 as components
+
+
+def get_cookie(key: str) -> str | None:
+    return st.context.cookies.get(key)
+
+
+def set_cookie(name: str, value: str, days=1):
+    html = f"""<script>document.cookie = "{name}={value}; path=/; max-age={days * 86400}";</script>"""
+    components.html(html, height=0)
+
+
+def clear_cookie(name: str):
+    html = f"""<script>document.cookie = "{name}=; path=/; max-age=0";</script>"""
+    components.html(html, height=0)

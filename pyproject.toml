@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "factorMiner"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+dependencies = [
+    "numpy~=2.4.3",
+    "polars[rtcompat]~=1.38.1",
+    "pyarrow~=22.0.0",
+    "pydantic~=2.12.5",
+    "python-dotenv~=1.2.2",
+    "python_jose[cryptography]~=3.5.0",
+    "requests~=2.32.5",
+    "scipy~=1.17.1",
+    "st_clipboard~=0.0.1",
+    "streamlit~=1.52.2",
+    "yfinance~=1.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyarrow-stubs~=20.0.0",
+    "scipy-stubs~=1.17.1.3",
+    "black~=26.3.1",
+    "pyright~=1.1.408",
+]
+
+[tool.black]
+line-length = 140
+
+[tool.pyright]
+typeCheckingMode = "basic"
+deprecateTypingAliases = true
+disableBytesTypePromotions = true
+strictDictionaryInference = true
+strictListInference = true
+strictSetInference = true
