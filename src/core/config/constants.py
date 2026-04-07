@@ -1,23 +1,19 @@
 from collections.abc import Callable
-from typing import Final, TypedDict
+from typing import TypedDict
 
 from src.core.types.models import Frequency, ScalingMethod
 
-PRICE_COLUMN: Final[str] = "Next Close"
-BASE_REQUIRED_COLUMNS: Final[list[str]] = ["Date", "Ticker", "P123 ID"]
+PRICE_COLUMN = "Next Close"
+SPECIAL_COLUMNS = {"Date", "Ticker", "P123 ID", PRICE_COLUMN}
 
-INTERNAL_FUTURE_PERF_COL: Final[str] = "__future_perf__"
-INTERNAL_BENCHMARK_COL: Final[str] = "__benchmark__"
+INTERNAL_FUTURE_PERF_COL = "__future_perf__"
+INTERNAL_BENCHMARK_COL = "__benchmark__"
 
-AUTH_COOKIE_KEY: Final[str] = "p123_access_token"
+AUTH_COOKIE_KEY = "p123_access_token"
 
-SCALING_LABELS: Final[dict[ScalingMethod, str]] = {
-    ScalingMethod.NORMAL: "Z-Score",
-    ScalingMethod.MINMAX: "Min/Max",
-    ScalingMethod.RANK: "Rank",
-}
+SCALING_LABELS = {ScalingMethod.NORMAL: "Z-Score", ScalingMethod.MINMAX: "Min/Max", ScalingMethod.RANK: "Rank"}
 
-FREQUENCY_LABELS: Final[dict[Frequency, str]] = {
+FREQUENCY_LABELS = {
     Frequency.WEEKLY: "Weekly",
     Frequency.BIWEEKLY: "2 weeks",
     Frequency.FOUR_WEEKS: "4 weeks",
@@ -27,12 +23,9 @@ FREQUENCY_LABELS: Final[dict[Frequency, str]] = {
     Frequency.FIFTY_TWO_WEEKS: "52 weeks",
 }
 
-PIT_METHOD_LABELS: Final[dict[int, str]] = {
-    1: "Included Prelims",
-    2: "Excluded Prelims",
-}
+PIT_METHOD_LABELS = {1: "Included Prelims", 2: "Excluded Prelims"}
 
-CLASSIFICATION_COLORS: Final[dict[str, tuple[str, str]]] = {
+CLASSIFICATION_COLORS = {
     "best": ("#a5d6a7", "Best Factor"),
     "correlation_conflict": ("#ef9a9a", "Correlation Conflict"),
     "high_na": ("#fff59d", "High NA %"),
@@ -59,9 +52,5 @@ RANK_CONFIG: dict[str, RankConfigItem] = {
         "format_filter": lambda v: f"{v}%",
         "input_settings": {"min_value": 0.0, "max_value": 100.0, "step": 0.1},
     },
-    "ic": {
-        "metric_label": "IC",
-        "format_filter": lambda v: v,
-        "input_settings": {"min_value": 0.0, "max_value": 1.0, "step": 0.005},
-    },
+    "ic": {"metric_label": "IC", "format_filter": lambda v: v, "input_settings": {"min_value": 0.0, "max_value": 1.0, "step": 0.005}},
 }

@@ -5,12 +5,7 @@ import streamlit as st
 
 from src.core.config.constants import CLASSIFICATION_COLORS
 from src.core.types.models import AnalysisStatus, AnalysisSummary, DatasetConfig
-from src.core.utils.common import (
-    add_formula_column,
-    format_date,
-    format_runtime,
-    format_timestamp,
-)
+from src.core.utils.common import add_formula_column, format_date, format_runtime, format_timestamp
 from src.services.dataset_service import BackupDatasetService
 from src.ui.components.common import copy_download_buttons
 from src.ui.components.table_builder import render_table
@@ -56,9 +51,7 @@ FORMAT_SPEC = {
 }
 
 
-def _build_legend_html(
-    factor_classifications: dict[str, str],
-) -> str:
+def _build_legend_html(factor_classifications: dict[str, str]) -> str:
     counts = Counter(factor_classifications.values())
     items: list[str] = []
     for cls_key, (color, label) in CLASSIFICATION_COLORS.items():
@@ -73,12 +66,7 @@ def _build_legend_html(
     return '<div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">' + "".join(items) + "</div>"
 
 
-def render_correlation_matrix(
-    corr_matrix_df: pl.DataFrame,
-    title: str,
-    file_prefix: str | None = None,
-    key_suffix="",
-) -> None:
+def render_correlation_matrix(corr_matrix_df: pl.DataFrame, title: str, file_prefix: str | None = None, key_suffix="") -> None:
     st.subheader(title)
 
     if "factor" in corr_matrix_df.columns:
@@ -105,27 +93,14 @@ def show_preview_modal(data: pl.DataFrame, num_rows: int, num_dates: int, formul
     @st.dialog("Dataset Preview", width="large")
     def _render() -> None:
         stat_style = "margin-top: -10px; font-size: 1.25rem; font-weight: 600;"
-        stat_items = [
-            ("Rows", num_rows),
-            ("Dates", num_dates),
-            ("Formulas", formula_count),
-        ]
+        stat_items = [("Rows", num_rows), ("Dates", num_dates), ("Formulas", formula_count)]
         for col, (label, value) in zip(st.columns(6, gap="small"), stat_items):
             with col:
                 st.badge(label)
                 st.html(f"<p style='{stat_style}'>{value}</p>")
 
         st.caption("Showing first and last 10 rows")
-        render_table(
-            data.rename({"_row_idx": "Row"}),
-            max_height=500,
-            column_widths={
-                "Row": "40px",
-                "Date": "95px",
-                "P123 ID": "60px",
-                "Ticker": "55px",
-            },
-        )
+        render_table(data.rename({"_row_idx": "Row"}), max_height=500, column_widths={"Row": "40px", "Date": "95px", "Ticker": "55px"})
 
     _render()
 
@@ -134,12 +109,7 @@ def show_preview_modal(data: pl.DataFrame, num_rows: int, num_dates: int, formul
 def show_formulas_modal(formulas_df: pl.DataFrame) -> None:
     subset = formulas_df.select(["formula", "name", "tag"])
 
-    render_table(
-        subset,
-        max_height=400,
-        zebra=True,
-        column_widths={"formula": "45%", "name": "35%", "tag": "20%"},
-    )
+    render_table(subset, max_height=400, zebra=True, column_widths={"formula": "45%", "name": "35%", "tag": "20%"})
 
     copy_download_buttons(
         csv_copy=subset.write_csv(separator="\t"),
@@ -246,9 +216,5 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         row_colors=row_colors,
         row_links=row_links,
         max_height=450,
-        column_widths={
-            "Rows": "50px",
-            "Dataset Created": "135px",
-            "Status": "55px",
-        },
+        column_widths={"Rows": "50px", "Dataset Created": "135px", "Status": "55px"},
     )

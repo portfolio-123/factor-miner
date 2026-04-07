@@ -8,12 +8,7 @@ from time import monotonic
 
 
 from src.core.calculations.utils import annualize_return, cumulative_return
-from src.core.config.constants import (
-    INTERNAL_BENCHMARK_COL,
-    BASE_REQUIRED_COLUMNS,
-    INTERNAL_FUTURE_PERF_COL,
-    PRICE_COLUMN,
-)
+from src.core.config.constants import INTERNAL_BENCHMARK_COL, SPECIAL_COLUMNS, PRICE_COLUMN
 from src.core.types.models import (
     AnalysisParams,
     AnalysisStatus,
@@ -27,21 +22,11 @@ from src.core.types.models import (
 from src.core.utils.common import serialize_dataframe, extract_benchmark_ticker
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
-from src.core.calculations.forward_returns import (
-    add_future_performance_column,
-    calculate_benchmark_returns,
-)
+from src.core.calculations.forward_returns import add_future_performance_column, calculate_benchmark_returns
 from src.core.calculations.factor_analysis import analyze_factors
-from src.core.calculations.feature_selection import (
-    calculate_correlation_matrix,
-    select_best_factors,
-)
+from src.core.calculations.feature_selection import calculate_correlation_matrix, select_best_factors
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    stream=sys.stderr,
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", stream=sys.stderr)
 stderr_logger = logging.getLogger("worker")
 
 
@@ -61,19 +46,17 @@ def run_analysis(
     # find the price column, the base columns (date, ticker) and exclude them from being analyzed
     column_names = dataset_svc.column_names
 
-    factor_columns = [col for col in column_names if col not in {*BASE_REQUIRED_COLUMNS, PRICE_COLUMN}]
+    factor_columns = [col for col in column_names if col not in SPECIAL_COLUMNS]
 
     update({"progress": AnalysisProgress(completed=0, total=len(factor_columns))})
 
     logger.info("Calculating future performance...")
 
-    core_df = (
-        dataset_svc.read_columns_pl(["Date", "Ticker", PRICE_COLUMN])
-        .cast({PRICE_COLUMN: pl.Float32})
-        .with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
-    )
+    core_df = dataset_svc.read_columns_pl(["Date", "Ticker", PRICE_COLUMN]).with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
 
-    core_df = add_future_performance_column(core_df, PRICE_COLUMN).drop(PRICE_COLUMN)
+    core_df = add_future_performance_column(core_df, date_column="Date", ticker_column="Ticker", price_column=PRICE_COLUMN).drop(
+        PRICE_COLUMN
+    )
     logger.info("Calculating benchmark returns...")
 
     benchmark_prices = DatasetService.fetch_benchmark(
@@ -89,11 +72,7 @@ def run_analysis(
 
     total_benchmark_return = cumulative_return(valid_benchmark) * 100
     annualized_benchmark_return = annualize_return(valid_benchmark, periods_per_year) * 100
-    logger.info(
-        "Benchmark: cumulative %+.2f%%, annualized %+.2f%%",
-        total_benchmark_return,
-        annualized_benchmark_return,
-    )
+    logger.info("Benchmark: cumulative %+.2f%%, annualized %+.2f%%", total_benchmark_return, annualized_benchmark_return)
 
     # log all the benchmark prices by date
     lines = "\n".join(f"{date}  {'N/A' if ret is None else f'{ret * 100:+.2f}%'}" for date, ret in benchmark_df.iter_rows())
@@ -122,22 +101,12 @@ def run_analysis(
         results.append(data)  # type: ignore
 
     factor_returns_wide = pl.DataFrame(wide_data, schema=[(f, pl.Float32) for f in wide_data.keys()])
-    metrics_df = pl.DataFrame(
-        results,
-        schema=[
-            ("column", pl.Utf8),
-            *((col, pl.Float32) for col in process_factor_result_scalars),
-        ],
-    )
+    metrics_df = pl.DataFrame(results, schema=[("column", pl.Utf8), *((col, pl.Float32) for col in process_factor_result_scalars)])
 
     logger.info("Calculating correlation matrix...")
     corr_matrix = calculate_correlation_matrix(factor_returns_wide)
 
-    best_factors, factor_classifications = select_best_factors(
-        metrics_df,
-        corr_matrix,
-        params,
-    )
+    best_factors, factor_classifications = select_best_factors(metrics_df, corr_matrix, params)
     logger.info(f"Best factors: {len(best_factors)}/{len(metrics_df)}")
 
     logger.info("Analysis complete")
@@ -148,10 +117,7 @@ def run_analysis(
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
         avg_abs_alpha=float(metrics_df["annualized_alpha_pct"].abs().mean()),  # type: ignore[arg-type]
-        benchmark={
-            "total_benchmark_return": float(total_benchmark_return),
-            "annualized_benchmark_return": annualized_benchmark_return,
-        },
+        benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
     )
 
 

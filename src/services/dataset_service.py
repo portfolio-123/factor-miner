@@ -20,12 +20,7 @@ class DatasetService:
         self._reader = ParquetDataReader(self.base_path)
         return self
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException,
-        exc_tb: TracebackType | None,
-    ) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException, exc_tb: TracebackType | None) -> None:
         self._reader.close()
 
     @property
@@ -37,47 +32,33 @@ class DatasetService:
         return sorted(f.name[:-8] for f in find_files(DATASET_DIR, suffix=".parquet"))  # Remove ".parquet" suffix
 
     @staticmethod
-    def fetch_benchmark(
-        ticker: str,
-        start_date: str,
-        end_date: str,
-        access_token: str | None = None,
-    ) -> pl.DataFrame:
+    def fetch_benchmark(ticker: str, start_date: str, end_date: str, access_token: str | None = None) -> pl.DataFrame:
         if INTERNAL_MODE:
             from src.internal.p123_client import fetch_benchmark_data
 
             assert access_token is not None
-            return fetch_benchmark_data(
-                benchmark_ticker=ticker,
-                access_token=access_token,
-                start_date=start_date,
-                end_date=end_date,
-            )
+            return fetch_benchmark_data(benchmark_ticker=ticker, access_token=access_token, start_date=start_date, end_date=end_date)
         else:
             from src.services.benchmark_service import fetch_benchmark_external
 
-            return fetch_benchmark_external(
-                ticker=ticker,
-                start_date=start_date,
-                end_date=end_date,
-            )
+            return fetch_benchmark_external(ticker=ticker, start_date=start_date, end_date=end_date)
 
     @property
     def current_version(self):
         try:
             return format_version_timestamp(stat(self.base_path).st_mtime)
         except FileNotFoundError:
-            return None
+            raise FileNotFoundError("Dataset file not found")
 
     @property
     def column_names(self):
         return self._reader.column_names
 
     def get_metadata(self) -> DatasetConfig:
-        if not self.current_version:
-            raise FileNotFoundError("No dataset version found")
+        current = self.current_version
+
         metadata = self._reader.get_dataset_info()
-        metadata.version = self.current_version
+        metadata.version = current
         metadata.active = True
         return metadata
 
@@ -111,14 +92,20 @@ class BackupDatasetService:
     def backup_dir(self) -> Path:
         return self.dataset_details.get_backup_dir()
 
+    @property
+    def current_version(self):
+        try:
+            return DatasetService(self.dataset_details).current_version
+        except FileNotFoundError:
+            return None
+
     def get_backup_path(self, version: str) -> Path:
         return Path(self.backup_dir, f"dataset_{version}.json")
 
-    def get_metadata(self, version: str) -> DatasetConfig:
+    def get_metadata(self, version: str, current: str | None) -> DatasetConfig:
         raw = self.get_backup_path(version).read_bytes()
         metadata = DatasetConfig.model_validate_json(raw)
         metadata.version = version
-        current = DatasetService(self.dataset_details).current_version
         metadata.active = version == current
         return metadata
 
@@ -128,18 +115,13 @@ class BackupDatasetService:
         if not latest_file:
             return None
         version = latest_file.name[8:-5]  # slice "dataset_" and ".json"
-        return self.get_metadata(version)
+        return self.get_metadata(version, self.current_version)
 
-    def load_all_versions(self):
-        files = list(find_files(self.backup_dir, prefix="dataset_", suffix=".json"))
+    def load_all_versions(self) -> dict[str, DatasetConfig]:
+        versions = list(f.name[8:-5] for f in find_files(self.backup_dir, prefix="dataset_", suffix=".json"))
 
-        result: dict[str, DatasetConfig] = {}
-        if files:
-            current = DatasetService(self.dataset_details).current_version
-            for f in files:
-                version = f.name[8:-5]  # slice "dataset_" and ".json"
-                dataset = self.get_metadata(version)
-                dataset.active = version == current
-                result[version] = dataset
+        if not versions:
+            return {}
 
-        return result
+        current = self.current_version
+        return {version: self.get_metadata(version, current) for version in versions}

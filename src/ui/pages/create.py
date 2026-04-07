@@ -49,8 +49,6 @@ def _submit_analysis(fl_id: str) -> None:
     analysis_id = AnalysisService(user_uid).next_analysis_id(fl_id)
 
     try:
-        if not dataset_version:
-            raise FileNotFoundError("Dataset version not found")
         params = AnalysisParams(**{field: st.session_state[field] for field in AnalysisParams.model_fields})
         AnalysisService(user_uid).start(fl_id, analysis_id, dataset_version, params, access_token=st.session_state.get("access_token"))
         st.session_state["_redirect_to_results"] = analysis_id
