@@ -52,13 +52,7 @@ def _submit_analysis(fl_id: str) -> None:
         if not dataset_version:
             raise FileNotFoundError("Dataset version not found")
         params = AnalysisParams(**{field: st.session_state[field] for field in AnalysisParams.model_fields})
-        AnalysisService(user_uid).start(
-            fl_id,
-            analysis_id,
-            dataset_version,
-            params,
-            access_token=st.session_state.get("access_token"),
-        )
+        AnalysisService(user_uid).start(fl_id, analysis_id, dataset_version, params, access_token=st.session_state.get("access_token"))
         st.session_state["_redirect_to_results"] = analysis_id
 
     except Exception as e:
@@ -73,13 +67,7 @@ def create_form() -> None:
         return
 
     if analysis_id := st.session_state.pop("_redirect_to_results", None):
-        st.switch_page(
-            st.session_state["pages"]["results"],
-            query_params=(
-                ("fl_id", fl_id),
-                ("id", analysis_id),
-            ),
-        )
+        st.switch_page(st.session_state["pages"]["results"], query_params=(("fl_id", fl_id), ("id", analysis_id)))
 
     try:
         with DatasetService(st.session_state["dataset_details"]) as svc:
@@ -102,21 +90,9 @@ def create_form() -> None:
 
     _, col_last_settings, col_run = st.columns([3, 1, 1])
     with col_last_settings:
-        st.button(
-            "Use Last Settings",
-            type="secondary",
-            on_click=_load_last_analysis_params,
-            args=(fl_id,),
-            width="stretch",
-        )
+        st.button("Use Last Settings", type="secondary", on_click=_load_last_analysis_params, args=(fl_id,), width="stretch")
     with col_run:
-        st.button(
-            "Run Analysis",
-            type="primary",
-            on_click=_submit_analysis,
-            args=(fl_id,),
-            width="stretch",
-        )
+        st.button("Run Analysis", type="primary", on_click=_submit_analysis, args=(fl_id,), width="stretch")
 
 
 def _render_settings() -> None:
@@ -182,12 +158,7 @@ def _render_settings() -> None:
         st.number_input(f"Min. {metric_label}", **input_settings, key="min_rank_metric")
     with col2:
         st.number_input(
-            "Max. Factors",
-            min_value=1,
-            max_value=100,
-            step=1,
-            key="n_factors",
-            help="Maximum number of 'Best Factors' to select",
+            "Max. Factors", min_value=1, max_value=100, step=1, key="n_factors", help="Maximum number of 'Best Factors' to select"
         )
     with col3:
         st.number_input(

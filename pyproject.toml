@@ -31,6 +31,7 @@ dev = [
 
 [tool.black]
 line-length = 140
+skip-magic-trailing-comma = true
 
 [tool.pyright]
 typeCheckingMode = "basic"
