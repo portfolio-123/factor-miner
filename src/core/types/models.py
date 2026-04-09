@@ -264,10 +264,13 @@ class AnalysisUpdate(TypedDict, total=False):
 
 @dataclass
 class WorkerContext:
-    perf_arr: np.ndarray
-    perf_mask: np.ndarray
-    date_indices: list[np.ndarray]
-    benchmark_returns: np.ndarray
-    unique_dates: np.ndarray
     params: AnalysisParams
+    dataset_details: DatasetDetails
     periods_per_year: float
+    arrays: dict[str, np.ndarray]
+
+
+class SharedArrayMetadata(TypedDict):
+    name: str
+    shape: tuple[int]
+    dtype: str

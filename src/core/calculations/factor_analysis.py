@@ -1,43 +1,78 @@
 from collections.abc import Callable
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import logging
 from os import cpu_count
+from typing import Any
 import numpy as np
 import polars as pl
 from scipy.stats import ttest_1samp
 import traceback
-from typing import Any
+from multiprocessing import shared_memory
+from contextlib import ExitStack, contextmanager
 
 from src.core.calculations.utils import annualize_return, calculate_factor_metric, calculate_na_pct, weighted_ic
-from src.core.types.models import AnalysisParams, ProcessFactorResult, WorkerContext
+from src.core.types.models import AnalysisParams, DatasetDetails, ProcessFactorResult, SharedArrayMetadata, WorkerContext
 from src.services.dataset_service import DatasetService
 from src.core.config.constants import INTERNAL_FUTURE_PERF_COL
 
 logger = logging.getLogger("calculations")
 
-
-worker_ctx: WorkerContext
-
-
-def _init_worker(ctx: WorkerContext):
-    global worker_ctx
-    worker_ctx = ctx
+worker_ctx: WorkerContext | None = None
+worker_dataset_svc: DatasetService
+worker_shm_handles: list[shared_memory.SharedMemory] = []
 
 
-def _calc_workers(n_factors: int, n_rows: int) -> int:
-    # overhead of creating the processes is high. this formula adjusts the amount of workers launched based on row count and amount of factors
-    if n_factors * n_rows < 1_000_000:
-        return 0
+def _init_worker(
+    metadata: dict[str, SharedArrayMetadata] | None,
+    params: AnalysisParams,
+    dataset_details: DatasetDetails,
+    periods_per_year: float,
+    local_arrays: dict[str, np.ndarray] | None = None,
+):
+    global worker_ctx, worker_dataset_svc, worker_shm_handles
 
-    max_cpus = min(16, cpu_count() or 4)
+    for shm in worker_shm_handles:
+        try:
+            shm.close()
+        except Exception:
+            pass
+    worker_shm_handles.clear()
 
-    # at least 2 factors per worker
-    by_factors = n_factors // 2
-    # add a worker per 25k rows. for reference, 1 year of weekly data with sp500 as universe, is 26k rows
-    by_rows = max(1, n_rows // 25000)
+    worker_dataset_svc = DatasetService(dataset_details)
 
-    workers = min(by_factors, by_rows, max_cpus)
-    return max(1, workers)
+    arrays = reconstruct_shared_arrays(metadata) if metadata else local_arrays
+
+    assert arrays is not None, "Worker failed to initialize data"
+
+    worker_ctx = WorkerContext(params=params, dataset_details=dataset_details, arrays=arrays, periods_per_year=periods_per_year)
+
+
+@contextmanager
+def get_executor(n_workers, arrays, params, dataset_details, periods_per_year):
+    with ExitStack() as stack:
+        if n_workers > 1:
+            active_shms, metadata = share_arrays(arrays)
+
+            def cleanup_shm():
+                for shm in active_shms:
+                    try:
+                        shm.close()
+                        shm.unlink()
+                    except FileNotFoundError:
+                        pass
+
+            stack.callback(cleanup_shm)
+
+            executor = ProcessPoolExecutor(
+                max_workers=n_workers, initializer=_init_worker, initargs=(metadata, params, dataset_details, periods_per_year)
+            )
+
+            stack.callback(executor.shutdown, wait=True)
+            yield executor
+
+        else:
+            _init_worker(None, params, dataset_details, periods_per_year, arrays)
+            yield None
 
 
 def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, high_quantile: float, low_quantile: float):
@@ -45,9 +80,7 @@ def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, h
         raise ValueError("High quantile must be greater than 0")
 
     ic = weighted_ic(factor_valid, perf_valid)
-
     total_stocks = len(factor_valid)
-
     high_quantile_amount = int(total_stocks * (high_quantile / 100))
     low_quantile_amount = int(total_stocks * (low_quantile / 100))
 
@@ -57,7 +90,6 @@ def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, h
     if low_quantile > 0:
         if low_quantile_amount == 0:
             raise ValueError("No stocks were found in the low quantile")
-
         sort_by_factor = np.argpartition(factor_valid, [high_quantile_amount, -low_quantile_amount])
         low_quantile_ret = float(np.take(perf_valid, sort_by_factor[-low_quantile_amount:]).mean())
     else:
@@ -65,42 +97,55 @@ def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, h
         low_quantile_ret = 0.0
 
     high_quantile_ret = float(np.take(perf_valid, sort_by_factor[:high_quantile_amount]).mean())
-
     return ic, high_quantile_ret, low_quantile_ret
 
 
-def _process_factor(factor_arr: np.ndarray, ascending: bool) -> tuple[ProcessFactorResult, np.ndarray]:
-    ctx = worker_ctx
+def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, np.ndarray]:
+    if not worker_ctx:
+        raise RuntimeError("Worker state not initialized")
+
+    with worker_dataset_svc:
+        factor_arr = worker_dataset_svc.read_column_pa(factor).to_numpy().astype(np.float32)
+
     if not ascending:
         np.negative(factor_arr, out=factor_arr)
 
-    valid_mask = ctx.perf_mask & np.isfinite(factor_arr)
+    benchmark_returns = worker_ctx.arrays["benchmark_returns"]
+    offsets = worker_ctx.arrays["offsets"]
 
-    factor_stats_per_date = np.empty((len(ctx.unique_dates), 3), dtype=np.float32)
-    for i, date_group in enumerate(ctx.date_indices):
-        valid_rows_from_group = date_group[valid_mask[date_group]]
-        if valid_rows_from_group.size == 0:
+    total_dates = len(offsets)
+    aligned_returns = np.full(total_dates, np.nan, dtype=np.float32)
+
+    factor_stats_per_date = np.empty((len(offsets), 3), dtype=np.float32)
+
+    for i, (start, end) in enumerate(offsets):
+        f_group, p_group, m_group = (
+            factor_arr[start:end],
+            worker_ctx.arrays["perf_arr"][start:end],
+            worker_ctx.arrays["perf_mask"][start:end],
+        )
+        valid_mask = m_group & np.isfinite(f_group)
+
+        if not np.any(valid_mask):
             factor_stats_per_date[i] = np.nan
             continue
+
         factor_stats_per_date[i] = _process_factor_per_date(
-            factor_arr[valid_rows_from_group],
-            ctx.perf_arr[valid_rows_from_group],
-            high_quantile=ctx.params.high_quantile,
-            low_quantile=ctx.params.low_quantile,
+            f_group[valid_mask], p_group[valid_mask], worker_ctx.params.high_quantile, worker_ctx.params.low_quantile
         )
 
-    valid = np.isfinite(ctx.benchmark_returns)
-    valid &= np.all(np.isfinite(factor_stats_per_date[:, 1:3]), axis=1)
-
     ic_per_date = factor_stats_per_date[:, 0]
-    high_quantile_rets = np.compress(valid, factor_stats_per_date[:, 1])
-    low_quantile_rets = np.compress(valid, factor_stats_per_date[:, 2])
-    benchmark_returns_valid = np.compress(valid, ctx.benchmark_returns)
+    valid = np.isfinite(benchmark_returns) & np.all(np.isfinite(factor_stats_per_date[:, 1:3]), axis=1)
 
-    factor_metrics = calculate_factor_metric(high_quantile_rets, benchmark_returns_valid, ctx.periods_per_year)
+    high_quantile_rets = factor_stats_per_date[valid, 1]
+    low_quantile_rets = factor_stats_per_date[valid, 2]
+    benchmark_returns_valid = benchmark_returns[valid]
 
-    ic_valid = np.compress(np.isfinite(ic_per_date), ic_per_date)
+    factor_metrics = calculate_factor_metric(high_quantile_rets, benchmark_returns_valid, worker_ctx.periods_per_year)
+    ic_valid = ic_per_date[np.isfinite(ic_per_date)]
     ic_t_stat: Any = ttest_1samp(ic_valid, popmean=0)[0]
+
+    aligned_returns[valid] = high_quantile_rets - low_quantile_rets
 
     result: ProcessFactorResult = {
         "na_pct": round(calculate_na_pct(factor_arr), 2),
@@ -111,7 +156,7 @@ def _process_factor(factor_arr: np.ndarray, ascending: bool) -> tuple[ProcessFac
             annualize_return(low_quantile_rets, worker_ctx.periods_per_year) * 100 if worker_ctx.params.low_quantile > 0 else 0
         ),
         "asc": ascending,
-        "returns": high_quantile_rets - low_quantile_rets,
+        "returns": aligned_returns,
         **factor_metrics,
     }
 
@@ -121,136 +166,117 @@ def _process_factor(factor_arr: np.ndarray, ascending: bool) -> tuple[ProcessFac
 def analyze_factors(
     df: pl.DataFrame,
     benchmark_returns: np.ndarray,
-    dataset_svc: DatasetService,
+    dataset_details: DatasetDetails,
     factor_columns: list[str],
     params: AnalysisParams,
     periods_per_year: float,
     on_progress: Callable[[int, int], None],
 ) -> dict[str, ProcessFactorResult]:
-    perf_arr = df[INTERNAL_FUTURE_PERF_COL].to_numpy()
+    df = df.sort("Date")
+    perf_arr = df[INTERNAL_FUTURE_PERF_COL].to_numpy().astype(np.float32)
     perf_mask = np.isfinite(perf_arr) & (perf_arr <= (params.max_return_pct / 100))
 
-    unique_dates, date_index_by_row = np.unique(df["Date"].to_numpy(), return_inverse=True)
-    date_indices = [np.where(date_index_by_row == i)[0] for i in range(len(unique_dates))]
-
-    ctx = WorkerContext(
-        perf_arr=perf_arr,
-        perf_mask=perf_mask,
-        date_indices=date_indices,
-        benchmark_returns=benchmark_returns,
-        unique_dates=unique_dates,
-        params=params,
-        periods_per_year=periods_per_year,
-    )
+    unique_dates, counts = np.unique(df["Date"].to_numpy(), return_counts=True)
+    ends = np.cumsum(counts)
+    starts = np.zeros_like(ends)
+    starts[1:] = ends[:-1]
+    offsets = np.column_stack((starts, ends))
 
     n_workers = _calc_workers(len(factor_columns), len(df))
-    logger.info("Processes launched with multi-processing: ")
-    logger.info(n_workers)
-    if n_workers <= 1:
-        return _analyze_single_process(ctx, dataset_svc, factor_columns, params, on_progress)
+    results: dict[str, ProcessFactorResult] = {}
 
-    return _analyze_multiprocess(ctx, dataset_svc, factor_columns, params, on_progress, n_workers)
+    logger.info(f"Workers launched: {n_workers}")
 
+    arrays = {"perf_arr": perf_arr, "perf_mask": perf_mask, "benchmark_returns": benchmark_returns, "offsets": offsets}
 
-def _analyze_single_process(
-    ctx: WorkerContext,
-    dataset_svc: DatasetService,
-    factor_columns: list[str],
-    params: AnalysisParams,
-    on_progress: Callable[[int, int], None],
-) -> dict[str, ProcessFactorResult]:
-    global worker_ctx
-    worker_ctx = ctx
-
-    factor_stats_dict: dict[str, ProcessFactorResult] = {}
     logged_first = False
 
-    for i, name in enumerate(factor_columns):
-        try:
-            arr = dataset_svc.read_column_pa(name).to_numpy().astype(np.float32)
-            result, factor_stats_per_date = _process_factor(arr, name in params.asc_factors)
-            factor_stats_dict[name] = result
+    with get_executor(n_workers, arrays, params, dataset_details, periods_per_year) as executor:
 
-            if not logged_first:
-                _log_first_factor(name, result["annualized_alpha_pct"], factor_stats_per_date, arr, ctx)
-                logged_first = True
-        except Exception:
-            logger.error(f"ANALYSIS FAILED - Factor {name}\n{traceback.format_exc()}")
-
-        on_progress(i + 1, len(factor_columns))
-
-    return factor_stats_dict
-
-
-def _analyze_multiprocess(
-    ctx: WorkerContext,
-    dataset_svc: DatasetService,
-    factor_columns: list[str],
-    params: AnalysisParams,
-    on_progress: Callable[[int, int], None],
-    n_workers: int,
-) -> dict[str, ProcessFactorResult]:
-    with ProcessPoolExecutor(
-        max_workers=n_workers,
-        initializer=_init_worker,
-        initargs=(ctx,),
-    ) as executor:
-        pending_factors = {}
-        factors = iter(factor_columns)
-        completed_count = 0
-        logged_first = False
-        factor_stats_dict: dict[str, ProcessFactorResult] = {}
-
-        def queue_factor():
+        for i, (name, res) in enumerate(_get_results(executor, factor_columns, params)):
             try:
-                name = next(factors)
-                arr = dataset_svc.read_column_pa(name).to_numpy().astype(np.float32)
-                future = executor.submit(_process_factor, arr, name in params.asc_factors)
-                keep_arr = arr if not logged_first else None
-                pending_factors[future] = (name, keep_arr)
-                return True
-            except StopIteration:
-                return False
+                results[name] = res[0]
+                if not logged_first:
+                    with DatasetService(dataset_details) as dataset_svc:
+                        arr = dataset_svc.read_column_pa(name).to_numpy().astype(np.float32)
+                    _log_first_factor(name, res[0]["annualized_alpha_pct"], res[1], arr, unique_dates, periods_per_year, perf_arr, offsets)
+                    logged_first = True
+            except Exception:
+                logger.error(f"ANALYSIS FAILED - Factor {name}: {traceback.format_exc()}")
 
-        for _ in range(min(n_workers * 3, len(factor_columns))):
-            if not queue_factor():
-                break
+            on_progress(i + 1, len(factor_columns))
 
-        while pending_factors:
-            done, _ = wait(pending_factors.keys(), return_when=FIRST_COMPLETED)
-
-            for future in done:
-                factor, original_arr = pending_factors.pop(future)
-                try:
-                    result, factor_stats_per_date = future.result()
-                    factor_stats_dict[factor] = result
-
-                    if not logged_first:
-                        _log_first_factor(factor, result["annualized_alpha_pct"], factor_stats_per_date, original_arr, ctx)
-                        logged_first = True
-                except Exception:
-                    logger.error(f"ANALYSIS FAILED - Factor {factor}\n{traceback.format_exc()}")
-
-                queue_factor()
-                completed_count += 1
-                on_progress(completed_count, len(factor_columns))
-
-        return factor_stats_dict
+    return results
 
 
-def _log_first_factor(factor: str, annualized_alpha_pct: float, stats: np.ndarray, first_factor_data: np.ndarray, ctx: WorkerContext):
-    total_alpha_pct = 100 * ((1 + annualized_alpha_pct / 100) ** (len(ctx.unique_dates) / ctx.periods_per_year) - 1)
+def _get_results(executor: ProcessPoolExecutor | None, factor_columns: list[str], params: AnalysisParams):
+    if executor:
+        future_to_name = {executor.submit(_process_factor, name, name in params.asc_factors): name for name in factor_columns}
+        for f in as_completed(future_to_name):
+            yield future_to_name[f], f.result()
+    else:
+        for n in factor_columns:
+            yield n, _process_factor(n, n in params.asc_factors)
+
+
+def reconstruct_shared_arrays(arrays_metadata: dict[str, SharedArrayMetadata]) -> dict[str, np.ndarray]:
+    global worker_shm_handles
+    reconstructed_arrs = {}
+
+    for key, info in arrays_metadata.items():
+        shm = shared_memory.SharedMemory(name=info["name"])
+
+        worker_shm_handles.append(shm)
+
+        arr = np.ndarray(shape=info["shape"], dtype=info["dtype"], buffer=shm.buf)
+
+        reconstructed_arrs[key] = arr
+
+    return reconstructed_arrs
+
+
+def share_arrays(arrays: dict[str, np.ndarray]) -> tuple[list[shared_memory.SharedMemory], dict[str, SharedArrayMetadata]]:
+    shm_objs = []
+    metadata: dict[str, SharedArrayMetadata] = {}
+    for key, arr in arrays.items():
+        arr = np.ascontiguousarray(arr)
+        shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)
+        shared_arr = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
+        shared_arr[:] = arr[:]
+        shm_objs.append(shm)
+        metadata[key] = {"name": shm.name, "shape": arr.shape, "dtype": str(arr.dtype)}
+    return shm_objs, metadata
+
+
+def _calc_workers(n_factors: int, n_rows: int) -> int:
+    if n_factors * n_rows < 1_000_000:
+        return 1
+    max_cpus = min(16, cpu_count() or 4)
+    return max(1, min(n_factors // 2, n_rows // 10_000, max_cpus))
+
+
+def _log_first_factor(
+    factor: str,
+    annualized_alpha_pct: float,
+    stats: np.ndarray,
+    first_factor_data: np.ndarray,
+    unique_dates: np.ndarray,
+    periods_per_year: float,
+    perf_arr: np.ndarray,
+    offsets: np.ndarray,
+):
+    total_alpha_pct = 100 * ((1 + annualized_alpha_pct / 100) ** (len(unique_dates) / periods_per_year) - 1)
 
     lines = []
-    for i, date in enumerate(ctx.unique_dates):
-        idx = ctx.date_indices[i]
+    for i, date in enumerate(unique_dates):
+        start, end = offsets[i]
 
         lines.append(
             f"  {date} | "
             f"High Q: {stats[i, 1]*100:6.2f}% | "
             f"Low Q: {stats[i, 2]*100:6.2f}% | "
-            f"Factor Mean: {np.nanmean(first_factor_data[idx]):8.2f} | "
-            f"Perf Mean: {np.nanmean(ctx.perf_arr[idx]) * 100:6.2f}%"
+            f"Factor Mean: {np.nanmean(first_factor_data[start:end]):8.2f} | "
+            f"Perf Mean: {np.nanmean(perf_arr[start:end]) * 100:6.2f}%"
         )
 
     detailed_report = "\n".join(lines)

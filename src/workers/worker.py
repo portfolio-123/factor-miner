@@ -35,24 +35,26 @@ def run_analysis(
     logger: logging.Logger,
     access_token: str | None,
     params: AnalysisParams,
-    dataset_svc: DatasetService,
+    dataset_details: DatasetDetails,
 ) -> AnalysisResults:
-    dataset_info = dataset_svc.get_metadata()
+
+    with DatasetService(dataset_details) as dataset_svc:
+        dataset_info = dataset_svc.get_metadata()
+        column_names = dataset_svc.column_names
+        core_df = dataset_svc.read_columns_pl(["Date", "Ticker", PRICE_COLUMN]).with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
+
     periods_per_year = dataset_info.frequency.periods_per_year
 
     if dataset_info.type == DatasetType.DATE:
         raise ValueError("[single-date]")
 
     # find the price column, the base columns (date, ticker) and exclude them from being analyzed
-    column_names = dataset_svc.column_names
 
     factor_columns = [col for col in column_names if col not in SPECIAL_COLUMNS]
 
     update({"progress": AnalysisProgress(completed=0, total=len(factor_columns))})
 
     logger.info("Calculating future performance...")
-
-    core_df = dataset_svc.read_columns_pl(["Date", "Ticker", PRICE_COLUMN]).with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
 
     core_df = add_future_performance_column(core_df, date_column="Date", ticker_column="Ticker", price_column=PRICE_COLUMN).drop(
         PRICE_COLUMN
@@ -82,7 +84,7 @@ def run_analysis(
     factor_stats = analyze_factors(
         core_df,
         benchmark_df[INTERNAL_BENCHMARK_COL].to_numpy(),
-        dataset_svc,
+        dataset_details,
         factor_columns,
         params,
         periods_per_year,
@@ -104,6 +106,7 @@ def run_analysis(
     metrics_df = pl.DataFrame(results, schema=[("column", pl.Utf8), *((col, pl.Float32) for col in process_factor_result_scalars)])
 
     logger.info("Calculating correlation matrix...")
+
     corr_matrix = calculate_correlation_matrix(factor_returns_wide)
 
     best_factors, factor_classifications = select_best_factors(metrics_df, corr_matrix, params)
@@ -164,8 +167,7 @@ def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str |
         update({"status": AnalysisStatus.RUNNING})
         stderr_logger.info("Starting analysis...")
         stderr_logger.info(f"Processing dataset: {fl_id}")
-        with DatasetService(DatasetDetails(fl_id=fl_id, user_uid=user_uid)) as dataset_svc:
-            results = run_analysis(update, stderr_logger, access_token, analysis.params, dataset_svc)
+        results = run_analysis(update, stderr_logger, access_token, analysis.params, DatasetDetails(fl_id=fl_id, user_uid=user_uid))
         save_results(update, results)
         stderr_logger.info("Analysis completed successfully")
     except Exception as e:

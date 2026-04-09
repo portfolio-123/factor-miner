@@ -5,15 +5,11 @@ from src.core.types.models import AnalysisParams
 
 
 def calculate_correlation_matrix(factor_returns_wide: pl.DataFrame) -> pl.DataFrame:
-    df = factor_returns_wide.select(pl.exclude("factor")).drop_nulls()
+    df = factor_returns_wide.select(pl.exclude("factor")).with_columns(pl.all().fill_nan(None)).drop_nulls()
     return df.corr().insert_column(0, pl.Series("factor", df.columns))
 
 
-def select_best_factors(
-    metrics_df: pl.DataFrame,
-    corr_matrix: pl.DataFrame,
-    params: AnalysisParams,
-) -> tuple[list[str], dict[str, str]]:
+def select_best_factors(metrics_df: pl.DataFrame, corr_matrix: pl.DataFrame, params: AnalysisParams) -> tuple[list[str], dict[str, str]]:
     # iterate all factors from strongest to weakest (based on rank_by metric). adds a classification to every factor, indicating why it was excluded or "best" if it passed all the filters
 
     # assign an index to each factor to later look up its correlation pairs as corr_arr[idx, idx_pair]
@@ -26,9 +22,7 @@ def select_best_factors(
     factors: list[str] = sorted_metrics["column"].to_list()
     factor_idx = np.array([col_to_idx[f] for f in factors])
 
-    valid_rank_by = np.abs(sorted_metrics[params.rank_by].to_numpy()) >= getattr(
-        params, "min_rank_metric"
-    )
+    valid_rank_by = np.abs(sorted_metrics[params.rank_by].to_numpy()) >= getattr(params, "min_rank_metric")
     valid_na = sorted_metrics["na_pct"].to_numpy() <= params.max_na_pct
 
     classifications: dict[str, str] = {}
@@ -43,10 +37,7 @@ def select_best_factors(
             label = f"below_rank_metric"
         elif len(selected_indices) >= params.n_factors:
             label = "n_limit"
-        elif selected_indices and np.any(
-            np.abs(corr_arr[factor_idx[i], selected_indices])
-            >= params.correlation_threshold
-        ):
+        elif selected_indices and np.any(np.abs(corr_arr[factor_idx[i], selected_indices]) >= params.correlation_threshold):
             label = "correlation_conflict"
         else:
             selected_features.append(feature)
