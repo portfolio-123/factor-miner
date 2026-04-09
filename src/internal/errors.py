@@ -9,14 +9,13 @@ def format_analysis_error(error: str) -> str:
     assert fl_id
     msg = error.split("\n")[0]
 
-    if "[column-not-found]" in msg:
+    if "missing required columns" in msg:
         if INTERNAL_MODE:
-            return f"{msg}\n\n[Add Missing]({p123_link(fl_id, "factors")}) | [Regenerate]({p123_link(fl_id, "generate")})"
-        return f"{msg}\n\nEnsure your parquet file contains this column."
+            return f'Dataset is not prepared for analyses. [Generate a new dataset]({p123_link(fl_id, "generate")}) toggling on "Prepare for analysis".'
 
-    if "[single-date]" in msg:
+    if "Single-date" in msg:
         if INTERNAL_MODE:
-            return f"{msg}\n\nPlease [generate a new dataset]({p123_link(fl_id, "generate")}) using Period."
-        return f"{msg}\n\nSingle-date datasets are not supported. Use a multi-period dataset."
+            return f'Single-date is not supported. Please [generate a new dataset]({p123_link(fl_id, "generate")}) using "Period".'
+        return msg
 
     return f"Analysis failed: {msg}"

@@ -8,7 +8,7 @@ from time import monotonic
 
 
 from src.core.calculations.utils import annualize_return, cumulative_return
-from src.core.config.constants import INTERNAL_BENCHMARK_COL, SPECIAL_COLUMNS, PRICE_COLUMN
+from src.core.config.constants import FUTURE_PERF_COLUMN, INTERNAL_BENCHMARK_COL, REQUIRED_COLUMNS, SPECIAL_COLUMNS
 from src.core.types.models import (
     AnalysisParams,
     AnalysisStatus,
@@ -22,7 +22,7 @@ from src.core.types.models import (
 from src.core.utils.common import serialize_dataframe, extract_benchmark_ticker
 from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
-from src.core.calculations.forward_returns import add_future_performance_column, calculate_benchmark_returns
+from src.core.calculations.forward_returns import calculate_benchmark_returns
 from src.core.calculations.factor_analysis import analyze_factors
 from src.core.calculations.feature_selection import calculate_correlation_matrix, select_best_factors
 
@@ -40,25 +40,29 @@ def run_analysis(
 
     with DatasetService(dataset_details) as dataset_svc:
         dataset_info = dataset_svc.get_metadata()
-        column_names = dataset_svc.column_names
-        core_df = dataset_svc.read_columns_pl(["Date", "Ticker", PRICE_COLUMN]).with_columns(pl.col("Date").str.to_date("%Y-%m-%d"))
+        column_names = set(dataset_svc.column_names)
+
+        missing = REQUIRED_COLUMNS - column_names
+        if missing:
+            raise ValueError(f"Dataset is missing required columns: {missing}")
+
+        factor_columns = list(column_names - SPECIAL_COLUMNS)
+
+        core_df = dataset_svc.read_columns_pl(list(REQUIRED_COLUMNS)).with_columns(
+            pl.col("Date").str.to_date("%Y-%m-%d"), (pl.col(FUTURE_PERF_COLUMN) / 100)
+        )
+
+    logger.info(core_df[FUTURE_PERF_COLUMN])
 
     periods_per_year = dataset_info.frequency.periods_per_year
 
     if dataset_info.type == DatasetType.DATE:
-        raise ValueError("[single-date]")
+        raise ValueError("Single-date datasets are not supported")
 
     # find the price column, the base columns (date, ticker) and exclude them from being analyzed
 
-    factor_columns = [col for col in column_names if col not in SPECIAL_COLUMNS]
-
     update({"progress": AnalysisProgress(completed=0, total=len(factor_columns))})
 
-    logger.info("Calculating future performance...")
-
-    core_df = add_future_performance_column(core_df, date_column="Date", ticker_column="Ticker", price_column=PRICE_COLUMN).drop(
-        PRICE_COLUMN
-    )
     logger.info("Calculating benchmark returns...")
 
     benchmark_prices = DatasetService.fetch_benchmark(

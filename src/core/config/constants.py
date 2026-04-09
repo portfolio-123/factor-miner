@@ -3,10 +3,10 @@ from typing import TypedDict
 
 from src.core.types.models import Frequency, ScalingMethod
 
-PRICE_COLUMN = "Next Close"
-SPECIAL_COLUMNS = {"Date", "Ticker", "P123 ID", PRICE_COLUMN}
+FUTURE_PERF_COLUMN = "__Future_Perf__"
+REQUIRED_COLUMNS = {"Date", "Ticker", FUTURE_PERF_COLUMN}
+SPECIAL_COLUMNS = REQUIRED_COLUMNS | {"P123 ID"}
 
-INTERNAL_FUTURE_PERF_COL = "__future_perf__"
 INTERNAL_BENCHMARK_COL = "__benchmark__"
 
 AUTH_COOKIE_KEY = "p123_access_token"

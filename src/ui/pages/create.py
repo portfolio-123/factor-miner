@@ -1,6 +1,6 @@
 import streamlit as st
 import polars as pl
-from src.core.config.constants import PRICE_COLUMN, RANK_CONFIG
+from src.core.config.constants import RANK_CONFIG
 from src.core.config.environment import INTERNAL_MODE
 from src.core.types.models import AnalysisParams
 from src.internal.links import p123_link
@@ -139,7 +139,7 @@ def _render_settings() -> None:
             help="Exclude date-stock pairs where return exceeds this %",
         )
 
-    analyzable_factors = st.session_state["formulas_data"].filter(pl.col("name") != PRICE_COLUMN)
+    analyzable_factors = st.session_state["formulas_data"]
 
     asc_factors = st.session_state.get("asc_factors", [])
 

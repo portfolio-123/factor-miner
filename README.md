@@ -35,7 +35,7 @@ streamlit run app.py
 
 ### Data Format
 
-Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas. A factor called "Next Close" is required.
+Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas.
 
 ### Results Storage
 

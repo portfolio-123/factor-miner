@@ -1,41 +1,18 @@
 import streamlit as st
 from src.internal.links import p123_link
 from src.ui.components.tables import show_formulas_modal, show_preview_modal
-from src.core.config.constants import (
-    FREQUENCY_LABELS,
-    PIT_METHOD_LABELS,
-    PRICE_COLUMN,
-    SCALING_LABELS,
-)
+from src.core.config.constants import FREQUENCY_LABELS, PIT_METHOD_LABELS, SCALING_LABELS
 from src.core.config.environment import INTERNAL_MODE
-from src.core.types.models import (
-    DatasetConfig,
-    NormalizationConfig,
-    ScalingMethod,
-    ScopeType,
-)
+from src.core.types.models import DatasetConfig, NormalizationConfig, ScalingMethod, ScopeType
 from src.services.dataset_service import DatasetService
-from src.ui.components.common import (
-    render_info_item,
-    render_big_info_item,
-    render_section_label_html,
-    spacer,
-)
-from src.core.utils.common import (
-    escape_html,
-    escape_html_attr,
-    format_date,
-    format_timestamp,
-)
+from src.ui.components.common import render_info_item, render_big_info_item, render_section_label_html, spacer
+from src.core.utils.common import escape_html, escape_html_attr, format_date, format_timestamp
 
 DATE_FORMAT = "%Y-%m-%d"
 
 
 def _build_norm_items(normalization: NormalizationConfig) -> list[str]:
-    items = [
-        ("Scaling", SCALING_LABELS[normalization.scaling]),
-        ("Scope", normalization.scope.title()),
-    ]
+    items = [("Scaling", SCALING_LABELS[normalization.scaling]), ("Scope", normalization.scope.title())]
 
     needs_trim = normalization.scaling in (ScalingMethod.NORMAL, ScalingMethod.MINMAX)
     if needs_trim:
@@ -51,9 +28,7 @@ def _build_norm_items(normalization: NormalizationConfig) -> list[str]:
     items.append(("N/A Handling", "Middle"))
 
     if normalization.scope == ScopeType.DATASET and normalization.mlTrainingEnd:
-        items.append(
-            ("ML Training End", format_date(normalization.mlTrainingEnd, DATE_FORMAT))
-        )
+        items.append(("ML Training End", format_date(normalization.mlTrainingEnd, DATE_FORMAT)))
 
     return [render_info_item(label, value) for label, value in items]
 
@@ -66,16 +41,11 @@ def _get_date_range(metadata: DatasetConfig) -> str:
 
 def _render_header(metadata: DatasetConfig, fl_id: str) -> None:
     is_active = metadata.active
-    formula_count = sum(1 for f in metadata.formulas if f.get("name") != PRICE_COLUMN)
 
     if is_active:
-        col_title, _, col_formulas, col_preview, col_status = st.columns(
-            [3, 0.4, 0.9, 0.65, 0.15], vertical_alignment="center"
-        )
+        col_title, _, col_formulas, col_preview, col_status = st.columns([3, 0.4, 0.9, 0.65, 0.15], vertical_alignment="center")
     else:
-        col_title, _, col_formulas, col_status = st.columns(
-            [3, 0.9, 0.9, 0.15], vertical_alignment="center"
-        )
+        col_title, _, col_formulas, col_status = st.columns([3, 0.9, 0.9, 0.15], vertical_alignment="center")
         col_preview = None
 
     fl_name = st.session_state.get("fl_name", fl_id)
@@ -92,25 +62,15 @@ def _render_header(metadata: DatasetConfig, fl_id: str) -> None:
         )
 
     with col_formulas:
-        if st.button(
-            f"Formulas ({formula_count})",
-            width="stretch",
-            key=f"formulas_{metadata.version}",
-            type="secondary",
-        ):
+        if st.button(f"Formulas ({len(metadata.formulas)})", width="stretch", key=f"formulas_{metadata.version}", type="secondary"):
             show_formulas_modal(metadata.formulas_df)
 
     if col_preview is not None:
         with col_preview:
-            if st.button(
-                "Preview",
-                width="stretch",
-                key=f"preview_dataset_{metadata.version}",
-                type="secondary",
-            ):
+            if st.button("Preview", width="stretch", key=f"preview_dataset_{metadata.version}", type="secondary"):
                 with DatasetService(st.session_state["dataset_details"]) as svc:
                     preview = svc.get_preview_data()
-                show_preview_modal(**preview, formula_count=formula_count)
+                show_preview_modal(**preview, formula_count=len(metadata.formulas))
 
     if is_active:
         status_color = "#22c55e"

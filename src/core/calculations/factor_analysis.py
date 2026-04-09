@@ -10,10 +10,10 @@ import traceback
 from multiprocessing import shared_memory
 from contextlib import ExitStack, contextmanager
 
+from src.core.config.constants import FUTURE_PERF_COLUMN
 from src.core.calculations.utils import annualize_return, calculate_factor_metric, calculate_na_pct, weighted_ic
 from src.core.types.models import AnalysisParams, DatasetDetails, ProcessFactorResult, SharedArrayMetadata, WorkerContext
 from src.services.dataset_service import DatasetService
-from src.core.config.constants import INTERNAL_FUTURE_PERF_COL
 
 logger = logging.getLogger("calculations")
 
@@ -173,7 +173,7 @@ def analyze_factors(
     on_progress: Callable[[int, int], None],
 ) -> dict[str, ProcessFactorResult]:
     df = df.sort("Date")
-    perf_arr = df[INTERNAL_FUTURE_PERF_COL].to_numpy().astype(np.float32)
+    perf_arr = df[FUTURE_PERF_COLUMN].to_numpy().astype(np.float32)
     perf_mask = np.isfinite(perf_arr) & (perf_arr <= (params.max_return_pct / 100))
 
     unique_dates, counts = np.unique(df["Date"].to_numpy(), return_counts=True)
