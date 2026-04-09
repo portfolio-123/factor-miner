@@ -22,7 +22,7 @@ def select_best_factors(metrics_df: pl.DataFrame, corr_matrix: pl.DataFrame, par
     factors: list[str] = sorted_metrics["column"].to_list()
     factor_idx = np.array([col_to_idx[f] for f in factors])
 
-    valid_rank_by = np.abs(sorted_metrics[params.rank_by].to_numpy()) >= getattr(params, "min_rank_metric")
+    valid_rank_by = np.abs(sorted_metrics[params.rank_by].to_numpy()) >= params.min_rank_metric
     valid_na = sorted_metrics["na_pct"].to_numpy() <= params.max_na_pct
 
     classifications: dict[str, str] = {}

@@ -10,6 +10,7 @@ from time import monotonic
 from src.core.calculations.utils import annualize_return, cumulative_return
 from src.core.config.constants import FUTURE_PERF_COLUMN, INTERNAL_BENCHMARK_COL, REQUIRED_COLUMNS, SPECIAL_COLUMNS
 from src.core.types.models import (
+    AnalysisError,
     AnalysisParams,
     AnalysisStatus,
     AnalysisProgress,
@@ -44,7 +45,7 @@ def run_analysis(
 
         missing = REQUIRED_COLUMNS - column_names
         if missing:
-            raise ValueError(f"Dataset is missing required columns: {missing}")
+            raise AnalysisError(f"Dataset is missing required columns: {missing}", error_type="missing-column")
 
         factor_columns = list(column_names - SPECIAL_COLUMNS)
 
@@ -57,7 +58,7 @@ def run_analysis(
     periods_per_year = dataset_info.frequency.periods_per_year
 
     if dataset_info.type == DatasetType.DATE:
-        raise ValueError("Single-date datasets are not supported")
+        raise AnalysisError("Single-date datasets are not supported", error_type="single-date")
 
     # find the price column, the base columns (date, ticker) and exclude them from being analyzed
 
@@ -96,7 +97,7 @@ def run_analysis(
     )
 
     if not factor_stats:
-        raise ValueError("No results from factor analysis")
+        raise AnalysisError("No results from factor analysis")
 
     logger.info("Calculating factor metrics...")
     wide_data: dict[str, np.ndarray] = {}
@@ -174,6 +175,11 @@ def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str |
         results = run_analysis(update, stderr_logger, access_token, analysis.params, DatasetDetails(fl_id=fl_id, user_uid=user_uid))
         save_results(update, results)
         stderr_logger.info("Analysis completed successfully")
+    except AnalysisError as e:
+        error_msg = str(e)
+        error_type = e.error_type
+        update({"status": AnalysisStatus.FAILED, "error": error_msg, "error_type": error_type})
+        sys.exit(1)
     except Exception as e:
         error_msg = f"{str(e)}\n\n{traceback.format_exc()}"
         stderr_logger.error(f"EXCEPTION: {error_msg}")

@@ -58,7 +58,7 @@ def results() -> None:
             show_analysis_logs_modal(analysis_id)
 
     if status == AnalysisStatus.FAILED:
-        st.error(format_analysis_error(analysis.error or "Analysis failed"))
+        st.error(format_analysis_error(analysis.error, analysis.error_type))
         return
 
     if status == AnalysisStatus.PENDING or status == AnalysisStatus.RUNNING:
@@ -119,11 +119,7 @@ def results() -> None:
             with col2:
                 render_benchmark_badges(analysis.results.benchmark)
 
-            render_results_table(
-                all_metrics_df.filter(pl.col("column").is_in(best_feature_names)),
-                key="best_factors",
-                rank_by=rank_by,
-            )
+            render_results_table(all_metrics_df.filter(pl.col("column").is_in(best_feature_names)), key="best_factors", rank_by=rank_by)
 
             st.divider()
             best_corr_matrix = (

@@ -1,78 +1,86 @@
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 import logging
 from os import cpu_count
-from typing import Any
+from typing import Any, ParamSpec, TypeVar
 import numpy as np
 import polars as pl
 from scipy.stats import ttest_1samp
 import traceback
-from multiprocessing import shared_memory
 from contextlib import ExitStack, contextmanager
 
 from src.core.config.constants import FUTURE_PERF_COLUMN
 from src.core.calculations.utils import annualize_return, calculate_factor_metric, calculate_na_pct, weighted_ic
-from src.core.types.models import AnalysisParams, DatasetDetails, ProcessFactorResult, SharedArrayMetadata, WorkerContext
+from src.core.types.models import AnalysisParams, DatasetDetails, LocalArray, ProcessFactorResult, SharedArray, WorkerContext
 from src.services.dataset_service import DatasetService
+
+T = TypeVar("T")
+P = ParamSpec("P")
 
 logger = logging.getLogger("calculations")
 
 worker_ctx: WorkerContext | None = None
-worker_dataset_svc: DatasetService
-worker_shm_handles: list[shared_memory.SharedMemory] = []
 
 
-def _init_worker(
-    metadata: dict[str, SharedArrayMetadata] | None,
-    params: AnalysisParams,
-    dataset_details: DatasetDetails,
-    periods_per_year: float,
-    local_arrays: dict[str, np.ndarray] | None = None,
-):
-    global worker_ctx, worker_dataset_svc, worker_shm_handles
+def _set_worker(ctx: WorkerContext | None):
+    global worker_ctx
 
-    for shm in worker_shm_handles:
-        try:
-            shm.close()
-        except Exception:
-            pass
-    worker_shm_handles.clear()
+    worker_ctx = ctx
 
-    worker_dataset_svc = DatasetService(dataset_details)
 
-    arrays = reconstruct_shared_arrays(metadata) if metadata else local_arrays
+def allocate_shared_array(arr: np.ndarray, stack: ExitStack) -> SharedArray:
+    shared = SharedArray.alloc(arr)
+    stack.callback(SharedArray.dealloc, shared)
+    return shared
 
-    assert arrays is not None, "Worker failed to initialize data"
 
-    worker_ctx = WorkerContext(params=params, dataset_details=dataset_details, arrays=arrays, periods_per_year=periods_per_year)
+def run_synchronously(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs):
+    future = Future()
+    future.set_result(func(*args, **kwargs))
+    return future
 
 
 @contextmanager
-def get_executor(n_workers, arrays, params, dataset_details, periods_per_year):
-    with ExitStack() as stack:
-        if n_workers > 1:
-            active_shms, metadata = share_arrays(arrays)
-
-            def cleanup_shm():
-                for shm in active_shms:
-                    try:
-                        shm.close()
-                        shm.unlink()
-                    except FileNotFoundError:
-                        pass
-
-            stack.callback(cleanup_shm)
-
-            executor = ProcessPoolExecutor(
-                max_workers=n_workers, initializer=_init_worker, initargs=(metadata, params, dataset_details, periods_per_year)
+def get_executor(
+    n_workers: int,
+    perf_arr: np.ndarray,
+    perf_mask: np.ndarray,
+    benchmark_returns: np.ndarray,
+    offsets: np.ndarray,
+    params: AnalysisParams,
+    dataset_details: DatasetDetails,
+    periods_per_year: float,
+):
+    if n_workers > 1:
+        with ExitStack() as stack:
+            ctx = WorkerContext(
+                params=params,
+                dataset_details=dataset_details,
+                periods_per_year=periods_per_year,
+                perf_arr=allocate_shared_array(perf_arr, stack),
+                perf_mask=allocate_shared_array(perf_mask, stack),
+                benchmark_returns=allocate_shared_array(benchmark_returns, stack),
+                offsets=allocate_shared_array(offsets, stack),
             )
+            executor = ProcessPoolExecutor(max_workers=n_workers, initializer=_set_worker, initargs=(ctx,))
 
-            stack.callback(executor.shutdown, wait=True)
-            yield executor
+            stack.push(executor)
+            yield executor.submit
 
-        else:
-            _init_worker(None, params, dataset_details, periods_per_year, arrays)
-            yield None
+        return
+
+    ctx = WorkerContext(
+        params=params,
+        dataset_details=dataset_details,
+        periods_per_year=periods_per_year,
+        perf_arr=LocalArray(perf_arr),
+        perf_mask=LocalArray(perf_mask),
+        benchmark_returns=LocalArray(benchmark_returns),
+        offsets=LocalArray(offsets),
+    )
+    _set_worker(ctx)
+    yield run_synchronously
+    _set_worker(None)
 
 
 def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, high_quantile: float, low_quantile: float):
@@ -81,22 +89,22 @@ def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, h
 
     ic = weighted_ic(factor_valid, perf_valid)
     total_stocks = len(factor_valid)
-    high_quantile_amount = int(total_stocks * (high_quantile / 100))
-    low_quantile_amount = int(total_stocks * (low_quantile / 100))
+    high_quantile_cut = int(total_stocks * (high_quantile / 100))
+    low_quantile_cut = int(total_stocks * (low_quantile / 100))
 
-    if high_quantile_amount == 0:
+    if high_quantile_cut == 0:
         raise ValueError("No stocks were found in the high quantile")
 
-    if low_quantile > 0:
-        if low_quantile_amount == 0:
+    if low_quantile > 0.0:
+        if low_quantile_cut == 0:
             raise ValueError("No stocks were found in the low quantile")
-        sort_by_factor = np.argpartition(factor_valid, [high_quantile_amount, -low_quantile_amount])
-        low_quantile_ret = float(np.take(perf_valid, sort_by_factor[-low_quantile_amount:]).mean())
+        sort_by_factor = np.argpartition(factor_valid, [high_quantile_cut, -low_quantile_cut])
+        low_quantile_ret = float(np.take(perf_valid, sort_by_factor[-low_quantile_cut:]).mean())
     else:
-        sort_by_factor = np.argpartition(factor_valid, high_quantile_amount)
+        sort_by_factor = np.argpartition(factor_valid, high_quantile_cut)
         low_quantile_ret = 0.0
 
-    high_quantile_ret = float(np.take(perf_valid, sort_by_factor[:high_quantile_amount]).mean())
+    high_quantile_ret = float(np.take(perf_valid, sort_by_factor[:high_quantile_cut]).mean())
     return ic, high_quantile_ret, low_quantile_ret
 
 
@@ -104,14 +112,16 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     if not worker_ctx:
         raise RuntimeError("Worker state not initialized")
 
-    with worker_dataset_svc:
-        factor_arr = worker_dataset_svc.read_column_pa(factor).to_numpy().astype(np.float32)
+    with DatasetService(worker_ctx.dataset_details) as dataset_svc:
+        factor_arr = dataset_svc.read_column_pa(factor).to_numpy().astype(np.float32)
 
     if not ascending:
         np.negative(factor_arr, out=factor_arr)
 
-    benchmark_returns = worker_ctx.arrays["benchmark_returns"]
-    offsets = worker_ctx.arrays["offsets"]
+    perf_arr = worker_ctx.perf_arr.array
+    perf_mask = worker_ctx.perf_mask.array
+    benchmark_returns = worker_ctx.benchmark_returns.array
+    offsets = worker_ctx.offsets.array
 
     total_dates = len(offsets)
     aligned_returns = np.full(total_dates, np.nan, dtype=np.float32)
@@ -119,11 +129,7 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     factor_stats_per_date = np.empty((len(offsets), 3), dtype=np.float32)
 
     for i, (start, end) in enumerate(offsets):
-        f_group, p_group, m_group = (
-            factor_arr[start:end],
-            worker_ctx.arrays["perf_arr"][start:end],
-            worker_ctx.arrays["perf_mask"][start:end],
-        )
+        f_group, p_group, m_group = (factor_arr[start:end], perf_arr[start:end], perf_mask[start:end])
         valid_mask = m_group & np.isfinite(f_group)
 
         if not np.any(valid_mask):
@@ -187,13 +193,14 @@ def analyze_factors(
 
     logger.info(f"Workers launched: {n_workers}")
 
-    arrays = {"perf_arr": perf_arr, "perf_mask": perf_mask, "benchmark_returns": benchmark_returns, "offsets": offsets}
-
     logged_first = False
 
-    with get_executor(n_workers, arrays, params, dataset_details, periods_per_year) as executor:
+    with get_executor(n_workers, perf_arr, perf_mask, benchmark_returns, offsets, params, dataset_details, periods_per_year) as submit:
+        future_to_name = {submit(_process_factor, name, name in params.asc_factors): name for name in factor_columns}
 
-        for i, (name, res) in enumerate(_get_results(executor, factor_columns, params)):
+        for i, f in enumerate(as_completed(future_to_name), start=1):
+            name = future_to_name[f]
+            res = f.result()
             try:
                 results[name] = res[0]
                 if not logged_first:
@@ -204,48 +211,9 @@ def analyze_factors(
             except Exception:
                 logger.error(f"ANALYSIS FAILED - Factor {name}: {traceback.format_exc()}")
 
-            on_progress(i + 1, len(factor_columns))
+            on_progress(i, len(factor_columns))
 
     return results
-
-
-def _get_results(executor: ProcessPoolExecutor | None, factor_columns: list[str], params: AnalysisParams):
-    if executor:
-        future_to_name = {executor.submit(_process_factor, name, name in params.asc_factors): name for name in factor_columns}
-        for f in as_completed(future_to_name):
-            yield future_to_name[f], f.result()
-    else:
-        for n in factor_columns:
-            yield n, _process_factor(n, n in params.asc_factors)
-
-
-def reconstruct_shared_arrays(arrays_metadata: dict[str, SharedArrayMetadata]) -> dict[str, np.ndarray]:
-    global worker_shm_handles
-    reconstructed_arrs = {}
-
-    for key, info in arrays_metadata.items():
-        shm = shared_memory.SharedMemory(name=info["name"])
-
-        worker_shm_handles.append(shm)
-
-        arr = np.ndarray(shape=info["shape"], dtype=info["dtype"], buffer=shm.buf)
-
-        reconstructed_arrs[key] = arr
-
-    return reconstructed_arrs
-
-
-def share_arrays(arrays: dict[str, np.ndarray]) -> tuple[list[shared_memory.SharedMemory], dict[str, SharedArrayMetadata]]:
-    shm_objs = []
-    metadata: dict[str, SharedArrayMetadata] = {}
-    for key, arr in arrays.items():
-        arr = np.ascontiguousarray(arr)
-        shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)
-        shared_arr = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
-        shared_arr[:] = arr[:]
-        shm_objs.append(shm)
-        metadata[key] = {"name": shm.name, "shape": arr.shape, "dtype": str(arr.dtype)}
-    return shm_objs, metadata
 
 
 def _calc_workers(n_factors: int, n_rows: int) -> int:

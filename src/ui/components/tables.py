@@ -1,5 +1,4 @@
 from collections import Counter
-from itertools import cycle
 import polars as pl
 import streamlit as st
 
@@ -123,9 +122,9 @@ def show_formulas_modal(formulas_df: pl.DataFrame) -> None:
 def render_results_table(
     metrics: pl.DataFrame,
     factor_classifications: dict[str, str] | None = None,
-    key: str = "results",
-    rank_by: str = "annualized_alpha_pct",
-    sortable: bool = False,
+    key="results",
+    rank_by="annualized_alpha_pct",
+    sortable=False,
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")

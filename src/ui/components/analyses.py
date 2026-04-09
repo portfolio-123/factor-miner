@@ -9,8 +9,7 @@ from src.workers.analysis_service import AnalysisService
 
 @st.dialog("Analysis Logs", width="large")
 def show_analysis_logs_modal(analysis_id: str):
-    fl_id = st.query_params.get("fl_id")
-    assert fl_id
+    fl_id = st.query_params["fl_id"]
     user_uid = st.session_state.get("user_uid")
     logs = AnalysisService(user_uid).get_logs(fl_id, analysis_id)
     if not logs:
@@ -37,10 +36,7 @@ def render_analysis_notes(analysis: Analysis):
 
         with col_input:
             notes_value = st.text_input(
-                "Notes",
-                value=analysis.notes or "",
-                placeholder="Add notes about this analysis...",
-                label_visibility="collapsed",
+                "Notes", value=analysis.notes or "", placeholder="Add notes about this analysis...", label_visibility="collapsed"
             )
 
         with col_btn:
@@ -74,7 +70,7 @@ def render_analysis_progress(fl_id: str, analysis_id: str):
         st.rerun(scope="app")
 
     if analysis and analysis.status == AnalysisStatus.FAILED:
-        st.error(format_analysis_error(analysis.error or "Analysis failed"))
+        st.error(format_analysis_error(analysis.error, analysis.error_type))
         return
 
     _render_progress_bar(analysis.progress if analysis else None)

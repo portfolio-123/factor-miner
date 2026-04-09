@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
+from multiprocessing import shared_memory
 import numpy as np
 from pathlib import Path
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
-from typing import NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
@@ -242,10 +243,14 @@ class AnalysisSummary(BaseModel):
     best_factors_count: int | None = None
 
 
+ErrorType = Literal["missing-column", "single-date"]
+
+
 class Analysis(AnalysisSummary):
     updated_at: str | None = None
     results: AnalysisResults | None = None
     error: str | None = None
+    error_type: ErrorType | None = None
     progress: AnalysisProgress | None = None
 
 
@@ -259,18 +264,63 @@ class AnalysisUpdate(TypedDict, total=False):
     updated_at: str
     results: AnalysisResults
     error: str
+    error_type: ErrorType | None
     progress: AnalysisProgress | None
 
 
-@dataclass
+class AnalysisError(Exception):
+    error_type: ErrorType | None
+
+    def __init__(self, message: str, error_type: ErrorType | None = None):
+        super().__init__(message)
+        self.error_type = error_type
+
+
+class LocalArray:
+    def __init__(self, array: np.ndarray):
+        self.array = array
+
+    def close(self):
+        pass
+
+
+class SharedArray:
+    def __init__(self, shm: shared_memory.SharedMemory, array: np.ndarray):
+        self.shm = shm
+        self.array = array
+
+    def __getstate__(self):
+        return {"name": self.shm.name, "shape": self.array.shape, "dtype": str(self.array.dtype)}
+
+    def __setstate__(self, state):
+        self.shm = shared_memory.SharedMemory(name=state["name"])
+        self.array = np.ndarray(state["shape"], dtype=state["dtype"], buffer=self.shm.buf)
+
+    @staticmethod
+    def alloc(arr: np.ndarray) -> "SharedArray":
+        arr = np.ascontiguousarray(arr)
+        shm = shared_memory.SharedMemory(create=True, size=arr.nbytes)
+        try:
+            shared_arr = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
+            shared_arr[:] = arr[:]
+            return SharedArray(shm, shared_arr)
+        except:
+            shm.close()
+            shm.unlink()
+            raise
+
+    @staticmethod
+    def dealloc(shared: "SharedArray"):
+        shared.shm.close()
+        shared.shm.unlink()
+
+
+@dataclass(repr=False, eq=False)
 class WorkerContext:
     params: AnalysisParams
     dataset_details: DatasetDetails
     periods_per_year: float
-    arrays: dict[str, np.ndarray]
-
-
-class SharedArrayMetadata(TypedDict):
-    name: str
-    shape: tuple[int]
-    dtype: str
+    perf_arr: LocalArray | SharedArray
+    perf_mask: LocalArray | SharedArray
+    benchmark_returns: LocalArray | SharedArray
+    offsets: LocalArray | SharedArray

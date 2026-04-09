@@ -140,8 +140,7 @@ def _render_settings(metadata: DatasetConfig) -> None:
 
 
 def render_dataset_card(dataset_metadata: DatasetConfig) -> None:
-    fl_id = st.query_params.get("fl_id")
-    assert fl_id
+    fl_id = st.query_params["fl_id"]
 
     with st.container(border=True):
         _render_header(dataset_metadata, fl_id)
