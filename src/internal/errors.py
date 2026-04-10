@@ -1,7 +1,7 @@
 import streamlit as st
 
-from core.types.models import ErrorType
 from src.core.config.environment import INTERNAL_MODE
+from src.core.types.models import ErrorType
 from src.internal.links import p123_link
 
 
