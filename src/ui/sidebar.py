@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 import streamlit as st
 
 from src.core.config.environment import INTERNAL_MODE
@@ -16,57 +19,50 @@ def sidebar():
     # get available datasets first to determine default fl_id
     if INTERNAL_MODE:
         name_map = list_user_datasets(st.session_state["user_uid"])
+        get_name: Callable[[Any], str] = name_map.get  # type: ignore
         options = list(name_map)
     else:
-        name_map = {}
+        get_name: Callable[[Any], str] = lambda x: x
         options = DatasetService.list_datasets()
 
     # set default fl_id if not provided
-    if not fl_id and options:
+    if not fl_id:
+        if not options:
+            st.warning("No datasets available. Please generate a dataset in Portfolio123.")
+            st.stop()
+
         fl_id = options[0]
         st.query_params["fl_id"] = fl_id
 
     # set fl_name in session state
-    if fl_id:
-        st.session_state["fl_name"] = name_map.get(fl_id) or fl_id
+    st.session_state["fl_name"] = get_name(fl_id)
 
     dataset_details = st.session_state.get("dataset_details")
-    if fl_id and (dataset_details is None or dataset_details.fl_id != fl_id):
-        st.session_state["dataset_details"] = DatasetDetails(
-            fl_id=fl_id, user_uid=st.session_state.get("user_uid")
-        )
+    if dataset_details is None or dataset_details.fl_id != fl_id:
+        st.session_state["dataset_details"] = DatasetDetails(fl_id=fl_id, user_uid=st.session_state.get("user_uid"))
 
-    history_page = st.Page(
-        history, title="Your Results", icon=":material/list:", default=True
-    )
-    create_page = st.Page(
-        create_form, title="New Analysis", icon=":material/add:", url_path="create"
-    )
+    history_page = st.Page(history, title="Your Results", icon=":material/list:", default=True)
+    create_page = st.Page(create_form, title="New Analysis", icon=":material/add:", url_path="create")
     results_page = st.Page(results, title="Results", url_path="results")
     about_page = st.Page(about, title="About", icon=":material/info:", url_path="about")
 
-    new_pages = {
-        "history": history_page,
-        "create": create_page,
-        "results": results_page,
-        "about": about_page,
-    }
+    new_pages = {"history": history_page, "create": create_page, "results": results_page, "about": about_page}
 
     with st.sidebar:
         st.html("<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>")
 
         if options:
-            current_index = options.index(fl_id) if fl_id in options else 0
+            try:
+                current_index = options.index(fl_id)
+            except ValueError:
+                current_index = 0
 
             selected = st.selectbox(
-                "Datasets",
-                options=options,
-                index=current_index,
-                format_func=lambda v: name_map.get(v) or v,
-            )
+                "Datasets", options=options, index=current_index, format_func=get_name
+            )  # why not use bind="query-params"?
 
             if selected and selected != fl_id:
-                st.session_state["fl_name"] = name_map.get(selected) or selected
+                st.session_state["fl_name"] = get_name(selected)
                 id = st.query_params.get("id")
                 if id is not None:  # if in results page, switch to history page
                     st.switch_page(history_page, query_params=(("fl_id", selected),))
@@ -80,29 +76,9 @@ def sidebar():
 
         st.html("<hr style='margin: 0.5rem 0;'>")
 
-        st.page_link(
-            history_page,
-            label="Your Results",
-            icon=":material/analytics:",
-            query_params=(("fl_id", fl_id),),
-        )
-        st.page_link(
-            create_page,
-            label="New Analysis",
-            icon=":material/add:",
-            query_params=(("fl_id", fl_id),),
-        )
-        st.page_link(
-            about_page,
-            label="About",
-            icon=":material/info:",
-            query_params=(("fl_id", fl_id),),
-        )
+        query_params = (("fl_id", fl_id),)
+        st.page_link(history_page, label="Your Results", icon=":material/analytics:", query_params=query_params)
+        st.page_link(create_page, label="New Analysis", icon=":material/add:", query_params=query_params)
+        st.page_link(about_page, label="About", icon=":material/info:", query_params=query_params)
 
-    if not fl_id:
-        st.warning("No datasets available. Please generate a dataset in Portfolio123.")
-        st.stop()
-
-    return st.navigation(
-        [history_page, create_page, results_page, about_page], position="hidden"
-    )
+    return st.navigation([history_page, create_page, results_page, about_page], position="hidden")

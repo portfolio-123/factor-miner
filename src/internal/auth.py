@@ -39,8 +39,6 @@ def log_in():
 
     fl_id = st.query_params.get("fl_id")
     with st.columns([1, 2, 1])[1]:
-        st.info(
-            "You don't have a valid session. Please authenticate via Portfolio123 to access your datasets."
-        )
-        st.link_button("Login", p123_auth_link(fl_id), type="primary", width="stretch")
+        st.info("You don't have a valid session. Please authenticate via Portfolio123 to access your datasets.")
+        st.link_button("Log in", p123_auth_link(fl_id), type="primary", width="stretch")
     st.stop()
