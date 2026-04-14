@@ -53,8 +53,6 @@ def run_analysis(
             pl.col("Date").str.to_date("%Y-%m-%d"), (pl.col(FUTURE_PERF_COLUMN) / 100)
         )
 
-    logger.info(core_df[FUTURE_PERF_COLUMN])
-
     periods_per_year = dataset_info.frequency.periods_per_year
 
     if dataset_info.type == DatasetType.DATE:
