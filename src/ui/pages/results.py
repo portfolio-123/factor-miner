@@ -111,6 +111,9 @@ def results() -> None:
 
         render_analysis_notes(analysis)
 
+    low_q = analysis.params.low_quantile
+    high_q = analysis.params.high_quantile
+
     with best_factors_tab:
         if best_feature_names:
             col1, col2 = st.columns([3, 2])
@@ -119,7 +122,13 @@ def results() -> None:
             with col2:
                 render_benchmark_badges(analysis.results.benchmark)
 
-            render_results_table(all_metrics_df.filter(pl.col("column").is_in(best_feature_names)), key="best_factors", rank_by=rank_by)
+            render_results_table(
+                all_metrics_df.filter(pl.col("column").is_in(best_feature_names)),
+                key="best_factors",
+                rank_by=rank_by,
+                high_q=high_q,
+                low_q=low_q,
+            )
 
             st.divider()
             best_corr_matrix = (
@@ -142,5 +151,11 @@ def results() -> None:
             render_benchmark_badges(analysis.results.benchmark)
 
         render_results_table(
-            all_metrics_df, factor_classifications=factor_classifications, key="all_factors", rank_by=rank_by, sortable=True
+            all_metrics_df,
+            factor_classifications=factor_classifications,
+            key="all_factors",
+            rank_by=rank_by,
+            sortable=True,
+            high_q=high_q,
+            low_q=low_q,
         )

@@ -11,42 +11,45 @@ from src.ui.components.table_builder import render_table
 
 COLUMN_RENAMES = {
     "column": "Factor",
-    "annualized_alpha_pct": "Ann. Alpha %",
-    "annualized_high_quantile_pct": "Ann. High Qtl %",
-    "annualized_low_quantile_pct": "Ann. Low Qtl %",
     "asc": "Asc",
     "na_pct": "NA %",
-    "t_stat": "T-Stat",
-    "beta": "Beta",
     "rank": "Rank",
-    "ic": "IC",
+    "ic": "Tail-Weighted IC",
     "ic_t_stat": "IC t-stat",
+    "annualized_high_quantile_pct": "Ann. High Qtl %",
+    "annualized_low_quantile_pct": "Ann. Low Qtl %",
+}
+
+QUANTILE_RENAMES = {
+    "H": {"annualized_alpha_pct": "H Ann. Alpha %", "beta": "H Beta", "t_stat": "H T-Stat"},
+    "L": {"annualized_alpha_pct": "L Ann. Alpha %", "beta": "L Beta", "t_stat": "L T-Stat"},
+    "HL": {"annualized_alpha_pct": "H−L Alpha %", "beta": "H−L Beta", "t_stat": "H−L T-Stat"},
 }
 
 DISPLAY_COLUMNS = [
-    "Rank",
-    "Factor",
-    "Asc",
+    "rank",
+    "column",
+    "asc",
     "Tag",
-    "Ann. Alpha %",
-    "IC",
-    "Beta",
-    "T-Stat",
-    "IC t-stat",
-    "Ann. High Qtl %",
-    "Ann. Low Qtl %",
-    "NA %",
+    "annualized_alpha_pct",
+    "ic",
+    "beta",
+    "t_stat",
+    "ic_t_stat",
+    "annualized_high_quantile_pct",
+    "annualized_low_quantile_pct",
+    "na_pct",
 ]
 
 FORMAT_SPEC = {
-    "Ann. Alpha %": ".2f%",
-    "Ann. High Qtl %": ".2f%",
-    "Ann. Low Qtl %": ".2f%",
-    "NA %": ".1f%",
-    "Beta": ".4f",
-    "T-Stat": ".2f",
-    "IC": ".4f",
-    "IC t-stat": ".2f",
+    "annualized_alpha_pct": ".2f%",
+    "annualized_high_quantile_pct": ".2f%",
+    "annualized_low_quantile_pct": ".2f%",
+    "na_pct": ".1f%",
+    "beta": ".4f",
+    "t_stat": ".2f",
+    "ic": ".4f",
+    "ic_t_stat": ".2f",
 }
 
 
@@ -125,30 +128,41 @@ def render_results_table(
     key="results",
     rank_by="annualized_alpha_pct",
     sortable=False,
+    high_q=0.0,
+    low_q=0.0,
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
     assert isinstance(formulas_data, pl.DataFrame)
 
-    display = metrics.sort(pl.col(rank_by).abs(), descending=True).rename(COLUMN_RENAMES)
+    tag_mapping = formulas_data.unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
+    display = metrics.sort(pl.col(rank_by).abs(), descending=True).join(tag_mapping, on="column", how="left")
+    display = display.with_columns(
+        [pl.when(pl.col("asc") == 1).then(pl.lit("✓")).otherwise(pl.lit("")).alias("asc"), pl.col("tag").alias("Tag")]
+    )
 
-    tag_mapping = formulas_data.unique(subset=["name"]).select(["name", "tag"])
-    display = display.join(tag_mapping, left_on="Factor", right_on="name", how="left").rename({"tag": "Tag"})
-
-    display = display.with_columns(pl.when(pl.col("Asc") == 1).then(pl.lit("✓")).otherwise(pl.lit("")).alias("Asc"))
-
-    display = display.select(DISPLAY_COLUMNS)
+    mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
+    current_renames = {**COLUMN_RENAMES, **QUANTILE_RENAMES[mode]}
+    ui_column_labels = [current_renames.get(c, c) for c in DISPLAY_COLUMNS]
+    ui_display = display.rename(current_renames).select(ui_column_labels)
+    active_formats = {current_renames.get(k, k): v for k, v in FORMAT_SPEC.items()}
 
     row_colors = None
     if factor_classifications is not None:
         st.html(_build_legend_html(factor_classifications))
-        row_colors = [CLASSIFICATION_COLORS.get(factor_classifications[f], ("#ffffff", None))[0] for f in display["Factor"].to_list()]
+        row_colors = [CLASSIFICATION_COLORS.get(factor_classifications[f], ("#ffffff", None))[0] for f in ui_display["Factor"].to_list()]
 
     render_table(
-        display, row_colors=row_colors, format_spec=FORMAT_SPEC, max_height=500, zebra=True, sortable=sortable, column_widths={"IC": "50px"}
+        ui_display,
+        row_colors=row_colors,
+        format_spec=active_formats,
+        max_height=500,
+        zebra=True,
+        sortable=sortable,
+        column_widths={"Tail-Weighted IC": "50px"},
     )
 
-    enriched_df = add_formula_column(display, formulas_data)
+    enriched_df = add_formula_column(ui_display, formulas_data)
     copy_download_buttons(
         csv_copy=enriched_df.write_csv(separator="\t"),
         csv_download=enriched_df.write_csv(),
