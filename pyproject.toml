@@ -17,7 +17,7 @@ dependencies = [
     "requests~=2.32.5",
     "scipy~=1.17.1",
     "st_clipboard~=0.0.1",
-    "streamlit~=1.52.2",
+    "streamlit~=1.55.0",
     "yfinance~=1.2.0",
 ]
 
