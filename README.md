@@ -33,9 +33,15 @@ streamlit run app.py
 2. Select a dataset from the sidebar dropdown
 3. Click on **New Analysis** to run your analysis
 
-### Data Format
+### Dataset Requirements
 
-Each parquet file should contain your factor data with Date, Ticker, and price columns, along with your factor formulas.
+Your parquet file requires the following columns and format to work properly:
+
+| Column Name | Format | Example |
+| :--- | :--- | :--- |
+| `Date` | YYYY-MM-DD | 2022-04-09 |
+| `Ticker` |  | DAL |
+| `__Future_Perf__` | Percentage (Basis 100) | -3.2590967 |
 
 ### Results Storage
 
