@@ -44,6 +44,10 @@ def _load_last_analysis_params(fl_id: str) -> None:
 
 
 def _submit_analysis(fl_id: str) -> None:
+    if st.session_state.get("high_quantile") == 0 and st.session_state.get("low_quantile") == 0:
+        st.toast("High and Low Quantiles cannot both be 0%")
+        return
+
     user_uid = st.session_state.get("user_uid")
     dataset_version = DatasetService(st.session_state["dataset_details"]).current_version
     analysis_id = AnalysisService(user_uid).next_analysis_id(fl_id)
@@ -113,7 +117,7 @@ def _render_settings() -> None:
     with col2:
         st.number_input(
             "High Quantile (%)",
-            min_value=1.0,
+            min_value=0.0,
             max_value=100.0,
             step=1.0,
             key="high_quantile",

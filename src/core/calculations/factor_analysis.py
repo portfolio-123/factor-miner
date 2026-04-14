@@ -84,27 +84,26 @@ def get_executor(
 
 
 def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, high_quantile: float, low_quantile: float):
-    if high_quantile <= 0:
-        raise ValueError("High quantile must be greater than 0")
-
     ic = weighted_ic(factor_valid, perf_valid)
     total_stocks = len(factor_valid)
     high_quantile_cut = int(total_stocks * (high_quantile / 100))
     low_quantile_cut = int(total_stocks * (low_quantile / 100))
 
-    if high_quantile_cut == 0:
+    if high_quantile > 0 and high_quantile_cut == 0:
         raise ValueError("No stocks were found in the high quantile")
+    if low_quantile > 0 and low_quantile_cut == 0:
+        raise ValueError("No stocks were found in the low quantile")
 
-    if low_quantile > 0.0:
-        if low_quantile_cut == 0:
-            raise ValueError("No stocks were found in the low quantile")
-        sort_by_factor = np.argpartition(factor_valid, [high_quantile_cut, -low_quantile_cut])
-        low_quantile_ret = float(np.take(perf_valid, sort_by_factor[-low_quantile_cut:]).mean())
-    else:
-        sort_by_factor = np.argpartition(factor_valid, high_quantile_cut)
-        low_quantile_ret = 0.0
+    stocks_per_side = []
+    if high_quantile_cut > 0:
+        stocks_per_side.append(high_quantile_cut)
+    if low_quantile_cut > 0:
+        stocks_per_side.append(-low_quantile_cut)
 
-    high_quantile_ret = float(np.take(perf_valid, sort_by_factor[:high_quantile_cut]).mean())
+    sorted_slices = np.argpartition(factor_valid, stocks_per_side)
+
+    high_quantile_ret = float(np.take(perf_valid, sorted_slices[:high_quantile_cut]).mean() if high_quantile_cut > 0 else 0)
+    low_quantile_ret = float(np.take(perf_valid, sorted_slices[-low_quantile_cut:]).mean() if low_quantile_cut > 0 else 0)
     return ic, high_quantile_ret, low_quantile_ret
 
 
@@ -147,11 +146,12 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     low_quantile_rets = factor_stats_per_date[valid, 2]
     benchmark_returns_valid = benchmark_returns[valid]
 
-    factor_metrics = calculate_factor_metric(high_quantile_rets, benchmark_returns_valid, worker_ctx.periods_per_year)
+    diff = high_quantile_rets - low_quantile_rets
+    aligned_returns[valid] = np.where(diff <= -1.0, np.nan, diff)  # guard against a <-100% return and do nan
+
+    factor_metrics = calculate_factor_metric(aligned_returns[valid], benchmark_returns_valid, worker_ctx.periods_per_year)
     ic_valid = ic_per_date[np.isfinite(ic_per_date)]
     ic_t_stat: Any = ttest_1samp(ic_valid, popmean=0)[0]
-
-    aligned_returns[valid] = high_quantile_rets - low_quantile_rets
 
     result: ProcessFactorResult = {
         "na_pct": round(calculate_na_pct(factor_arr), 2),
