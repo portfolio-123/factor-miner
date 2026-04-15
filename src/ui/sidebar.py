@@ -22,19 +22,17 @@ def sidebar():
         get_name: Callable[[Any], str] = name_map.get  # type: ignore
         options = list(name_map)
     else:
-        get_name: Callable[[Any], str] = lambda x: x
+        get_name = str
         options = DatasetService.list_datasets()
 
+    if not options:
+        st.warning("No datasets available.")
+        st.stop()
     # set default fl_id if not provided
-    if not fl_id:
-        if not options:
-            st.warning("No datasets available. Please generate a dataset in Portfolio123.")
-            st.stop()
-
+    if not fl_id or fl_id not in options:
         fl_id = options[0]
         st.query_params["fl_id"] = fl_id
 
-    # set fl_name in session state
     st.session_state["fl_name"] = get_name(fl_id)
 
     dataset_details = st.session_state.get("dataset_details")
@@ -46,33 +44,25 @@ def sidebar():
     results_page = st.Page(results, title="Results", url_path="results")
     about_page = st.Page(about, title="About", icon=":material/info:", url_path="about")
 
-    new_pages = {"history": history_page, "create": create_page, "results": results_page, "about": about_page}
-
     with st.sidebar:
         st.html("<h1 style='padding: 0; margin: 0;'>FactorMiner</h1>")
 
-        if options:
-            try:
-                current_index = options.index(fl_id)
-            except ValueError:
-                current_index = 0
+        try:
+            current_index = options.index(fl_id)
+        except ValueError:
+            current_index = 0
 
-            selected = st.selectbox(
-                "Datasets", options=options, index=current_index, format_func=get_name
-            )  # why not use bind="query-params"?
+        selected = st.selectbox("Datasets", options=options, index=current_index, format_func=get_name)
 
-            if selected and selected != fl_id:
-                st.session_state["fl_name"] = get_name(selected)
-                id = st.query_params.get("id")
-                if id is not None:  # if in results page, switch to history page
-                    st.switch_page(history_page, query_params=(("fl_id", selected),))
-                else:
-                    st.query_params["fl_id"] = selected
-                    st.rerun()
-        elif not INTERNAL_MODE:
-            st.warning("No datasets found. Place .parquet files in the data directory.")
+        if selected and selected != fl_id:
+            st.session_state["fl_name"] = get_name(selected)
+            if st.query_params.get("id") is not None:  # if in results page, switch to history page
+                st.switch_page(history_page, query_params=(("fl_id", selected),))
+            else:
+                st.query_params["fl_id"] = selected
+                st.rerun()
 
-        st.session_state["pages"] = new_pages
+        st.session_state["pages"] = {"history": history_page, "create": create_page, "results": results_page, "about": about_page}
 
         st.html("<hr style='margin: 0.5rem 0;'>")
 
