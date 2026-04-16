@@ -138,7 +138,7 @@ def render_results_table(
     tag_mapping = formulas_data.unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
     display = metrics.sort(pl.col(rank_by).abs(), descending=True).join(tag_mapping, on="column", how="left")
     display = display.with_columns(
-        [pl.when(pl.col("asc") == 1).then(pl.lit("✓")).otherwise(pl.lit("")).alias("asc"), pl.col("tag").alias("Tag")]
+        [pl.when(pl.col("asc") == 1).then(pl.lit("X")).otherwise(pl.lit("")).alias("asc"), pl.col("tag").alias("Tag")]
     )
 
     mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
