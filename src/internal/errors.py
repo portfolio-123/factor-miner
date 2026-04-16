@@ -9,8 +9,10 @@ def format_analysis_error(error: str | None, error_type: ErrorType | None) -> st
     fl_id = st.query_params["fl_id"]
     msg = error.split("\n")[0] if error else "Analysis failed"
 
-    match error_type:
-        case "single-date":
-            if INTERNAL_MODE:
+    if INTERNAL_MODE:
+        match error_type:
+            case "missing-column":
+                return f"Dataset is incompatible due to recent updates. Please [regenerate]({p123_link(fl_id, "generate")}) to analyze."
+            case "single-date":
                 return f'Single-date is not supported. Please [generate a new dataset]({p123_link(fl_id, "generate")}) using "Period".'
     return f"Analysis failed: {msg}"
