@@ -102,8 +102,8 @@ def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, h
 
     sorted_slices = np.argpartition(factor_valid, stocks_per_side)
 
-    high_quantile_ret = float(np.take(perf_valid, sorted_slices[:high_quantile_cut]).mean() if high_quantile_cut > 0 else 0)
-    low_quantile_ret = float(np.take(perf_valid, sorted_slices[-low_quantile_cut:]).mean() if low_quantile_cut > 0 else 0)
+    high_quantile_ret = float(np.take(perf_valid, sorted_slices[-high_quantile_cut:]).mean() if high_quantile_cut > 0 else 0)
+    low_quantile_ret = float(np.take(perf_valid, sorted_slices[:low_quantile_cut]).mean() if low_quantile_cut > 0 else 0)
     return ic, high_quantile_ret, low_quantile_ret
 
 
@@ -114,7 +114,7 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     with DatasetService(worker_ctx.dataset_details) as dataset_svc:
         factor_arr = dataset_svc.read_column_pa(factor).to_numpy().astype(np.float32)
 
-    if not ascending:
+    if ascending:
         np.negative(factor_arr, out=factor_arr)
 
     perf_arr = worker_ctx.perf_arr.array
