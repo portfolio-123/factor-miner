@@ -106,12 +106,17 @@ def _render_settings() -> None:
     section_header("Portfolio Settings")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
+
+        def _on_rank_change():
+            st.session_state["min_rank_metric"] = RANK_CONFIG[st.session_state["rank_by"]]["default"]
+
         st.radio(
             "Rank By",
             options=RANK_CONFIG,
             format_func=lambda v: RANK_CONFIG[v]["metric_label"],
             key="rank_by",
             horizontal=True,
+            on_change=_on_rank_change,
             help="Select metric to rank factors by",
         )
     with col2:

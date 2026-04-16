@@ -44,6 +44,7 @@ class RankConfigItem(TypedDict):
     metric_label: str
     format_filter: Callable[[float], str | float]
     input_settings: RankConfigInputSettings
+    default: float
 
 
 RANK_CONFIG: dict[str, RankConfigItem] = {
@@ -51,6 +52,12 @@ RANK_CONFIG: dict[str, RankConfigItem] = {
         "metric_label": "Absolute Annual Alpha",
         "format_filter": lambda v: f"{v}%",
         "input_settings": {"min_value": 0.0, "max_value": 100.0, "step": 0.1},
+        "default": 0.5,
     },
-    "ic": {"metric_label": "IC", "format_filter": lambda v: v, "input_settings": {"min_value": 0.0, "max_value": 1.0, "step": 0.005}},
+    "ic": {
+        "metric_label": "IC",
+        "format_filter": lambda v: v,
+        "input_settings": {"min_value": 0.0, "max_value": 1.0, "step": 0.005},
+        "default": 0.01,
+    },
 }
