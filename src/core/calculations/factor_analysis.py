@@ -86,19 +86,15 @@ def get_executor(
 def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, high_quantile: float, low_quantile: float):
     ic = weighted_ic(factor_valid, perf_valid)
     total_stocks = len(factor_valid)
-    high_quantile_cut = int(total_stocks * (high_quantile / 100))
-    low_quantile_cut = int(total_stocks * (low_quantile / 100))
 
-    if high_quantile > 0 and high_quantile_cut == 0:
-        raise ValueError("No stocks were found in the high quantile")
-    if low_quantile > 0 and low_quantile_cut == 0:
-        raise ValueError("No stocks were found in the low quantile")
+    high_quantile_cut = max(int(total_stocks * (high_quantile / 100)), 1) if high_quantile > 0 else 0
+    low_quantile_cut = max(int(total_stocks * (low_quantile / 100)), 1) if low_quantile > 0 else 0
 
     stocks_per_side = []
     if high_quantile_cut > 0:
-        stocks_per_side.append(high_quantile_cut)
+        stocks_per_side.append(-high_quantile_cut)
     if low_quantile_cut > 0:
-        stocks_per_side.append(-low_quantile_cut)
+        stocks_per_side.append(low_quantile_cut)
 
     sorted_slices = np.argpartition(factor_valid, stocks_per_side)
 
