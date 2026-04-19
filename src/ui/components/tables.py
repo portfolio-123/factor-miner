@@ -139,12 +139,12 @@ def render_results_table(
 
     mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
 
-    if mode == "H":
-        sort_by, is_desc = pl.col(rank_by), True
+    if mode == "HL" or rank_by == "ic":
+        sort_by, is_desc = pl.col(rank_by).abs(), True
     elif mode == "L":
         sort_by, is_desc = pl.col(rank_by), False
     else:
-        sort_by, is_desc = pl.col(rank_by).abs(), True
+        sort_by, is_desc = pl.col(rank_by), True
 
     display = metrics.sort(by=sort_by, descending=is_desc).join(tag_mapping, on="column", how="left")
 
