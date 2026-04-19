@@ -136,12 +136,22 @@ def render_results_table(
     assert isinstance(formulas_data, pl.DataFrame)
 
     tag_mapping = formulas_data.unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
-    display = metrics.sort(pl.col(rank_by).abs(), descending=True).join(tag_mapping, on="column", how="left")
+
+    mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
+
+    if mode == "H":
+        sort_by, is_desc = pl.col(rank_by), True
+    elif mode == "L":
+        sort_by, is_desc = pl.col(rank_by), False
+    else:
+        sort_by, is_desc = pl.col(rank_by).abs(), True
+
+    display = metrics.sort(by=sort_by, descending=is_desc).join(tag_mapping, on="column", how="left")
+
     display = display.with_columns(
         [pl.when(pl.col("asc") == 1).then(pl.lit("X")).otherwise(pl.lit("")).alias("asc"), pl.col("tag").alias("Tag")]
     )
 
-    mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
     current_renames = {**COLUMN_RENAMES, **QUANTILE_RENAMES[mode]}
     ui_column_labels = [current_renames.get(c, c) for c in DISPLAY_COLUMNS]
     ui_display = display.rename(current_renames).select(ui_column_labels)
