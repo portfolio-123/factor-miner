@@ -47,13 +47,16 @@ def render_analysis_notes(analysis: Analysis):
             AnalysisService(user_uid).save(analysis, {"notes": notes_value})
 
 
-def _render_progress_bar(progress: AnalysisProgress | None):
+def _render_progress_bar(progress: AnalysisProgress | None, analysis_status: AnalysisStatus):
     if progress:
         progress_value = progress.completed / progress.total
         progress_text = f"{progress.completed} / {progress.total} factors analyzed"
     else:
         progress_value = 0
-        progress_text = "Preparing analysis..."
+        if analysis_status == AnalysisStatus.PENDING:
+            progress_text = "Preparing analysis..."
+        elif analysis_status == AnalysisStatus.RUNNING:
+            progress_text = "Fetching benchmark data..."
 
     with st.columns([1, 2, 1])[1]:
         st.space(100)
@@ -66,11 +69,15 @@ def render_analysis_progress(fl_id: str, analysis_id: str):
     user_uid = st.session_state.get("user_uid")
     analysis = AnalysisService(user_uid).get(fl_id, analysis_id)
 
-    if analysis and analysis.status == AnalysisStatus.SUCCESS:
+    if not analysis:
+        st.warning("An error ocurred reading the analysis")
+        return
+
+    if analysis.status == AnalysisStatus.SUCCESS:
         st.rerun(scope="app")
 
-    if analysis and analysis.status == AnalysisStatus.FAILED:
+    if analysis.status == AnalysisStatus.FAILED:
         st.error(format_analysis_error(analysis.error, analysis.error_type))
         return
 
-    _render_progress_bar(analysis.progress if analysis else None)
+    _render_progress_bar(analysis.progress if analysis else None, analysis.status)
