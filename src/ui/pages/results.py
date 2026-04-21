@@ -76,7 +76,19 @@ def results() -> None:
     metric_label = rank_config["metric_label"]
     format_filter = rank_config["format_filter"]
 
-    all_metrics_df = all_metrics_df.sort(pl.col(rank_by).abs(), descending=True).with_row_index("rank", offset=1)
+    low_q = analysis.params.low_quantile
+    high_q = analysis.params.high_quantile
+
+    mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
+
+    if mode == "HL" or rank_by == "ic":
+        sort_by, is_desc = pl.col(rank_by).abs(), True
+    elif mode == "L":
+        sort_by, is_desc = pl.col(rank_by), False
+    else:
+        sort_by, is_desc = pl.col(rank_by), True
+
+    all_metrics_df = all_metrics_df.sort(sort_by, descending=is_desc).with_row_index("rank", offset=1)
 
     best_feature_names = analysis.results.best_feature_names
     factor_classifications = analysis.results.factor_classifications
@@ -111,9 +123,6 @@ def results() -> None:
 
         render_analysis_notes(analysis)
 
-    low_q = analysis.params.low_quantile
-    high_q = analysis.params.high_quantile
-
     with best_factors_tab:
         if best_feature_names:
             col1, col2 = st.columns([3, 2])
@@ -123,11 +132,7 @@ def results() -> None:
                 render_benchmark_badges(analysis.results.benchmark)
 
             render_results_table(
-                all_metrics_df.filter(pl.col("column").is_in(best_feature_names)),
-                key="best_factors",
-                rank_by=rank_by,
-                high_q=high_q,
-                low_q=low_q,
+                all_metrics_df.filter(pl.col("column").is_in(best_feature_names)), key="best_factors", sortable=True, mode=mode
             )
 
             st.divider()
@@ -150,12 +155,4 @@ def results() -> None:
         with col2:
             render_benchmark_badges(analysis.results.benchmark)
 
-        render_results_table(
-            all_metrics_df,
-            factor_classifications=factor_classifications,
-            key="all_factors",
-            rank_by=rank_by,
-            sortable=True,
-            high_q=high_q,
-            low_q=low_q,
-        )
+        render_results_table(all_metrics_df, factor_classifications=factor_classifications, key="all_factors", mode=mode, sortable=True)

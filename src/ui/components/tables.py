@@ -123,13 +123,7 @@ def show_formulas_modal(formulas_df: pl.DataFrame) -> None:
 
 
 def render_results_table(
-    metrics: pl.DataFrame,
-    factor_classifications: dict[str, str] | None = None,
-    key="results",
-    rank_by="annualized_alpha_pct",
-    sortable=False,
-    high_q=0.0,
-    low_q=0.0,
+    metrics: pl.DataFrame, factor_classifications: dict[str, str] | None = None, key="results", *, mode, sortable=False
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
@@ -137,16 +131,7 @@ def render_results_table(
 
     tag_mapping = formulas_data.unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
 
-    mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
-
-    if mode == "HL" or rank_by == "ic":
-        sort_by, is_desc = pl.col(rank_by).abs(), True
-    elif mode == "L":
-        sort_by, is_desc = pl.col(rank_by), False
-    else:
-        sort_by, is_desc = pl.col(rank_by), True
-
-    display = metrics.sort(by=sort_by, descending=is_desc).join(tag_mapping, on="column", how="left")
+    display = metrics.join(tag_mapping, on="column", how="left")
 
     display = display.with_columns(
         [pl.when(pl.col("asc") == 1).then(pl.lit("X")).otherwise(pl.lit("")).alias("asc"), pl.col("tag").alias("Tag")]
