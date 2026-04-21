@@ -142,8 +142,8 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     low_quantile_rets = factor_stats_per_date[valid, 2]
     benchmark_returns_valid = benchmark_returns[valid]
 
-    diff = high_quantile_rets - low_quantile_rets
-    aligned_returns[valid] = np.where(diff <= -1.0, np.nan, diff)  # guard against a <-100% return and do nan
+    combined_returns = high_quantile_rets - low_quantile_rets if worker_ctx.params.high_quantile > 0 else low_quantile_rets
+    aligned_returns[valid] = np.where(combined_returns <= -1.0, np.nan, combined_returns)  # guard against a <-100% return and do nan
 
     factor_metrics = calculate_factor_metric(aligned_returns[valid], benchmark_returns_valid, worker_ctx.periods_per_year)
     ic_valid = ic_per_date[np.isfinite(ic_per_date)]
@@ -234,13 +234,19 @@ def _log_first_factor(
     lines = []
     for i, date in enumerate(unique_dates):
         start, end = offsets[i]
+        if start is not None and end is not None:
+            f_mean = f"{np.nanmean(first_factor_data[start:end]):8.2f}"
+            p_mean = f"{np.nanmean(perf_arr[start:end]) * 100:6.2f}%"
+        else:
+            f_mean = f"{'NaN':>8}"
+            p_mean = f"{'NaN':>7}"
 
         lines.append(
             f"  {date} | "
             f"High Q: {stats[i, 1]*100:6.2f}% | "
             f"Low Q: {stats[i, 2]*100:6.2f}% | "
-            f"Factor Mean: {np.nanmean(first_factor_data[start:end]):8.2f} | "
-            f"Perf Mean: {np.nanmean(perf_arr[start:end]) * 100:6.2f}%"
+            f"Factor Mean: {f_mean} | "
+            f"Perf Mean: {p_mean}%"
         )
 
     detailed_report = "\n".join(lines)
