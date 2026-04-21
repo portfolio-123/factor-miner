@@ -87,19 +87,19 @@ def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, h
     ic = weighted_ic(factor_valid, perf_valid)
     total_stocks = len(factor_valid)
 
-    high_quantile_cut = max(int(total_stocks * (high_quantile / 100)), 1) if high_quantile > 0 else 0
-    low_quantile_cut = max(int(total_stocks * (low_quantile / 100)), 1) if low_quantile > 0 else 0
+    high_quantile_cut = max(int(total_stocks * (high_quantile / 100)), 1) if high_quantile > 0 else None
+    low_quantile_cut = max(int(total_stocks * (low_quantile / 100)), 1) if low_quantile > 0 else None
 
     stocks_per_side = []
-    if high_quantile_cut > 0:
+    if high_quantile_cut is not None:
         stocks_per_side.append(-high_quantile_cut)
-    if low_quantile_cut > 0:
+    if low_quantile_cut is not None:
         stocks_per_side.append(low_quantile_cut)
 
     sorted_slices = np.argpartition(factor_valid, stocks_per_side)
 
-    high_quantile_ret = float(np.take(perf_valid, sorted_slices[-high_quantile_cut:]).mean() if high_quantile_cut > 0 else 0)
-    low_quantile_ret = float(np.take(perf_valid, sorted_slices[:low_quantile_cut]).mean() if low_quantile_cut > 0 else 0)
+    high_quantile_ret = float(np.take(perf_valid, sorted_slices[-high_quantile_cut:]).mean()) if high_quantile_cut is not None else 0.0
+    low_quantile_ret = float(np.take(perf_valid, sorted_slices[:low_quantile_cut]).mean()) if low_quantile_cut is not None else 0.0
     return ic, high_quantile_ret, low_quantile_ret
 
 

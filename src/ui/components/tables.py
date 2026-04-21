@@ -12,6 +12,7 @@ from src.ui.components.table_builder import render_table
 COLUMN_RENAMES = {
     "column": "Factor",
     "asc": "Asc",
+    "tag": "Tag",
     "na_pct": "NA %",
     "rank": "Rank",
     "ic": "Tail-Weighted IC",
@@ -20,17 +21,11 @@ COLUMN_RENAMES = {
     "annualized_low_quantile_pct": "Ann. Low Qtl %",
 }
 
-QUANTILE_RENAMES = {
-    "H": {"annualized_alpha_pct": "H Ann. Alpha %", "beta": "H Beta", "t_stat": "H T-Stat"},
-    "L": {"annualized_alpha_pct": "L Ann. Alpha %", "beta": "L Beta", "t_stat": "L T-Stat"},
-    "HL": {"annualized_alpha_pct": "H−L Alpha %", "beta": "H−L Beta", "t_stat": "H−L T-Stat"},
-}
-
 DISPLAY_COLUMNS = [
     "rank",
     "column",
     "asc",
-    "Tag",
+    "tag",
     "annualized_alpha_pct",
     "beta",
     "t_stat",
@@ -123,23 +118,26 @@ def show_formulas_modal(formulas_df: pl.DataFrame) -> None:
 
 
 def render_results_table(
-    metrics: pl.DataFrame, factor_classifications: dict[str, str] | None = None, key="results", *, mode, sortable=False
+    metrics: pl.LazyFrame,
+    quantile_renames: dict[str, str],
+    factor_classifications: dict[str, str] | None = None,
+    key="results",
+    *,
+    sortable=False,
 ) -> None:
     fl_id = st.query_params.get("fl_id")
     formulas_data = st.session_state.get("formulas_data")
     assert isinstance(formulas_data, pl.DataFrame)
 
-    tag_mapping = formulas_data.unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
+    tag_mapping = formulas_data.lazy().unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
 
     display = metrics.join(tag_mapping, on="column", how="left")
 
-    display = display.with_columns(
-        [pl.when(pl.col("asc") == 1).then(pl.lit("X")).otherwise(pl.lit("")).alias("asc"), pl.col("tag").alias("Tag")]
-    )
+    display = display.with_columns([pl.col("asc").replace_strict([False, True], ["", "X"])])
 
-    current_renames = {**COLUMN_RENAMES, **QUANTILE_RENAMES[mode]}
+    current_renames = {**COLUMN_RENAMES, **quantile_renames}
     ui_column_labels = [current_renames.get(c, c) for c in DISPLAY_COLUMNS]
-    ui_display = display.rename(current_renames).select(ui_column_labels)
+    ui_display = display.rename(current_renames).select(ui_column_labels).collect()
     active_formats = {current_renames.get(k, k): v for k, v in FORMAT_SPEC.items()}
 
     row_colors = None

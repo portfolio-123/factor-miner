@@ -71,22 +71,13 @@ def results() -> None:
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 
-    rank_by = analysis.params.rank_by
+    p = analysis.params
+    rank_by = p.rank_by
     rank_config = RANK_CONFIG[rank_by]
-    metric_label = rank_config["metric_label"]
-    format_filter = rank_config["format_filter"]
+    metric_label = rank_config.metric_label
 
-    low_q = analysis.params.low_quantile
-    high_q = analysis.params.high_quantile
-
-    mode = "H" if low_q == 0 else "L" if high_q == 0 else "HL"
-
-    if mode == "HL" or rank_by == "ic":
-        sort_by, is_desc = pl.col(rank_by).abs(), True
-    elif mode == "L":
-        sort_by, is_desc = pl.col(rank_by), False
-    else:
-        sort_by, is_desc = pl.col(rank_by), True
+    sort_by, is_desc = rank_config.get_sorting(low_q=p.low_quantile, high_q=p.high_quantile)
+    quantile_renames = rank_config.get_renames(low_q=p.low_quantile, high_q=p.high_quantile)
 
     all_metrics_df = all_metrics_df.sort(sort_by, descending=is_desc).with_row_index("rank", offset=1)
 
@@ -95,7 +86,7 @@ def results() -> None:
     na_excluded_count = sum(1 for c in factor_classifications.values() if c == "high_na")
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
-        f"Found **{len(best_feature_names)}** of **{analysis.params.n_factors}** requested Best Factors. "
+        f"Found **{len(best_feature_names)}** of **{p.n_factors}** requested Best Factors. "
         f"Number of factors excluded by NAs: {na_excluded_count}."
     )
 
@@ -106,11 +97,10 @@ def results() -> None:
 
         with st.container(border=True):
             st.markdown("#### Analysis Settings", unsafe_allow_html=True)
-            p = analysis.params
             settings = [
                 ("Rank By", metric_label),
                 ("Max. Factors", p.n_factors),
-                (f"Min. {metric_label}", format_filter(p.min_rank_metric)),
+                (f"Min. {metric_label}", rank_config.format_filter(p.min_rank_metric)),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
                 ("Max Return", f"{p.max_return_pct}%"),
@@ -132,14 +122,19 @@ def results() -> None:
                 render_benchmark_badges(analysis.results.benchmark)
 
             render_results_table(
-                all_metrics_df.filter(pl.col("column").is_in(best_feature_names)), key="best_factors", sortable=True, mode=mode
+                all_metrics_df.lazy().filter(pl.col("column").is_in(best_feature_names)),
+                quantile_renames=quantile_renames,
+                key="best_factors",
+                sortable=True,
             )
 
             st.divider()
             best_corr_matrix = (
-                corr_matrix_df.filter(pl.col("factor").is_in(best_feature_names))
+                corr_matrix_df.lazy()
+                .filter(pl.col("factor").is_in(best_feature_names))
                 .select(["factor"] + best_feature_names)
-                .sort(pl.col("factor").replace_strict({name: i for i, name in enumerate(best_feature_names)}))
+                .sort(pl.col("factor").replace_strict(best_feature_names, range(len(best_feature_names))))
+                .collect()
             )
             render_correlation_matrix(corr_matrix_df=best_corr_matrix, title="Correlation Matrix (Best Factors)", file_prefix=fl_id)
         else:
@@ -155,4 +150,10 @@ def results() -> None:
         with col2:
             render_benchmark_badges(analysis.results.benchmark)
 
-        render_results_table(all_metrics_df, factor_classifications=factor_classifications, key="all_factors", mode=mode, sortable=True)
+        render_results_table(
+            all_metrics_df.lazy(),
+            quantile_renames=quantile_renames,
+            factor_classifications=factor_classifications,
+            key="all_factors",
+            sortable=True,
+        )

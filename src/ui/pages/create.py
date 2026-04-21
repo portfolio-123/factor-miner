@@ -28,7 +28,7 @@ def factor_sorting_dialog(factors_df: pl.DataFrame, asc_factors: list[str]):
             st.rerun()
     with col_save:
         if st.button("Save Changes", type="primary", width="stretch"):
-            selected_formulas = edited.filter(pl.col("asc"))["name"].to_list()
+            selected_formulas = edited.lazy().filter(pl.col("asc")).select(pl.col("name")).collect().to_series().to_list()
             st.session_state["asc_factors"] = selected_formulas
             st.rerun()
 
@@ -110,12 +110,12 @@ def _render_settings() -> None:
     with col1:
 
         def _on_rank_change():
-            st.session_state["min_rank_metric"] = RANK_CONFIG[st.session_state["rank_by"]]["default"]
+            st.session_state["min_rank_metric"] = RANK_CONFIG[st.session_state["rank_by"]].default
 
         st.radio(
             "Rank By",
             options=RANK_CONFIG,
-            format_func=lambda v: RANK_CONFIG[v]["metric_label"],
+            format_func=lambda v: RANK_CONFIG[v].metric_label,
             key="rank_by",
             horizontal=True,
             on_change=_on_rank_change,
@@ -171,8 +171,8 @@ def _render_settings() -> None:
     with col1:
         rank_by = st.session_state["rank_by"]
         rank_config = RANK_CONFIG[rank_by]
-        metric_label = rank_config["metric_label"]
-        input_settings = rank_config["input_settings"]
+        metric_label = rank_config.metric_label
+        input_settings = rank_config.input_settings
         st.number_input(f"Min. {metric_label}", **input_settings, key="min_rank_metric")
     with col2:
         st.number_input(

@@ -72,7 +72,7 @@ def run_analysis(
         api_credentials=api_credentials,
     )
 
-    benchmark_df = calculate_benchmark_returns(core_df.select(pl.col("Date").unique().sort()), benchmark_prices)
+    benchmark_df = calculate_benchmark_returns(core_df.lazy().select(pl.col("Date").unique().sort()), benchmark_prices.lazy()).collect()
 
     valid_benchmark = benchmark_df[INTERNAL_BENCHMARK_COL].drop_nulls().to_numpy()
 
