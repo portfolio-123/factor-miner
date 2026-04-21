@@ -110,11 +110,18 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     with DatasetService(worker_ctx.dataset_details) as dataset_svc:
         factor_arr = dataset_svc.read_column_pa(factor).to_numpy().astype(np.float32)
 
+    perf_arr = worker_ctx.perf_arr.array
+    perf_mask = worker_ctx.perf_mask.array
+
+    # ic test that covers all dates, to know if the factor should adjust to asc (lower_values)
+    if worker_ctx.params.auto_detect_direction:
+        global_valid = np.isfinite(factor_arr) & perf_mask
+        if weighted_ic(factor_arr[global_valid], worker_ctx.perf_arr.array[global_valid]) < 0:
+            ascending = True
+
     if ascending:
         np.negative(factor_arr, out=factor_arr)
 
-    perf_arr = worker_ctx.perf_arr.array
-    perf_mask = worker_ctx.perf_mask.array
     benchmark_returns = worker_ctx.benchmark_returns.array
     offsets = worker_ctx.offsets.array
 
