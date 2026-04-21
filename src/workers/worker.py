@@ -10,6 +10,7 @@ from time import monotonic
 from src.core.calculations.utils import annualize_return, cumulative_return
 from src.core.config.constants import FUTURE_PERF_COLUMN, INTERNAL_BENCHMARK_COL, REQUIRED_COLUMNS, SPECIAL_COLUMNS
 from src.core.types.models import (
+    APICredentials,
     AnalysisError,
     AnalysisParams,
     AnalysisStatus,
@@ -34,7 +35,7 @@ stderr_logger = logging.getLogger("worker")
 def run_analysis(
     update: Callable[[AnalysisUpdate], None],
     logger: logging.Logger,
-    access_token: str | None,
+    api_credentials: APICredentials | None,
     params: AnalysisParams,
     dataset_details: DatasetDetails,
 ) -> AnalysisResults:
@@ -68,7 +69,7 @@ def run_analysis(
         ticker=extract_benchmark_ticker(dataset_info.benchName),
         start_date=dataset_info.startDt[:10],
         end_date=dataset_info.endDt[:10],
-        access_token=access_token,
+        api_credentials=api_credentials,
     )
 
     benchmark_df = calculate_benchmark_returns(core_df.select(pl.col("Date").unique().sort()), benchmark_prices)
@@ -138,11 +139,13 @@ def save_results(update: Callable[[AnalysisUpdate], None], results: AnalysisResu
     )
 
 
-def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str | None):
+def main(fl_id: str, analysis_id: str, user_uid: str | None, api_id: str | None, api_key: str | None):
     if user_uid == "":
         user_uid = None
-    if access_token == "":
-        access_token = None
+    if api_id == "":
+        api_id = None
+    if api_key == "":
+        api_key = None
 
     service = AnalysisService(user_uid)
     analysis = service.get(fl_id, analysis_id)
@@ -170,7 +173,14 @@ def main(fl_id: str, analysis_id: str, user_uid: str | None, access_token: str |
         update({"status": AnalysisStatus.RUNNING})
         stderr_logger.info("Starting analysis...")
         stderr_logger.info(f"Processing dataset: {fl_id}")
-        results = run_analysis(update, stderr_logger, access_token, analysis.params, DatasetDetails(fl_id=fl_id, user_uid=user_uid))
+
+        results = run_analysis(
+            update,
+            stderr_logger,
+            APICredentials(api_id=api_id, api_key=api_key) if api_id and api_key else None,
+            analysis.params,
+            DatasetDetails(fl_id=fl_id, user_uid=user_uid),
+        )
         save_results(update, results)
         stderr_logger.info("Analysis completed successfully")
     except AnalysisError as e:

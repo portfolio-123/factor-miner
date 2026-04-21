@@ -9,14 +9,7 @@ from pathlib import Path
 from src.core.utils.common import find_files
 from pydantic import ValidationError
 from src.core.config.paths import get_user_base_dir
-from src.core.types.models import (
-    Analysis,
-    AnalysisParams,
-    AnalysisSummary,
-    AnalysisStatus,
-    AnalysisUpdate,
-    DatasetDetails,
-)
+from src.core.types.models import APICredentials, Analysis, AnalysisParams, AnalysisSummary, AnalysisStatus, AnalysisUpdate, DatasetDetails
 from src.services.dataset_service import BackupDatasetService, DatasetService
 
 logger = logging.getLogger(__name__)
@@ -34,11 +27,7 @@ class AnalysisService:
         path = self._get_path(analysis.fl_id, analysis.id)
         tmp_path: str | None = None
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                dir=path.parent,  # target same directory as original file
-                delete=False,
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as tmp:  # target same directory as original file
                 tmp.write(analysis.model_dump_json(indent=2))
                 tmp_path = tmp.name
             os.replace(tmp_path, path)
@@ -57,9 +46,7 @@ class AnalysisService:
         except (FileNotFoundError, OSError, ValidationError):
             return None
 
-    def create(
-        self, fl_id: str, analysis_id: str, dataset_version: str, params: AnalysisParams
-    ) -> Analysis:
+    def create(self, fl_id: str, analysis_id: str, dataset_version: str, params: AnalysisParams) -> Analysis:
         now = datetime.now(timezone.utc).isoformat()
         analysis = Analysis(
             id=analysis_id,
@@ -77,9 +64,7 @@ class AnalysisService:
 
         # Create backup of dataset metadata if it doesn't exist
         dataset_details = DatasetDetails(fl_id=fl_id, user_uid=self.user_uid)
-        dest_path = BackupDatasetService(dataset_details).get_backup_path(
-            dataset_version
-        )
+        dest_path = BackupDatasetService(dataset_details).get_backup_path(dataset_version)
         if not dest_path.exists():
             with DatasetService(dataset_details) as dataset_svc:
                 dataset_svc.back_up_metadata(dest_path)
@@ -123,9 +108,7 @@ class AnalysisService:
         analyses: list[AnalysisSummary] = []
         for json_file in find_files(fl_dir, prefix="analysis_", suffix=".json"):
             try:
-                analyses.append(
-                    AnalysisSummary.model_validate_json(Path(json_file).read_bytes())
-                )
+                analyses.append(AnalysisSummary.model_validate_json(Path(json_file).read_bytes()))
             except Exception:
                 continue
 
@@ -136,9 +119,7 @@ class AnalysisService:
 
     def next_analysis_id(self, fl_id: str) -> str:
         max_num = 0
-        for json_file in find_files(
-            Path(self.base_dir, fl_id), prefix="analysis_", suffix=".json"
-        ):
+        for json_file in find_files(Path(self.base_dir, fl_id), prefix="analysis_", suffix=".json"):
             try:
                 num = int(json_file.name[9:-5])  # slice "analysis_" and ".json"
                 if num > max_num:
@@ -149,19 +130,13 @@ class AnalysisService:
         return f"analysis_{max_num + 1}"
 
     def start(
-        self,
-        fl_id: str,
-        analysis_id: str,
-        dataset_version: str,
-        params: AnalysisParams,
-        access_token: str | None = None,
+        self, fl_id: str, analysis_id: str, dataset_version: str, params: AnalysisParams, api_credentials: APICredentials | None
     ) -> Analysis:
         analysis = self.create(fl_id, analysis_id, dataset_version, params)
 
         log_dir = Path(self.base_dir, fl_id, "logs")
         log_dir.mkdir(parents=True, exist_ok=True)
         stderr_path = Path(log_dir, f"{analysis_id}.stderr.log")
-
         stderr_file = open(stderr_path, "w")
         subprocess.Popen(
             [
@@ -171,7 +146,8 @@ class AnalysisService:
                 fl_id,
                 analysis_id,
                 self.user_uid or "",
-                access_token or "",
+                api_credentials["api_id"] if api_credentials else "",
+                api_credentials["api_key"] if api_credentials else "",
             ],
             start_new_session=True,
             stdout=subprocess.DEVNULL,

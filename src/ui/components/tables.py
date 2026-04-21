@@ -177,6 +177,7 @@ def _build_row(a: AnalysisSummary, ds: DatasetConfig) -> dict[str, str]:
         "high": f"{int(p.high_quantile)}%",
         "low": f"{int(p.low_quantile)}%",
         "max.ret": f"{int(p.max_return_pct)}%",
+        "auto-detect": p.auto_detect_direction,
     }
     return {
         "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M UTC"),

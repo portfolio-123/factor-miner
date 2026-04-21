@@ -7,7 +7,7 @@ import polars as pl
 import pyarrow as pa
 
 from src.core.config.environment import DATASET_DIR, INTERNAL_MODE
-from src.core.types.models import DatasetConfig, DatasetDetails
+from src.core.types.models import APICredentials, DatasetConfig, DatasetDetails
 from src.core.utils.common import find_files, format_version_timestamp
 from src.services.readers import ParquetDataReader
 
@@ -32,12 +32,12 @@ class DatasetService:
         return sorted(f.name[:-8] for f in find_files(DATASET_DIR, suffix=".parquet"))  # Remove ".parquet" suffix
 
     @staticmethod
-    def fetch_benchmark(ticker: str, start_date: str, end_date: str, access_token: str | None = None) -> pl.DataFrame:
+    def fetch_benchmark(ticker: str, start_date: str, end_date: str, api_credentials: APICredentials | None) -> pl.DataFrame:
         if INTERNAL_MODE:
             from src.internal.p123_client import fetch_benchmark_data
 
-            assert access_token is not None
-            return fetch_benchmark_data(benchmark_ticker=ticker, access_token=access_token, start_date=start_date, end_date=end_date)
+            assert api_credentials is not None
+            return fetch_benchmark_data(benchmark_ticker=ticker, api_credentials=api_credentials, start_date=start_date, end_date=end_date)
         else:
             from src.services.benchmark_service import fetch_benchmark_external
 

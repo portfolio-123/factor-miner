@@ -166,6 +166,7 @@ class AnalysisParams(BaseModel):
     correlation_threshold: float = 0.5
     max_return_pct: float = 200.0
     asc_factors: list[str] = []
+    auto_detect_direction: bool = False
 
 
 class NormalizationConfig(BaseModel):
@@ -324,3 +325,8 @@ class WorkerContext:
     perf_mask: LocalArray | SharedArray
     benchmark_returns: LocalArray | SharedArray
     offsets: LocalArray | SharedArray
+
+
+class APICredentials(TypedDict):
+    api_id: str
+    api_key: str

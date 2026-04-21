@@ -1,26 +1,28 @@
 import streamlit as st
 
+from src.core.types.models import APICredentials
 from src.core.config.constants import AUTH_COOKIE_KEY
 from src.core.utils.cookie_utils import clear_cookie, get_cookie, set_cookie
 from src.core.utils.jwt_utils import decrypt_token
 from src.internal.links import p123_auth_link
-from src.internal.p123_client import authenticate as get_access_token
+from src.internal.p123_client import authenticate
 
 
 def _authenticate(jwt_token: str, save_cookie=True) -> None:
     payload = decrypt_token(jwt_token)
     if not payload.user_uid:
         raise ValueError("User UID not found in token")
-    access_token = get_access_token(apiId=payload.apiId, apiKey=payload.apiKey)
-    st.session_state["access_token"] = access_token
+    authenticate(apiId=payload.apiId, apiKey=payload.apiKey)
+    st.session_state["api_credentials"] = APICredentials(api_id=str(payload.apiId), api_key=payload.apiKey)
     st.session_state["user_uid"] = payload.user_uid
+
     if save_cookie:
         set_cookie(AUTH_COOKIE_KEY, jwt_token, days=1)
 
 
 def log_in():
     # already authenticated this session
-    if st.session_state.get("access_token") and st.session_state.get("user_uid"):
+    if st.session_state.get("api_credentials") and st.session_state.get("user_uid"):
         return
 
     # url token (webapp redirect) or cookie

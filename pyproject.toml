@@ -19,6 +19,7 @@ dependencies = [
     "st_clipboard~=0.0.1",
     "streamlit~=1.55.0",
     "yfinance~=1.2.0",
+    "p123api~=2.2.0"
 ]
 
 [project.optional-dependencies]

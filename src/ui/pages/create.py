@@ -54,7 +54,9 @@ def _submit_analysis(fl_id: str) -> None:
 
     try:
         params = AnalysisParams(**{field: st.session_state[field] for field in AnalysisParams.model_fields})
-        AnalysisService(user_uid).start(fl_id, analysis_id, dataset_version, params, access_token=st.session_state.get("access_token"))
+        AnalysisService(user_uid).start(
+            fl_id, analysis_id, dataset_version, params, api_credentials=st.session_state.get("api_credentials")
+        )
         st.session_state["_redirect_to_results"] = analysis_id
 
     except Exception as e:
@@ -152,8 +154,17 @@ def _render_settings() -> None:
 
     asc_factors = st.session_state.get("asc_factors", [])
 
-    if st.button(f"Factor Sorting ({len(analyzable_factors) - len(asc_factors)} desc, {len(asc_factors)} asc)"):
+    if st.button(
+        f"Factor Sorting ({len(analyzable_factors) - len(asc_factors)} desc, {len(asc_factors)} asc)",
+        disabled=st.session_state.get("auto_detect_direction") == True,
+    ):
         factor_sorting_dialog(analyzable_factors, asc_factors)
+
+    st.toggle(
+        "Auto-detect direction",
+        help="Automatically inverts factors with a negative IC. Overrides manual sorting metrics",
+        key="auto_detect_direction",
+    )
 
     section_header("Analysis Filters")
     col1, col2, col3, col4 = st.columns(4)
