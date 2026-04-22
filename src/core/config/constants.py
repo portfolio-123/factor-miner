@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from typing import Literal, Protocol, TypedDict
 
 import polars as pl
@@ -41,26 +42,32 @@ class RankConfigInputSettings(TypedDict):
     step: float
 
 
-class RankConfig(Protocol):
+RankByValue = Literal["annualized_alpha_pct", "ic"]
+
+
+class RankConfig(ABC):
     metric_label: str
     input_settings: RankConfigInputSettings
     default: float
 
-    def format_filter(self, v: float) -> str | float: ...
+    def get_renames(self, low_q: float, high_q: float) -> dict[str, str]:
+        if low_q == 0:
+            return {"annualized_alpha_pct": "H Ann. Alpha %", "beta": "H Beta", "t_stat": "H T-Stat"}
+        elif high_q == 0:
+            return {"annualized_alpha_pct": "L Ann. Alpha %", "beta": "L Beta", "t_stat": "L T-Stat"}
+        else:
+            return {"annualized_alpha_pct": "H−L Alpha %", "beta": "H−L Beta", "t_stat": "H−L T-Stat"}
 
-    def get_sorting(self, low_q: float, high_q: float) -> tuple[pl.Expr, bool]: ...
+    @abstractmethod
+    def format_filter(self, v: float) -> str | float:
+        pass
 
-    def get_renames(self, low_q: float, high_q: float) -> dict[str, str]: ...
-
-
-RankByValue = Literal["annualized_alpha_pct", "ic"]
+    @abstractmethod
+    def get_sorting(self, low_q: float, high_q: float) -> tuple[pl.Expr, bool]:
+        pass
 
 
 class AnnualizedAlphaPctRankConfig(RankConfig):
-    RENAMES_H = {"annualized_alpha_pct": "H Ann. Alpha %", "beta": "H Beta", "t_stat": "H T-Stat"}
-    RENAMES_L = {"annualized_alpha_pct": "L Ann. Alpha %", "beta": "L Beta", "t_stat": "L T-Stat"}
-    RENAMES_HL = {"annualized_alpha_pct": "H−L Alpha %", "beta": "H−L Beta", "t_stat": "H−L T-Stat"}
-
     metric_label = "Absolute Annual Alpha"
     input_settings = {"min_value": 0.0, "max_value": 100.0, "step": 0.1}
     default = 0.5
@@ -76,14 +83,6 @@ class AnnualizedAlphaPctRankConfig(RankConfig):
         else:
             return pl.col("annualized_alpha_pct").abs(), True
 
-    def get_renames(self, low_q, high_q):
-        if low_q == 0:
-            return self.RENAMES_H
-        elif high_q == 0:
-            return self.RENAMES_L
-        else:
-            return self.RENAMES_HL
-
 
 class IcRankConfig(RankConfig):
     metric_label = "IC"
@@ -95,9 +94,6 @@ class IcRankConfig(RankConfig):
 
     def get_sorting(self, low_q, high_q):
         return pl.col("ic").abs(), True
-
-    def get_renames(self, low_q, high_q) -> dict[str, str]:
-        return {}
 
 
 RANK_CONFIG: dict[RankByValue, RankConfig] = {"annualized_alpha_pct": AnnualizedAlphaPctRankConfig(), "ic": IcRankConfig()}

@@ -7,7 +7,7 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 from typing import Literal, NotRequired, TypedDict
 
-from core.config.constants import RankByValue
+from src.core.config.constants import RankByValue
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
 
