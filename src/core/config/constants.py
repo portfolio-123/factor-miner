@@ -42,9 +42,6 @@ class RankConfigInputSettings(TypedDict):
     step: float
 
 
-RankByValue = Literal["annualized_alpha_pct", "ic"]
-
-
 class RankConfig(ABC):
     metric_label: str
     input_settings: RankConfigInputSettings
@@ -96,4 +93,7 @@ class IcRankConfig(RankConfig):
         return pl.col("ic").abs(), True
 
 
-RANK_CONFIG: dict[RankByValue, RankConfig] = {"annualized_alpha_pct": AnnualizedAlphaPctRankConfig(), "ic": IcRankConfig()}
+RANK_CONFIG: dict[Literal["annualized_alpha_pct", "ic"], RankConfig] = {
+    "annualized_alpha_pct": AnnualizedAlphaPctRankConfig(),
+    "ic": IcRankConfig(),
+}

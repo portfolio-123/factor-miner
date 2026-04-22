@@ -7,7 +7,6 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 from typing import Literal, NotRequired, TypedDict
 
-from src.core.config.constants import RankByValue
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
 
@@ -158,7 +157,7 @@ class Frequency(IntEnum):
 
 
 class AnalysisParams(BaseModel):
-    rank_by: RankByValue = "annualized_alpha_pct"
+    rank_by: Literal["annualized_alpha_pct", "ic"] = "annualized_alpha_pct"
     high_quantile: float = 10.0
     low_quantile: float = 10.0
     min_rank_metric: float = 0.5

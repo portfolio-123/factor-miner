@@ -138,14 +138,14 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
                 )
 
     if cached_views is not None:
-        automatic_ascending = float(np.nanmean(factor_stats_per_date[:, 0])) < 0
+        ascending = float(np.nanmean(factor_stats_per_date[:, 0])) < 0
 
-        if automatic_ascending:
+        if ascending:
             factor_stats_per_date[:, 0] *= -1
 
         for i, factor_valid, perf_valid in cached_views:
             factor_stats_per_date[i, 1:3] = _process_factor_per_date(
-                factor_valid, perf_valid, params.high_quantile, params.low_quantile, automatic_ascending
+                factor_valid, perf_valid, params.high_quantile, params.low_quantile, ascending
             )
 
     ic_per_date = factor_stats_per_date[:, 0]
