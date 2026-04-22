@@ -83,24 +83,27 @@ def get_executor(
     _set_worker(None)
 
 
-def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, high_quantile: float, low_quantile: float):
-    ic = weighted_ic(factor_valid, perf_valid)
+def _process_factor_per_date(factor_valid: np.ndarray, perf_valid: np.ndarray, high_quantile: float, low_quantile: float, ascending: bool):
     total_stocks = len(factor_valid)
 
-    high_quantile_cut = max(int(total_stocks * (high_quantile / 100)), 1) if high_quantile > 0 else None
-    low_quantile_cut = max(int(total_stocks * (low_quantile / 100)), 1) if low_quantile > 0 else None
+    high_quantile_cut = max(int(total_stocks * (high_quantile / 100)), 1) if high_quantile > 0 else 0
+    low_quantile_cut = max(int(total_stocks * (low_quantile / 100)), 1) if low_quantile > 0 else 0
 
-    stocks_per_side = []
-    if high_quantile_cut is not None:
-        stocks_per_side.append(-high_quantile_cut)
-    if low_quantile_cut is not None:
-        stocks_per_side.append(low_quantile_cut)
+    k = []
+    if low_quantile_cut > 0:
+        k.append(low_quantile_cut)
+    if high_quantile_cut > 0:
+        k.append(total_stocks - high_quantile_cut)
+    sorted_partitions = np.argpartition(factor_valid, k)
 
-    sorted_slices = np.argpartition(factor_valid, stocks_per_side)
+    if ascending:
+        high_ret = np.mean(perf_valid[sorted_partitions[:high_quantile_cut]]) if high_quantile_cut > 0 else 0.0
+        low_ret = np.mean(perf_valid[sorted_partitions[-low_quantile_cut:]]) if low_quantile_cut > 0 else 0.0
+    else:
+        high_ret = np.mean(perf_valid[sorted_partitions[-high_quantile_cut:]]) if high_quantile_cut > 0 else 0.0
+        low_ret = np.mean(perf_valid[sorted_partitions[:low_quantile_cut]]) if low_quantile_cut > 0 else 0.0
 
-    high_quantile_ret = float(np.take(perf_valid, sorted_slices[-high_quantile_cut:]).mean()) if high_quantile_cut is not None else 0.0
-    low_quantile_ret = float(np.take(perf_valid, sorted_slices[:low_quantile_cut]).mean()) if low_quantile_cut is not None else 0.0
-    return ic, high_quantile_ret, low_quantile_ret
+    return high_ret, low_ret
 
 
 def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, np.ndarray]:
@@ -112,45 +115,51 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
 
     perf_arr = worker_ctx.perf_arr.array
     perf_mask = worker_ctx.perf_mask.array
-
-    # ic test that covers all dates, to know if the factor should adjust to asc (lower_values)
-    if worker_ctx.params.auto_detect_direction:
-        global_valid = np.isfinite(factor_arr) & perf_mask
-        if weighted_ic(factor_arr[global_valid], worker_ctx.perf_arr.array[global_valid]) < 0:
-            ascending = True
-
-    if ascending:
-        np.negative(factor_arr, out=factor_arr)
-
-    benchmark_returns = worker_ctx.benchmark_returns.array
     offsets = worker_ctx.offsets.array
+    params = worker_ctx.params
 
-    total_dates = len(offsets)
-    aligned_returns = np.full(total_dates, np.nan, dtype=np.float32)
+    factor_stats_per_date = np.full((len(offsets), 3), np.nan, dtype=np.float32)
 
-    factor_stats_per_date = np.empty((len(offsets), 3), dtype=np.float32)
+    cached_views = [] if params.auto_detect_direction else None
 
     for i, (start, end) in enumerate(offsets):
-        f_group, p_group, m_group = (factor_arr[start:end], perf_arr[start:end], perf_mask[start:end])
-        valid_mask = m_group & np.isfinite(f_group)
+        f_group, p_group, m_group = factor_arr[start:end], perf_arr[start:end], perf_mask[start:end]
+        mask = m_group & np.isfinite(f_group)
 
-        if not np.any(valid_mask):
-            factor_stats_per_date[i] = np.nan
-            continue
+        if np.any(mask):
+            factor_valid, perf_valid = f_group[mask], p_group[mask]
+            factor_stats_per_date[i, 0] = weighted_ic(factor_valid, perf_valid)
 
-        factor_stats_per_date[i] = _process_factor_per_date(
-            f_group[valid_mask], p_group[valid_mask], worker_ctx.params.high_quantile, worker_ctx.params.low_quantile
-        )
+            if cached_views is not None:
+                cached_views.append((i, factor_valid, perf_valid))
+            else:
+                factor_stats_per_date[i, 1:3] = _process_factor_per_date(
+                    factor_valid, perf_valid, params.high_quantile, params.low_quantile, ascending
+                )
+
+    if cached_views is not None:
+        automatic_ascending = float(np.nanmean(factor_stats_per_date[:, 0])) < 0
+
+        if automatic_ascending:
+            factor_stats_per_date[:, 0] *= -1
+
+        for i, factor_valid, perf_valid in cached_views:
+            factor_stats_per_date[i, 1:3] = _process_factor_per_date(
+                factor_valid, perf_valid, params.high_quantile, params.low_quantile, automatic_ascending
+            )
 
     ic_per_date = factor_stats_per_date[:, 0]
+    benchmark_returns = worker_ctx.benchmark_returns.array
     valid = np.isfinite(benchmark_returns) & np.all(np.isfinite(factor_stats_per_date[:, 1:3]), axis=1)
 
     high_quantile_rets = factor_stats_per_date[valid, 1]
     low_quantile_rets = factor_stats_per_date[valid, 2]
     benchmark_returns_valid = benchmark_returns[valid]
 
-    combined_returns = high_quantile_rets - low_quantile_rets if worker_ctx.params.high_quantile > 0 else low_quantile_rets
-    aligned_returns[valid] = np.where(combined_returns <= -1.0, np.nan, combined_returns)  # guard against a <-100% return and do nan
+    combined_returns = high_quantile_rets - low_quantile_rets if params.high_quantile > 0 else low_quantile_rets
+
+    aligned_returns = np.full(len(offsets), np.nan, dtype=np.float32)
+    aligned_returns[valid] = np.where(combined_returns <= -1.0, np.nan, combined_returns)
 
     factor_metrics = calculate_factor_metric(aligned_returns[valid], benchmark_returns_valid, worker_ctx.periods_per_year)
     ic_valid = ic_per_date[np.isfinite(ic_per_date)]
@@ -162,7 +171,7 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
         "ic_t_stat": float(ic_t_stat),
         "annualized_high_quantile_pct": annualize_return(high_quantile_rets, worker_ctx.periods_per_year) * 100,
         "annualized_low_quantile_pct": (
-            annualize_return(low_quantile_rets, worker_ctx.periods_per_year) * 100 if worker_ctx.params.low_quantile > 0 else 0
+            annualize_return(low_quantile_rets, worker_ctx.periods_per_year) * 100 if params.low_quantile > 0 else 0
         ),
         "asc": ascending,
         "returns": aligned_returns,
