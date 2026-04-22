@@ -37,16 +37,16 @@ streamlit run app.py
 
 Your parquet file requires the following columns and format to work properly:
 
-| Column Name | Format | Example |
-| :--- | :--- | :--- |
-| `Date` | YYYY-MM-DD | 2022-04-09 |
-| `Ticker` |  | DAL |
+| Column Name       | Format                 | Example    |
+| :---------------- | :--------------------- | :--------- |
+| `Date`            | YYYY-MM-DD             | 2022-04-09 |
+| `Ticker`          |                        | DAL        |
 | `__Future_Perf__` | Percentage (Basis 100) | -3.2590967 |
 
 **Notes:**
 
 - `__Future_Perf__` represents the percentage return of the ticker from the current date to the next rebalancing date
-- `Date` has to be pre-sorted in a monotonic way
+- The dataset must be sorted in ascending order by `Date`
 
 ### Results Storage
 

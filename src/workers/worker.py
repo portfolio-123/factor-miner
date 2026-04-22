@@ -53,6 +53,8 @@ def run_analysis(
         core_df = dataset_svc.read_columns_pl(list(REQUIRED_COLUMNS)).with_columns(
             pl.col("Date").str.to_date("%Y-%m-%d"), (pl.col(FUTURE_PERF_COLUMN) / 100)
         )
+        if not core_df.get_column("Date").is_sorted():
+            raise ValueError("DataFrame must be sorted by 'Date' ascending.")
 
     periods_per_year = dataset_info.frequency.periods_per_year
 
@@ -72,7 +74,13 @@ def run_analysis(
         api_credentials=api_credentials,
     )
 
-    benchmark_df = calculate_benchmark_returns(core_df.lazy().select(pl.col("Date").unique().sort()), benchmark_prices.lazy()).collect()
+    # Assume Date column is sorted.
+    dates = core_df.lazy().select(pl.col("Date").rle().struct.field("value").alias("Date"))
+    benchmark_df = (
+        calculate_benchmark_returns(dates, benchmark_prices.lazy())
+        .select(pl.col("dt").alias("Date"), pl.col("ret").alias(INTERNAL_BENCHMARK_COL))
+        .collect()
+    )
 
     valid_benchmark = benchmark_df[INTERNAL_BENCHMARK_COL].drop_nulls().to_numpy()
 
@@ -126,7 +134,9 @@ def run_analysis(
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
         avg_abs_alpha=float(
-            metrics_df["annualized_alpha_pct"].abs().mean() if high_low_analysis else metrics_df["annualized_alpha_pct"].mean()  # type: ignore[arg-type]
+            metrics_df.get_column("annualized_alpha_pct").abs().mean()
+            if high_low_analysis
+            else metrics_df.get_column("annualized_alpha_pct").mean()  # type: ignore[arg-type]
         ),
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
     )

@@ -1,8 +1,9 @@
 from collections.abc import Callable
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 import logging
+import math
 from os import cpu_count
-from typing import Any, ParamSpec, TypeVar
+from typing import ParamSpec, TypeVar
 import numpy as np
 import polars as pl
 from scipy.stats import ttest_1samp
@@ -117,58 +118,64 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     perf_mask = worker_ctx.perf_mask.array
     offsets = worker_ctx.offsets.array
     params = worker_ctx.params
+    num_dates = len(offsets)
 
-    factor_stats_per_date = np.full((len(offsets), 3), np.nan, dtype=np.float32)
+    ic_valid = np.empty(num_dates, dtype=np.float32)
+    ic_valid_count = 0
 
-    cached_views = [] if params.auto_detect_direction else None
+    masked = []
 
-    for i, (start, end) in enumerate(offsets):
-        f_group, p_group, m_group = factor_arr[start:end], perf_arr[start:end], perf_mask[start:end]
+    for i in range(num_dates):
+        date_slice = slice(offsets[i, 0], offsets[i, 1] + 1)
+        f_group = factor_arr[date_slice]
+        p_group = perf_arr[date_slice]
+        m_group = perf_mask[date_slice]
         mask = m_group & np.isfinite(f_group)
 
         if np.any(mask):
-            factor_valid, perf_valid = f_group[mask], p_group[mask]
-            factor_stats_per_date[i, 0] = weighted_ic(factor_valid, perf_valid)
+            factor_valid = f_group[mask]
+            perf_valid = p_group[mask]
+            ic_valid[ic_valid_count] = weighted_ic(factor_valid, perf_valid)
+            ic_valid_count += 1
 
-            if cached_views is not None:
-                cached_views.append((i, factor_valid, perf_valid))
-            else:
-                factor_stats_per_date[i, 1:3] = _process_factor_per_date(
-                    factor_valid, perf_valid, params.high_quantile, params.low_quantile, ascending
-                )
+            masked.append((i, factor_valid, perf_valid))
 
-    if cached_views is not None:
-        ascending = float(np.nanmean(factor_stats_per_date[:, 0])) < 0
+    if ic_valid_count > 0:
+        ic = float(ic_valid[:ic_valid_count].mean())
+        if params.auto_detect_direction:
+            ascending = ic < 0
 
-        if ascending:
-            factor_stats_per_date[:, 0] *= -1
+            if ascending:
+                # No need to negate ic_valid, only used to call ttest_1samp
+                ic = -ic
+    else:
+        ic = math.nan
 
-        for i, factor_valid, perf_valid in cached_views:
-            factor_stats_per_date[i, 1:3] = _process_factor_per_date(
-                factor_valid, perf_valid, params.high_quantile, params.low_quantile, ascending
-            )
+    quantile_perf_per_date = np.empty((num_dates, 2), dtype=np.float32)
+    for i, factor_valid, perf_valid in masked:
+        quantile_perf_per_date[i, :] = _process_factor_per_date(
+            factor_valid, perf_valid, params.high_quantile, params.low_quantile, ascending
+        )
 
-    ic_per_date = factor_stats_per_date[:, 0]
     benchmark_returns = worker_ctx.benchmark_returns.array
-    valid = np.isfinite(benchmark_returns) & np.all(np.isfinite(factor_stats_per_date[:, 1:3]), axis=1)
+    valid = np.isfinite(benchmark_returns) & np.all(np.isfinite(quantile_perf_per_date), axis=1)
 
-    high_quantile_rets = factor_stats_per_date[valid, 1]
-    low_quantile_rets = factor_stats_per_date[valid, 2]
+    high_quantile_rets = quantile_perf_per_date[valid, 0]
+    low_quantile_rets = quantile_perf_per_date[valid, 1]
     benchmark_returns_valid = benchmark_returns[valid]
 
     combined_returns = high_quantile_rets - low_quantile_rets if params.high_quantile > 0 else low_quantile_rets
 
-    aligned_returns = np.full(len(offsets), np.nan, dtype=np.float32)
+    aligned_returns = np.full(num_dates, np.nan, dtype=np.float32)
     aligned_returns[valid] = np.where(combined_returns <= -1.0, np.nan, combined_returns)
 
     factor_metrics = calculate_factor_metric(aligned_returns[valid], benchmark_returns_valid, worker_ctx.periods_per_year)
-    ic_valid = ic_per_date[np.isfinite(ic_per_date)]
-    ic_t_stat: Any = ttest_1samp(ic_valid, popmean=0)[0]
+    ic_t_stat = float(ttest_1samp(ic_valid[:ic_valid_count], popmean=0)[0]) if ic_valid_count > 0 else math.nan
 
     result: ProcessFactorResult = {
         "na_pct": round(calculate_na_pct(factor_arr), 2),
-        "ic": float(np.nanmean(ic_per_date)),
-        "ic_t_stat": float(ic_t_stat),
+        "ic": ic,
+        "ic_t_stat": ic_t_stat,
         "annualized_high_quantile_pct": annualize_return(high_quantile_rets, worker_ctx.periods_per_year) * 100,
         "annualized_low_quantile_pct": (
             annualize_return(low_quantile_rets, worker_ctx.periods_per_year) * 100 if params.low_quantile > 0 else 0
@@ -178,7 +185,7 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
         **factor_metrics,
     }
 
-    return result, factor_stats_per_date
+    return result, quantile_perf_per_date
 
 
 def analyze_factors(
@@ -190,12 +197,11 @@ def analyze_factors(
     periods_per_year: float,
     on_progress: Callable[[int, int], None],
 ) -> dict[str, ProcessFactorResult]:
-    if not df["Date"].is_sorted():
-        raise ValueError("DataFrame must be sorted by 'Date'.")
     perf_arr = df[FUTURE_PERF_COLUMN].to_numpy().astype(np.float32)
     perf_mask = np.isfinite(perf_arr) & (perf_arr <= (params.max_return_pct / 100))
 
-    unique_dates, counts = np.unique(df["Date"].to_numpy(), return_counts=True)
+    counts, unique_dates = df.lazy().select(pl.col("Date").rle().struct.unnest()).select("len", "value").collect().to_numpy().T
+
     ends = np.cumsum(counts)
     starts = np.zeros_like(ends)
     starts[1:] = ends[:-1]
@@ -239,7 +245,7 @@ def _calc_workers(n_factors: int, n_rows: int) -> int:
 def _log_first_factor(
     factor: str,
     annualized_alpha_pct: float,
-    stats: np.ndarray,
+    quantile_perf: np.ndarray,
     first_factor_data: np.ndarray,
     unique_dates: np.ndarray,
     periods_per_year: float,
@@ -260,8 +266,8 @@ def _log_first_factor(
 
         lines.append(
             f"  {date} | "
-            f"High Q: {stats[i, 1]*100:6.2f}% | "
-            f"Low Q: {stats[i, 2]*100:6.2f}% | "
+            f"High Q: {quantile_perf[i, 0]*100:6.2f}% | "
+            f"Low Q: {quantile_perf[i, 1]*100:6.2f}% | "
             f"Factor Mean: {f_mean} | "
             f"Perf Mean: {p_mean}%"
         )
