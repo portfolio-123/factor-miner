@@ -1,6 +1,7 @@
 import numpy as np
 import polars as pl
 
+from src.core.config.constants import RANK_CONFIG
 from src.core.types.models import AnalysisParams
 
 
@@ -16,8 +17,12 @@ def select_best_factors(metrics_df: pl.DataFrame, corr_matrix: pl.DataFrame, par
     corr_arr = corr_matrix.select(pl.exclude("factor")).to_numpy()
     col_to_idx = {c: i for i, c in enumerate(corr_matrix["factor"].to_list())}
 
+    rank_config = RANK_CONFIG[params.rank_by]
+
+    sort_by, is_desc = rank_config.get_sorting(params.low_quantile, params.high_quantile)
+
     # sort factors by rank_by metric, best first
-    sorted_metrics = metrics_df.sort(pl.col(params.rank_by).abs(), descending=True)
+    sorted_metrics = metrics_df.sort(sort_by, descending=is_desc)
     # array containing all factor names
     factors: list[str] = sorted_metrics["column"].to_list()
     factor_idx = np.array([col_to_idx[f] for f in factors])
