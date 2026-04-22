@@ -118,12 +118,16 @@ def run_analysis(
 
     logger.info("Analysis complete")
 
+    high_low_analysis = params.low_quantile != 0 and params.high_quantile != 0
+
     return AnalysisResults(
         all_metrics=serialize_dataframe(metrics_df),
         all_corr_matrix=serialize_dataframe(corr_matrix),
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
-        avg_abs_alpha=float(metrics_df["annualized_alpha_pct"].abs().mean()),  # type: ignore[arg-type]
+        avg_abs_alpha=float(
+            metrics_df["annualized_alpha_pct"].abs().mean() if high_low_analysis else metrics_df["annualized_alpha_pct"].mean()  # type: ignore[arg-type]
+        ),
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
     )
 
