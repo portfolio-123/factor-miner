@@ -43,7 +43,10 @@ Your parquet file requires the following columns and format to work properly:
 | `Ticker` |  | DAL |
 | `__Future_Perf__` | Percentage (Basis 100) | -3.2590967 |
 
-**Note:** __Future_Perf__ represents the percentage return of the ticker from the current date to the next rebalancing date
+**Notes:**
+
+- `__Future_Perf__` represents the percentage return of the ticker from the current date to the next rebalancing date
+- `Date` has to be pre-sorted in a monotonic way
 
 ### Results Storage
 

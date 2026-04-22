@@ -190,7 +190,8 @@ def analyze_factors(
     periods_per_year: float,
     on_progress: Callable[[int, int], None],
 ) -> dict[str, ProcessFactorResult]:
-    df = df.sort("Date")
+    if not df["Date"].is_sorted():
+        raise ValueError("DataFrame must be sorted by 'Date'.")
     perf_arr = df[FUTURE_PERF_COLUMN].to_numpy().astype(np.float32)
     perf_mask = np.isfinite(perf_arr) & (perf_arr <= (params.max_return_pct / 100))
 
