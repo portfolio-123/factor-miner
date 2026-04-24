@@ -1,8 +1,7 @@
 import streamlit as st
 import polars as pl
 
-from src.core.config.constants import RANK_CONFIG
-from src.core.types.models import AnalysisStatus, BenchmarkDisplayResults
+from src.core.types.models import RANK_CONFIG, AnalysisStatus, BenchmarkDisplayResults
 from src.internal.errors import format_analysis_error
 from src.ui.components.common import render_info_item
 from src.ui.components.tables import render_results_table, render_correlation_matrix
@@ -76,7 +75,7 @@ def results() -> None:
     rank_config = RANK_CONFIG[rank_by]
     metric_label = rank_config.metric_label
 
-    sort_by, is_desc = rank_config.get_sorting(low_q=p.low_quantile, high_q=p.high_quantile)
+    sort_by, is_desc = rank_config.get_sorting(high_q=p.high_quantile)
     quantile_renames = rank_config.get_renames(low_q=p.low_quantile, high_q=p.high_quantile)
 
     all_metrics_df = all_metrics_df.sort(sort_by, descending=is_desc).with_row_index("rank", offset=1)
@@ -100,7 +99,10 @@ def results() -> None:
             settings = [
                 ("Rank By", metric_label),
                 ("Max. Factors", p.n_factors),
-                (f"Min. {metric_label}", rank_config.format_filter(p.min_rank_metric)),
+                (
+                    f"{"Max." if analysis.params.high_quantile == 0  else "Min."} {metric_label}",
+                    rank_config.format_filter(p.min_rank_metric),
+                ),
                 ("Max Correlation", p.correlation_threshold),
                 ("Max NA", f"{p.max_na_pct}%"),
                 ("Max Return", f"{p.max_return_pct}%"),

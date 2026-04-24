@@ -20,6 +20,6 @@ def fetch_benchmark_data(benchmark_ticker: str, api_credentials: APICredentials,
         client = p123api.Client(**api_credentials, endpoint=API_BASE_URL)
         data = client.data_prices(benchmark_ticker, start_date, end_date)
 
-        return pl.DataFrame(data["prices"]).select(["dt", "close"])
+        return pl.DataFrame(data["prices"]).select([pl.col("dt").alias("Date"), pl.col("close")])
     except Exception as e:
         raise PermissionError("Failed to fetch benchmark data: " + str(e))

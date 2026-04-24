@@ -1,7 +1,6 @@
 from collections.abc import Callable
 import logging
 import polars as pl
-import numpy as np
 import sys
 import traceback
 from time import monotonic
@@ -39,29 +38,27 @@ def run_analysis(
     params: AnalysisParams,
     dataset_details: DatasetDetails,
 ) -> AnalysisResults:
-
     with DatasetService(dataset_details) as dataset_svc:
-        dataset_info = dataset_svc.get_metadata()
         column_names = set(dataset_svc.column_names)
-
-        missing = REQUIRED_COLUMNS - column_names
-        if missing:
+        if missing := REQUIRED_COLUMNS - column_names:
             raise AnalysisError(f"Dataset is missing required columns: {missing}", error_type="missing-column")
 
-        factor_columns = list(column_names - SPECIAL_COLUMNS)
-
-        core_df = dataset_svc.read_columns_pl(list(REQUIRED_COLUMNS)).with_columns(
-            pl.col("Date").str.to_date("%Y-%m-%d"), (pl.col(FUTURE_PERF_COLUMN) / 100)
+        dataset_lf = dataset_svc.scan()
+        core_df = (
+            dataset_lf.select(list(REQUIRED_COLUMNS))
+            .with_columns(pl.col("Date").str.to_date("%Y-%m-%d"), (pl.col(FUTURE_PERF_COLUMN) / 100))
+            .collect()
         )
         if not core_df.get_column("Date").is_sorted():
             raise ValueError("DataFrame must be sorted by 'Date' ascending.")
+
+        factor_columns = list(column_names - SPECIAL_COLUMNS)
+        dataset_info = dataset_svc.get_metadata()
 
     periods_per_year = dataset_info.frequency.periods_per_year
 
     if dataset_info.type == DatasetType.DATE:
         raise AnalysisError("Single-date datasets are not supported", error_type="single-date")
-
-    # find the price column, the base columns (date, ticker) and exclude them from being analyzed
 
     update({"progress": AnalysisProgress(completed=0, total=len(factor_columns))})
 
@@ -74,11 +71,10 @@ def run_analysis(
         api_credentials=api_credentials,
     )
 
-    # Assume Date column is sorted.
     dates = core_df.lazy().select(pl.col("Date").rle().struct.field("value").alias("Date"))
     benchmark_df = (
         calculate_benchmark_returns(dates, benchmark_prices.lazy())
-        .select(pl.col("dt").alias("Date"), pl.col("ret").alias(INTERNAL_BENCHMARK_COL))
+        .select(pl.col("Date"), pl.col("ret").alias(INTERNAL_BENCHMARK_COL))
         .collect()
     )
 
@@ -107,37 +103,32 @@ def run_analysis(
         raise AnalysisError("No results from factor analysis")
 
     logger.info("Calculating factor metrics...")
-    wide_data: dict[str, np.ndarray] = {}
     results: list[dict[str, str | float]] = []
     for factor, data in factor_stats.items():
         data["column"] = factor  # type: ignore
-        wide_data[factor] = data.pop("returns")  # type: ignore
         results.append(data)  # type: ignore
 
-    factor_returns_wide = pl.DataFrame(wide_data, schema=[(f, pl.Float32) for f in wide_data.keys()])
     metrics_df = pl.DataFrame(results, schema=[("column", pl.Utf8), *((col, pl.Float32) for col in process_factor_result_scalars)])
 
     logger.info("Calculating correlation matrix...")
 
-    corr_matrix = calculate_correlation_matrix(factor_returns_wide)
+    try:
+        corr_matrix = calculate_correlation_matrix(dataset_lf, factor_columns)
+    except Exception as e:
+        logger.error(f"Correlation failed: {e}")
+        raise AnalysisError("An error ocurred while calculating the correlation matrix")
 
     best_factors, factor_classifications = select_best_factors(metrics_df, corr_matrix, params)
     logger.info(f"Best factors: {len(best_factors)}/{len(metrics_df)}")
 
     logger.info("Analysis complete")
 
-    high_low_analysis = params.low_quantile != 0 and params.high_quantile != 0
-
     return AnalysisResults(
         all_metrics=serialize_dataframe(metrics_df),
         all_corr_matrix=serialize_dataframe(corr_matrix),
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
-        avg_abs_alpha=float(
-            metrics_df.get_column("annualized_alpha_pct").abs().mean()
-            if high_low_analysis
-            else metrics_df.get_column("annualized_alpha_pct").mean()  # type: ignore[arg-type]
-        ),
+        avg_alpha=float(metrics_df.get_column("annualized_alpha_pct").mean()),  # type: ignore[arg-type]
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
     )
 
@@ -147,7 +138,7 @@ def save_results(update: Callable[[AnalysisUpdate], None], results: AnalysisResu
         {
             "status": AnalysisStatus.SUCCESS,
             "results": results,
-            "avg_abs_alpha": results.avg_abs_alpha,
+            "avg_alpha": results.avg_alpha,
             "best_factors_count": len(results.best_feature_names),
         }
     )

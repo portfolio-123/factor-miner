@@ -126,19 +126,18 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     masked = []
 
     for i in range(num_dates):
-        date_slice = slice(offsets[i, 0], offsets[i, 1] + 1)
+        date_slice = slice(offsets[i, 0], offsets[i, 1])
         f_group = factor_arr[date_slice]
         p_group = perf_arr[date_slice]
         m_group = perf_mask[date_slice]
         mask = m_group & np.isfinite(f_group)
 
-        if np.any(mask):
-            factor_valid = f_group[mask]
-            perf_valid = p_group[mask]
-            ic_valid[ic_valid_count] = weighted_ic(factor_valid, perf_valid)
-            ic_valid_count += 1
+        factor_valid = f_group[mask]
+        perf_valid = p_group[mask]
+        ic_valid[ic_valid_count] = weighted_ic(factor_valid, perf_valid)
+        ic_valid_count += 1
 
-            masked.append((i, factor_valid, perf_valid))
+        masked.append((i, factor_valid, perf_valid))
 
     if ic_valid_count > 0:
         ic = float(ic_valid[:ic_valid_count].mean())
@@ -269,7 +268,7 @@ def _log_first_factor(
             f"High Q: {quantile_perf[i, 0]*100:6.2f}% | "
             f"Low Q: {quantile_perf[i, 1]*100:6.2f}% | "
             f"Factor Mean: {f_mean} | "
-            f"Perf Mean: {p_mean}%"
+            f"Perf Mean: {p_mean}"
         )
 
     detailed_report = "\n".join(lines)

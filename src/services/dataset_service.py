@@ -71,6 +71,9 @@ class DatasetService:
     def read_column_pa(self, column: str) -> pa.ChunkedArray:
         return self._reader.read_column_pa(column)
 
+    def scan(self) -> pl.LazyFrame:
+        return self._reader.scan()
+
     def back_up_metadata(self, dest_path: Path) -> None:
         source_metadata = self._reader.get_schema_metadata()
         if source_metadata:

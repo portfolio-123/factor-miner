@@ -6,6 +6,9 @@ from pathlib import Path
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 from typing import Literal, NotRequired, TypedDict
+from abc import ABC, abstractmethod
+from typing import Literal, TypedDict
+
 
 from src.core.config.environment import INTERNAL_MODE
 from src.core.config.paths import get_user_base_dir
@@ -93,7 +96,7 @@ class AnalysisResults(BaseModel):
     all_corr_matrix: str
     best_feature_names: list[str] = []
     factor_classifications: dict[str, str] = {}
-    avg_abs_alpha: float = 0.0
+    avg_alpha: float = 0.0
     benchmark: BenchmarkDisplayResults
 
 
@@ -156,8 +159,69 @@ class Frequency(IntEnum):
         return WEEKS_TO_P123[self.value]
 
 
+RankByValue = Literal["annualized_alpha_pct", "ic"]
+
+
+class RankConfigInputSettings(TypedDict, total=False):
+    min_value: float | None
+    max_value: float | None
+    step: float
+
+
+class RankConfig(ABC):
+    metric_label: str
+    input_settings: RankConfigInputSettings
+    default: float
+
+    def get_renames(self, low_q: float, high_q: float) -> dict[str, str]:
+        if low_q == 0:
+            return {"annualized_alpha_pct": "H Ann. Alpha %", "beta": "H Beta", "t_stat": "H T-Stat"}
+        elif high_q == 0:
+            return {"annualized_alpha_pct": "L Ann. Alpha %", "beta": "L Beta", "t_stat": "L T-Stat"}
+        else:
+            return {"annualized_alpha_pct": "H−L Alpha %", "beta": "H−L Beta", "t_stat": "H−L T-Stat"}
+
+    @abstractmethod
+    def format_filter(self, v: float) -> str | float:
+        pass
+
+    @abstractmethod
+    def get_sorting(self, high_q: float) -> tuple[pl.Expr, bool]:
+        pass
+
+
+class AnnualizedAlphaPctRankConfig(RankConfig):
+    metric_label = "Annual Alpha"
+    input_settings = {"step": 0.1}
+    default = 0.5
+
+    def format_filter(self, v):
+        return f"{v}%"
+
+    def get_sorting(self, high_q):
+        if high_q == 0:
+            return pl.col("annualized_alpha_pct"), False
+        else:
+            return pl.col("annualized_alpha_pct"), True
+
+
+class IcRankConfig(RankConfig):
+    metric_label = "IC"
+    input_settings = {"min_value": 0.0, "max_value": 1.0, "step": 0.005}
+    default = 0.01
+
+    def format_filter(self, v):
+        return v
+
+    def get_sorting(self, high_q):
+        return pl.col("ic"), True
+
+
+RANK_CONFIG: dict[RankByValue, RankConfig] = {"annualized_alpha_pct": AnnualizedAlphaPctRankConfig(), "ic": IcRankConfig()}
+
+
 class AnalysisParams(BaseModel):
-    rank_by: Literal["annualized_alpha_pct", "ic"] = "annualized_alpha_pct"
+    rank_by: RankByValue = "annualized_alpha_pct"
     high_quantile: float = 10.0
     low_quantile: float = 10.0
     min_rank_metric: float = 0.5
@@ -240,7 +304,7 @@ class AnalysisSummary(BaseModel):
     dataset_version: str
     params: AnalysisParams
     notes: str | None = None
-    avg_abs_alpha: float | None = None
+    avg_alpha: float | None = None
     best_factors_count: int | None = None
 
 
@@ -260,7 +324,7 @@ class AnalysisUpdate(TypedDict, total=False):
     started_at: str
     finished_at: str
     notes: str
-    avg_abs_alpha: float
+    avg_alpha: float
     best_factors_count: int
     updated_at: str
     results: AnalysisResults

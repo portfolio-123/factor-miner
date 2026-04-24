@@ -1,8 +1,7 @@
 import streamlit as st
 import polars as pl
-from src.core.config.constants import RANK_CONFIG
 from src.core.config.environment import INTERNAL_MODE
-from src.core.types.models import AnalysisParams
+from src.core.types.models import RANK_CONFIG, AnalysisParams
 from src.internal.links import p123_link
 from src.services.dataset_service import DatasetService
 from src.ui.components.common import section_header
@@ -85,7 +84,10 @@ def create_form() -> None:
         )
         return
     except Exception as e:
-        st.error(f"Failed to load dataset: {e}")
+        if "0 bytes" in str(e):
+            st.error("Your dataset is invalid. Make sure it is on Parquet format and was successfully generated")
+        else:
+            st.error(f"Failed to load dataset: {e}")
         return
 
     st.title("Create Analysis")
@@ -173,7 +175,10 @@ def _render_settings() -> None:
         rank_config = RANK_CONFIG[rank_by]
         metric_label = rank_config.metric_label
         input_settings = rank_config.input_settings
-        st.number_input(f"Min. {metric_label}", **input_settings, key="min_rank_metric")
+
+        mode = "Max." if st.session_state.get("high_quantile") == 0 else "Min."
+
+        st.number_input(f"{mode} {metric_label}", **input_settings, key="min_rank_metric")
     with col2:
         st.number_input(
             "Max. Factors", min_value=1, max_value=100, step=1, key="n_factors", help="Maximum number of 'Best Factors' to select"

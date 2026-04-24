@@ -24,12 +24,7 @@ class ParquetDataReader(AbstractContextManager["ParquetDataReader"]):
     def close(self) -> None:
         self._parquet_file.close()
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None):
         self._parquet_file.close()
         return False
 
@@ -91,3 +86,6 @@ class ParquetDataReader(AbstractContextManager["ParquetDataReader"]):
 
     def get_metadata(self):
         return self._parquet_file.metadata
+
+    def scan(self) -> pl.LazyFrame:
+        return pl.scan_parquet(self.path)
