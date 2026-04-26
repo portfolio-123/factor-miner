@@ -132,6 +132,9 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
         m_group = perf_mask[date_slice]
         mask = m_group & np.isfinite(f_group)
 
+        if np.count_nonzero(mask) < 2:
+            continue
+
         factor_valid = f_group[mask]
         perf_valid = p_group[mask]
         ic_valid[ic_valid_count] = weighted_ic(factor_valid, perf_valid)
@@ -140,7 +143,7 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
         masked.append((i, factor_valid, perf_valid))
 
     if ic_valid_count > 0:
-        ic = float(ic_valid[:ic_valid_count].mean())
+        ic = float(np.nanmean(ic_valid[:ic_valid_count]))
         if params.auto_detect_direction:
             ascending = ic < 0
 

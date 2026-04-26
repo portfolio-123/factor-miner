@@ -8,9 +8,6 @@ from src.core.types.models import FactorMetricResult
 
 
 def weighted_ic(x: np.ndarray, y: np.ndarray, alpha=4.0) -> float:
-    if len(x) < 2:
-        return math.nan
-
     ranked_x = (rankdata(x, method="average") - 0.5) / len(x)
     ranked_y = (rankdata(y, method="average") - 0.5) / len(y)
     w = 1 + alpha * np.abs(ranked_x - 0.5)
@@ -39,8 +36,4 @@ def calculate_factor_metric(y: np.ndarray, x: np.ndarray, periods_per_year: floa
 
     t_stat: Any = ttest_1samp(y, popmean=0)[0]
 
-    return {
-        "beta": float(beta),
-        "t_stat": float(t_stat),
-        "annualized_alpha_pct": float(annualized_alpha),
-    }
+    return {"beta": float(beta), "t_stat": float(t_stat), "annualized_alpha_pct": float(annualized_alpha)}
