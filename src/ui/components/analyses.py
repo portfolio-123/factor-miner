@@ -50,7 +50,9 @@ def render_analysis_notes(analysis: Analysis):
 def _render_progress_bar(progress: AnalysisProgress | None, analysis_status: AnalysisStatus):
     if progress:
         progress_value = progress.completed / progress.total
-        progress_text = f"{progress.completed} / {progress.total} factors analyzed"
+        progress_text = (
+            "Calculating correlations..." if progress_value == 1 else f"{progress.completed} / {progress.total} factors analyzed"
+        )
     else:
         progress_value = 0
         if analysis_status == AnalysisStatus.PENDING:

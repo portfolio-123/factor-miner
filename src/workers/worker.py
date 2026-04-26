@@ -4,7 +4,7 @@ import polars as pl
 import sys
 import traceback
 from time import monotonic
-
+import numpy as np
 
 from src.core.calculations.utils import annualize_return, cumulative_return
 from src.core.config.constants import FUTURE_PERF_COLUMN, INTERNAL_BENCHMARK_COL, REQUIRED_COLUMNS, SPECIAL_COLUMNS
@@ -128,7 +128,7 @@ def run_analysis(
         all_corr_matrix=serialize_dataframe(corr_matrix),
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
-        avg_alpha=float(metrics_df.get_column("annualized_alpha_pct").mean()),  # type: ignore[arg-type]
+        avg_alpha=float(np.nanmean(metrics_df.get_column("annualized_alpha_pct"))),  # type: ignore[arg-type]
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
     )
 
