@@ -183,7 +183,7 @@ def _build_row(a: AnalysisSummary, ds: DatasetConfig) -> dict[str, str]:
         "Universe": ds.universeName,
         "Best Factors": f"{a.best_factors_count or 0}/{len(ds.formulas)}",
         "Rows": f"{ds.numRows:,}",
-        "Avg|α|": f"{(a.avg_alpha or 0):.2f}%",
+        "Avg α": f"{(a.avg_alpha or 0):.2f}%",
         "Period": f"{format_date(ds.startDt)} – {format_date(ds.endDt)}",
         "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M UTC") + active_marker,
         "Parameters": str(params_dict),

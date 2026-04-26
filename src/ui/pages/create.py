@@ -83,11 +83,8 @@ def create_form() -> None:
             else "No dataset found. Please select a valid .parquet file."
         )
         return
-    except Exception as e:
-        if "0 bytes" in str(e):
-            st.error("Your dataset is invalid. Make sure it is on Parquet format and was successfully generated")
-        else:
-            st.error(f"Failed to load dataset: {e}")
+    except Exception:
+        st.error(f"Error loading dataset. Make sure it is on Parquet format and was successfully generated.")
         return
 
     st.title("Create Analysis")
@@ -180,9 +177,7 @@ def _render_settings() -> None:
 
         st.number_input(f"{mode} {metric_label}", **input_settings, key="min_rank_metric")
     with col2:
-        st.number_input(
-            "Max. Factors", min_value=1, max_value=100, step=1, key="n_factors", help="Maximum number of 'Best Factors' to select"
-        )
+        st.number_input("Max. Factors", min_value=1, step=1, key="n_factors", help="Maximum number of 'Best Factors' to select")
     with col3:
         st.number_input(
             "Max. NA (%)",

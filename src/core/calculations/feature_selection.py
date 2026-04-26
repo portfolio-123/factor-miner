@@ -61,7 +61,7 @@ def select_best_factors(metrics_df: pl.DataFrame, corr_matrix: pl.DataFrame, par
             label = "high_na"
         elif not valid_rank_by[i]:
             label = f"below_rank_metric"
-        elif len(selected_indices) >= params.n_factors:
+        elif len(selected_indices) >= (params.n_factors if params.n_factors is not None else float("inf")):
             label = "n_limit"
         elif selected_indices and np.any(np.abs(corr_arr[factor_idx[i], selected_indices]) >= params.correlation_threshold):
             label = "correlation_conflict"
