@@ -172,7 +172,11 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     aligned_returns[valid] = np.where(combined_returns <= -1.0, np.nan, combined_returns)
 
     factor_metrics = calculate_factor_metric(aligned_returns[valid], benchmark_returns_valid, worker_ctx.periods_per_year)
-    ic_t_stat = float(ttest_1samp(ic_valid[:ic_valid_count], popmean=0)[0]) if ic_valid_count > 0 else math.nan
+    ic_t_stat = (
+        float(ttest_1samp(-ic_valid[:ic_valid_count] if ascending else ic_valid[:ic_valid_count], popmean=0)[0])
+        if ic_valid_count > 0
+        else math.nan
+    )
 
     result: ProcessFactorResult = {
         "na_pct": round(calculate_na_pct(factor_arr), 2),
