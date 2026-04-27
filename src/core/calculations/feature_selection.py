@@ -11,7 +11,7 @@ def calculate_correlation_matrix(lf: pl.LazyFrame, factor_columns: list[str]):
 
     dates = lf.select("Date").unique().collect().get_column("Date").to_list()
 
-    ranks = [pl.col(c).fill_nan(None).rank(method="average").cast(pl.Float64).alias(c) for c in factor_columns]
+    ranks = [pl.col(c).fill_nan(None).rank(method="average").alias(c) for c in factor_columns]
 
     for date in dates:
         df = lf.filter(pl.col("Date") == date).select(ranks).collect()
