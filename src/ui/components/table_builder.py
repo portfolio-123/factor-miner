@@ -185,7 +185,7 @@ def render_table(
             value = row[col]
 
             if value is None:
-                cell_value = "N/A"
+                cell_value = ""
                 sort_value = ""
             elif isinstance(value, float) and math.isnan(value):
                 cell_value = "-"
