@@ -1,3 +1,5 @@
+from typing import Callable
+
 import streamlit as st
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
 
@@ -5,8 +7,8 @@ from src.core.utils.common import escape_html
 
 
 def copy_download_buttons(
-    csv_copy: str,
-    csv_download: str,
+    render_csv_copy: Callable[[], str],
+    render_csv_download: Callable[[], str],
     file_name: str,
     key_prefix: str,
     toast_msg="Copied to clipboard",
@@ -14,12 +16,8 @@ def copy_download_buttons(
     """Render copy-to-clipboard and download CSV buttons."""
     _, col1, col2 = st.columns([3, 1, 1])
     with col1:
-        if st.button(
-            type="primary",
-            label="Copy to Clipboard",
-            width="stretch",
-            key=f"{key_prefix}_copy",
-        ):
+        if st.button(type="primary", label="Copy to Clipboard", width="stretch", key=f"{key_prefix}_copy"):
+            csv_copy = render_csv_copy()
             copy_to_clipboard_unsecured(csv_copy)
             copy_to_clipboard(csv_copy)
             st.toast(toast_msg)
@@ -27,7 +25,7 @@ def copy_download_buttons(
         st.download_button(
             type="primary",
             label="Download CSV",
-            data=csv_download,
+            data=render_csv_download,
             file_name=file_name,
             mime="text/csv",
             width="stretch",
@@ -36,15 +34,13 @@ def copy_download_buttons(
 
 
 def section_header(title: str):
-    st.html(
-        f"""
+    st.html(f"""
         <div style="font-size: 14px; font-weight: 600; color: #2196F3;
                     margin: 15px 0 8px 0; padding-bottom: 5px;
                     border-bottom: 2px solid #2196F3;">
             {title}
         </div>
-    """
-    )
+    """)
 
 
 def render_info_item(label: str, value: str | int | float, muted=False):

@@ -29,9 +29,7 @@ def format_version_timestamp(unix_ts: float) -> str:
 
 
 # "Jan 15, 2024 at 02:30 PM UTC"
-def format_timestamp(
-    timestamp: str | None, format_str="%b %d, %Y at %I:%M %p UTC"
-) -> str:
+def format_timestamp(timestamp: str | None, format_str="%b %d, %Y at %I:%M %p UTC") -> str:
     if not timestamp:
         return "N/A"
     try:
@@ -78,42 +76,28 @@ def deserialize_dataframe(data: str) -> pl.DataFrame:
     return pl.read_ipc(base64.b64decode(data))
 
 
-def add_formula_column(
-    download_df: pl.DataFrame, formulas_df: pl.DataFrame, factor_col="Factor"
-) -> pl.DataFrame:
+def add_formula_column(download_df: pl.DataFrame, formulas_df: pl.DataFrame, factor_col="Factor") -> pl.DataFrame:
     if "Formula" in download_df.columns:
         return download_df
 
-    mapping_df = formulas_df.unique(subset=["name"]).select(["name", "formula"])
+    mapping_df = formulas_df.lazy().unique(subset=["name"]).select(["name", "formula"])
 
-    result = download_df.join(
-        mapping_df, left_on=factor_col, right_on="name", how="left"
-    ).rename({"formula": "Formula"})
+    result = download_df.lazy().join(mapping_df, left_on=factor_col, right_on="name", how="left").rename({"formula": "Formula"})
 
     # place Formula after factor_col
-    cols = result.columns
+    cols = result.collect_schema().names()
     factor_idx = cols.index(factor_col)
-    new_order = (
-        cols[: factor_idx + 1]
-        + ["Formula"]
-        + [c for c in cols[factor_idx + 1 :] if c not in ["Formula", "name"]]
-    )
-    return result.select(new_order)
+    new_order = cols[: factor_idx + 1] + ["Formula"] + [c for c in cols[factor_idx + 1 :] if c not in ["Formula", "name"]]
+    return result.select(new_order).collect()
 
 
 def find_files(
-    dirpath: Path,
-    *,
-    prefix: str | None = None,
-    suffix: str | None = None,
-    matcher: Callable[[DirEntry[str]], bool] | None = None,
+    dirpath: Path, *, prefix: str | None = None, suffix: str | None = None, matcher: Callable[[DirEntry[str]], bool] | None = None
 ):
     if matcher is None:
         if prefix:
             if suffix:
-                matcher = lambda e: e.name.startswith(prefix) and e.name.endswith(
-                    suffix
-                )
+                matcher = lambda e: e.name.startswith(prefix) and e.name.endswith(suffix)
             else:
                 matcher = lambda e: e.name.startswith(prefix)
         else:
@@ -138,11 +122,5 @@ def escape_html(value: str | float | int) -> str | float | int:
 
 def escape_html_attr(value: str | float | int) -> str | float | int:
     if isinstance(value, str):
-        return (
-            value.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-            .replace("'", "&#39;")
-        )
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&#39;")
     return value

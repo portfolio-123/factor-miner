@@ -65,14 +65,11 @@ class DatasetService:
     def get_preview_data(self):
         return self._reader.read_preview(num_rows=10)
 
-    def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
-        return self._reader.read_columns_pl(columns)
+    def scan(self) -> pl.LazyFrame:
+        return self._reader.scan()
 
     def read_column_pa(self, column: str) -> pa.ChunkedArray:
         return self._reader.read_column_pa(column)
-
-    def scan(self) -> pl.LazyFrame:
-        return self._reader.scan()
 
     def back_up_metadata(self, dest_path: Path) -> None:
         source_metadata = self._reader.get_schema_metadata()

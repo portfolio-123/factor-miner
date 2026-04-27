@@ -78,8 +78,8 @@ def render_correlation_matrix(corr_matrix_df: pl.DataFrame, title: str, file_pre
     )
 
     copy_download_buttons(
-        csv_copy=corr_matrix_df.write_csv(separator="\t"),
-        csv_download=corr_matrix_df.write_csv(),
+        render_csv_copy=lambda: corr_matrix_df.write_csv(separator="\t"),
+        render_csv_download=lambda: corr_matrix_df.write_csv(),
         file_name=(f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"),
         key_prefix=f"corr_matrix{key_suffix}",
         toast_msg="Correlation matrix copied to clipboard",
@@ -109,8 +109,8 @@ def show_formulas_modal(formulas_df: pl.DataFrame) -> None:
     render_table(subset, max_height=400, zebra=True, column_widths={"formula": "45%", "name": "35%", "tag": "20%"})
 
     copy_download_buttons(
-        csv_copy=subset.write_csv(separator="\t"),
-        csv_download=subset.write_csv(),
+        render_csv_copy=lambda: subset.write_csv(separator="\t"),
+        render_csv_download=lambda: subset.write_csv(),
         file_name="dataset_factors.csv",
         key_prefix="factors_modal",
         toast_msg="Factors copied to clipboard",
@@ -143,7 +143,9 @@ def render_results_table(
     row_colors = None
     if factor_classifications is not None:
         st.html(_build_legend_html(factor_classifications))
-        row_colors = [CLASSIFICATION_COLORS.get(factor_classifications[f], ("#ffffff", None))[0] for f in ui_display["Factor"].to_list()]
+        row_colors = [
+            CLASSIFICATION_COLORS.get(factor_classifications[f], ("#ffffff", None))[0] for f in ui_display.get_column("Factor").to_list()
+        ]
 
     render_table(
         ui_display,
@@ -155,10 +157,17 @@ def render_results_table(
         column_widths={"Tail-Weighted IC": "50px"},
     )
 
-    enriched_df = add_formula_column(ui_display, formulas_data)
+    def render_csv_copy():
+        enriched_df = add_formula_column(ui_display, formulas_data)
+        return enriched_df.write_csv(separator="\t")
+
+    def render_csv_download():
+        enriched_df = add_formula_column(ui_display, formulas_data)
+        return enriched_df.write_csv()
+
     copy_download_buttons(
-        csv_copy=enriched_df.write_csv(separator="\t"),
-        csv_download=enriched_df.write_csv(),
+        render_csv_copy=render_csv_copy,
+        render_csv_download=render_csv_download,
         file_name=f"{fl_id}_factors.csv",
         key_prefix=key,
         toast_msg="Factors copied to clipboard",

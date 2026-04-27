@@ -45,8 +45,8 @@ def run_analysis(
 
         dataset_lf = dataset_svc.scan()
         core_df = (
-            dataset_lf.select(list(REQUIRED_COLUMNS))
-            .with_columns(pl.col("Date").str.to_date("%Y-%m-%d"), (pl.col(FUTURE_PERF_COLUMN) / 100))
+            dataset_lf.select(REQUIRED_COLUMNS)
+            .with_columns(pl.col("Date").str.strptime(pl.Date), (pl.col(FUTURE_PERF_COLUMN) / 100))
             .collect()
         )
         if not core_df.get_column("Date").is_sorted():
@@ -74,7 +74,7 @@ def run_analysis(
     dates = core_df.lazy().select(pl.col("Date").rle().struct.field("value").alias("Date"))
     benchmark_df = (
         calculate_benchmark_returns(dates, benchmark_prices.lazy())
-        .select(pl.col("Date"), pl.col("ret").alias(INTERNAL_BENCHMARK_COL))
+        .select(pl.col("Date"), pl.col("Return").alias(INTERNAL_BENCHMARK_COL))
         .collect()
     )
 

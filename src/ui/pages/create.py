@@ -173,9 +173,9 @@ def _render_settings() -> None:
         metric_label = rank_config.metric_label
         input_settings = rank_config.input_settings
 
-        mode = "Max." if st.session_state.get("high_quantile") == 0 else "Min."
-
-        st.number_input(f"{mode} {metric_label}", **input_settings, key="min_rank_metric")
+        st.number_input(
+            ("Max. " if st.session_state.get("high_quantile") == 0 else "Min. ") + metric_label, **input_settings, key="min_rank_metric"
+        )
     with col2:
         st.number_input("Max. Factors", min_value=1, step=1, key="n_factors", help="Maximum number of 'Best Factors' to select")
     with col3:

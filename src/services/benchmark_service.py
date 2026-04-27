@@ -1,6 +1,5 @@
 import polars as pl
 
-
 # convert p123 benchmark tickers to be compatible with yfinance
 MARKET_SUFFIX_MAP = {
     "USA": "",  # US exchanges
@@ -21,16 +20,13 @@ def convert_to_yfinance_ticker(ticker_with_market: str) -> str:
 
     if market not in MARKET_SUFFIX_MAP:
         raise ValueError(
-            f"Unsupported market '{market}' for ticker '{ticker_with_market}'. "
-            f"Supported markets: {', '.join(MARKET_SUFFIX_MAP.keys())}"
+            f"Unsupported market '{market}' for ticker '{ticker_with_market}'. Supported markets: {', '.join(MARKET_SUFFIX_MAP.keys())}"
         )
 
     return f"{ticker}{MARKET_SUFFIX_MAP[market]}"
 
 
-def fetch_benchmark_external(
-    ticker: str, start_date: str, end_date: str
-) -> pl.DataFrame:
+def fetch_benchmark_external(ticker: str, start_date: str, end_date: str) -> pl.DataFrame:
     import yfinance as yf
 
     yf_ticker = convert_to_yfinance_ticker(ticker)
@@ -48,6 +44,6 @@ def fetch_benchmark_external(
     pandas_df.columns = ["dt", "close"]
 
     df = pl.from_pandas(pandas_df)
-    df = df.with_columns(pl.col("dt").dt.strftime("%Y-%m-%d").alias("dt"))
+    df = df.select(pl.col("dt").alias("Date"), pl.col("close").alias("Close"))
 
     return df

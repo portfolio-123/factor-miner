@@ -38,8 +38,8 @@ class ParquetDataReader(AbstractContextManager["ParquetDataReader"]):
             return None
         return metadata.get(b"datasetMetadata")
 
-    def read_columns_pl(self, columns: list[str]) -> pl.DataFrame:
-        return pl.read_parquet(self.path, columns=columns)
+    def scan(self) -> pl.LazyFrame:
+        return pl.scan_parquet(self.path)
 
     def read_column_pa(self, column: str) -> pa.ChunkedArray:
         return self._parquet_file.read([column]).column(0)  # type: ignore[arg-type]
@@ -72,7 +72,7 @@ class ParquetDataReader(AbstractContextManager["ParquetDataReader"]):
         return {
             "data": pl.concat([first_rows, last_rows]),
             "num_rows": total_rows,
-            "num_dates": self.read_columns_pl(["Date"])["Date"].n_unique(),
+            "num_dates": self.scan().select(pl.col("Date").rle_id().last() + 1).collect().item(),
         }
 
     def get_dataset_info(self) -> DatasetConfig:
@@ -86,6 +86,3 @@ class ParquetDataReader(AbstractContextManager["ParquetDataReader"]):
 
     def get_metadata(self):
         return self._parquet_file.metadata
-
-    def scan(self) -> pl.LazyFrame:
-        return pl.scan_parquet(self.path)
