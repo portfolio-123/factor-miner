@@ -230,7 +230,7 @@ class AnalysisParams(BaseModel):
     correlation_threshold: float = 0.5
     max_return_pct: float = 200.0
     asc_factors: list[str] = []
-    auto_detect_direction: bool = False
+    auto_detect_direction: bool = True
 
 
 class NormalizationConfig(BaseModel):
