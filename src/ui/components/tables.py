@@ -236,8 +236,8 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
     )
 
 
-def render_conflict_explorer(corr_matrix_df: pl.DataFrame, conflicting_factors: list, best_factors: list, threshold: float):
-    conflict_data = corr_matrix_df.lazy().filter(pl.col("factor").is_in(conflicting_factors)).select(["factor"] + best_factors).collect()
+def render_conflict_explorer(corr_matrix_df: pl.DataFrame, conflicting_factors: list[str], best_factors: list[str], threshold: float):
+    conflict_data = corr_matrix_df.lazy().filter(pl.col("factor").is_in(conflicting_factors)).select(["factor"] + best_factors)
 
     long_conflicts = (
         conflict_data.unpivot(index="factor", variable_name="Blocked By", value_name="Correlation")
@@ -245,4 +245,4 @@ def render_conflict_explorer(corr_matrix_df: pl.DataFrame, conflicting_factors: 
         .sort("Correlation", descending=True)
     )
 
-    render_table(long_conflicts.rename({"factor": "Exluded Factor"}), zebra=True, format_spec={"Correlation": ".4f"})
+    render_table(long_conflicts.rename({"factor": "Excluded Factor"}).collect(), zebra=True, format_spec={"Correlation": ".4f"})
