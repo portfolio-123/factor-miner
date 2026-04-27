@@ -4,7 +4,7 @@ import polars as pl
 from src.core.types.models import RANK_CONFIG, AnalysisStatus, BenchmarkDisplayResults
 from src.internal.errors import format_analysis_error
 from src.ui.components.common import render_info_item
-from src.ui.components.tables import render_results_table, render_correlation_matrix
+from src.ui.components.tables import render_conflict_explorer, render_results_table, render_correlation_matrix
 from src.ui.components.datasets import render_dataset_card
 from src.ui.components.analyses import render_analysis_notes, show_analysis_logs_modal, render_analysis_progress
 from src.core.utils.common import deserialize_dataframe, format_runtime, format_timestamp
@@ -89,7 +89,7 @@ def results() -> None:
         f"Number of factors excluded by NAs: {na_excluded_count}."
     )
 
-    settings_tab, best_factors_tab, all_factors_tab = st.tabs(["Settings", "Best Factors", "All Factors"])
+    settings_tab, best_factors_tab, all_factors_tab, correlations_tab = st.tabs(["Settings", "Best Factors", "All Factors", "Correlations"])
 
     with settings_tab:
         render_dataset_card(dataset_metadata)
@@ -130,15 +130,6 @@ def results() -> None:
                 sortable=True,
             )
 
-            st.divider()
-            best_corr_matrix = (
-                corr_matrix_df.lazy()
-                .filter(pl.col("factor").is_in(best_feature_names))
-                .select(["factor"] + best_feature_names)
-                .sort(pl.col("factor").replace_strict(best_feature_names, range(len(best_feature_names))))
-                .collect()
-            )
-            render_correlation_matrix(corr_matrix_df=best_corr_matrix, title="Correlation Matrix (Best Factors)", file_prefix=fl_id)
         else:
             st.info(
                 "No factors met all the selection criteria. "
@@ -158,4 +149,24 @@ def results() -> None:
             factor_classifications=factor_classifications,
             key="all_factors",
             sortable=True,
+        )
+
+    with correlations_tab:
+        best_corr_matrix = (
+            corr_matrix_df.lazy()
+            .filter(pl.col("factor").is_in(best_feature_names))
+            .select(["factor"] + best_feature_names)
+            .sort(pl.col("factor").replace_strict(best_feature_names, range(len(best_feature_names))))
+            .collect()
+        )
+
+        render_correlation_matrix(corr_matrix_df=best_corr_matrix, title="Correlation Matrix (Best Factors)", file_prefix=fl_id)
+
+        st.subheader("Correlation Conflicts")
+
+        render_conflict_explorer(
+            corr_matrix_df=corr_matrix_df,
+            conflicting_factors=[f for f, label in factor_classifications.items() if label == "correlation_conflict"],
+            best_factors=best_feature_names,
+            threshold=p.correlation_threshold,
         )
