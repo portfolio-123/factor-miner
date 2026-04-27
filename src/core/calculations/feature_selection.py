@@ -5,20 +5,22 @@ from src.core.types.models import RANK_CONFIG, AnalysisParams
 
 
 def calculate_correlation_matrix(lf: pl.LazyFrame, factor_columns: list[str]):
-    ranked = (
-        lf.select(["Date", *factor_columns])
-        .with_columns([pl.col(f).rank(method="average").over("Date").cast(pl.Float32).alias(f) for f in factor_columns])
-        .collect()
-    )
     length = len(factor_columns)
     corr_sum = np.zeros((length, length), dtype=np.float64)
     corr_count = np.zeros((length, length), dtype=np.int32)
-    for date_df in ranked.partition_by("Date", maintain_order=False):
-        x = date_df.select(factor_columns).to_numpy()
-        if x.shape[0] < 2:  # skip dates with less than 2 stocks
+
+    dates = lf.select("Date").unique().collect().get_column("Date").to_list()
+
+    ranks = [pl.col(c).fill_nan(None).rank(method="average").cast(pl.Float64).alias(c) for c in factor_columns]
+
+    for date in dates:
+        df = lf.filter(pl.col("Date") == date).select(ranks).collect()
+
+        if df.height < 2:
             continue
         # ignore nans and inf
-        corr = np.ma.corrcoef(np.ma.masked_invalid(x), rowvar=False).filled(np.nan)
+        corr = np.ma.corrcoef(np.ma.masked_invalid(df.to_numpy()), rowvar=False).filled(np.nan)
+
         valid = np.isfinite(corr)
         corr_sum[valid] += corr[valid]
         corr_count[valid] += 1
