@@ -112,11 +112,7 @@ def run_analysis(
 
     logger.info("Calculating correlation matrix...")
 
-    try:
-        corr_matrix = calculate_correlation_matrix(dataset_lf, factor_columns)
-    except Exception as e:
-        logger.error(f"Correlation failed: {e}")
-        raise AnalysisError("An error ocurred while calculating the correlation matrix")
+    corr_matrix = calculate_correlation_matrix(dataset_lf, factor_columns)
 
     best_factors, factor_classifications = select_best_factors(metrics_df, corr_matrix, params)
     logger.info(f"Best factors: {len(best_factors)}/{len(metrics_df)}")
