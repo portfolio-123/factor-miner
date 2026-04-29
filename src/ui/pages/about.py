@@ -34,17 +34,17 @@ When configuring a new analysis, you can adjust the following parameters:
 | **Rank By** | Alpha | Metric to rank factors by (Alpha or IC) |
 | **High Quantile (%)** | 10.0 | Percentage of top-ranked stocks to include in the high quantile portfolio |
 | **Low Quantile (%)** | 10.0 | Percentage of bottom-ranked stocks to include in the low quantile portfolio |
-| **Min/Max Alpha (%)** | 0.5 | Minimum/Maximum alpha threshold - factors with alpha below this are filtered out |
-| **Min IC** | 0.01 | Minimum information coefficient threshold for factor selection |
+| **Min/Max. Alpha (%)** | 0.5 | Minimum/Maximum alpha threshold - factors with alpha below this are filtered out |
+| **Min. IC** | 0.01 | Minimum information coefficient threshold for factor selection |
 | **Max. Factors** | 10 | Maximum number of factors to select in the final result set |
-| **Max NA (%)** | 40.0 | Maximum percentage of missing values allowed before a factor is excluded |
+| **Max. NA (%)** | 40.0 | Maximum percentage of missing values allowed before a factor is excluded |
 | **Correlation Threshold** | 0.5 | Maximum allowed correlation between selected factors to ensure diversification |
 
 ### Analysis Results
 
 After running an analysis, you'll be able to access the following results:
 
-- **Best Factors** - The factors with the highest/lowest annualized alpha, after alpha and correlation filters.
-- **All Factors** - All factors ranked by annual alpha, despite alpha or correlation filters.
-- **Correlation Matrix** - The correlation matrix for the best performing factors.
+- **Best Factors** - The factors with the highest rank metric, after filters.
+- **All Factors** - All factors ranked by the rank metric, with their respective classification.
+- **Correlations** - The correlation matrix for the best factors and a conflict visualizer.
 """)
