@@ -98,6 +98,7 @@ class AnalysisResults(BaseModel):
     factor_classifications: dict[str, str] = {}
     avg_alpha: float = 0.0
     benchmark: BenchmarkDisplayResults
+    first_valid_date: str | None = None
 
 
 class TokenPayload(BaseModel):

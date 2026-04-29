@@ -88,6 +88,10 @@ def results() -> None:
         f"Found **{len(best_feature_names)}** of **{p.n_factors}** requested Best Factors. "
         f"Number of factors excluded by NAs: {na_excluded_count}."
     )
+    if analysis.results.first_valid_date:
+        st.warning(
+            f"Due to invalid factor data on certain dates, the dataset was analyzed starting from **{analysis.results.first_valid_date}**"
+        )
 
     settings_tab, best_factors_tab, all_factors_tab, correlations_tab = st.tabs(["Settings", "Best Factors", "All Factors", "Correlations"])
 

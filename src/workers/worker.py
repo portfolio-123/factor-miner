@@ -44,6 +44,37 @@ def run_analysis(
             raise AnalysisError(f"Dataset is missing required columns: {missing}", error_type="missing-column")
 
         dataset_lf = dataset_svc.scan()
+        factor_columns = list(column_names - SPECIAL_COLUMNS)
+
+        def invalid_factor(col: str) -> pl.Expr:
+            return pl.col(col).drop_nulls().n_unique() < 2
+
+        global_stats = dataset_lf.select([invalid_factor(f).alias(f) for f in factor_columns]).collect()
+        factor_columns = [f for f in factor_columns if not global_stats.get_column(f)[0]]
+
+        if not factor_columns:
+            raise AnalysisError("No valid factors remaining")
+
+        invalid_factors = [invalid_factor(f) for f in factor_columns]
+        quality_check = pl.any_horizontal(invalid_factors) if len(invalid_factors) > 1 else invalid_factors[0]
+
+        date_df = (
+            dataset_lf.group_by("Date", maintain_order=True)
+            .agg(quality_check.alias("invalid_date"))
+            .select(
+                pl.col("Date").min().alias("first_date"),
+                pl.col("Date").filter(pl.col("invalid_date") == False).min().alias("first_valid_date"),
+            )
+            .collect()
+        )
+        first_valid_date = date_df.item(0, "first_valid_date")
+        if first_valid_date is None:
+            raise AnalysisError("No valid rebalancing dates found.")
+        date_was_moved = first_valid_date != date_df.item(0, "first_date")
+        if date_was_moved:
+            logger.info("Start date moved to %s", first_valid_date)
+            dataset_lf = dataset_lf.filter(pl.col("Date") >= first_valid_date)
+
         core_df = (
             dataset_lf.select(REQUIRED_COLUMNS)
             .with_columns(pl.col("Date").str.strptime(pl.Date), (pl.col(FUTURE_PERF_COLUMN) / 100))
@@ -124,6 +155,7 @@ def run_analysis(
         factor_classifications=factor_classifications,
         avg_alpha=float(np.nanmean(metrics_df.get_column("annualized_alpha_pct"))),  # type: ignore[arg-type]
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
+        first_valid_date=first_valid_date if date_was_moved else None,
     )
 
 
