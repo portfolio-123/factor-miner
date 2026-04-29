@@ -9,7 +9,7 @@ def calculate_correlation_matrix(lf: pl.LazyFrame, factor_columns: list[str]):
     corr_sum = np.zeros((length, length), dtype=np.float64)
     corr_count = np.zeros((length, length), dtype=np.int32)
 
-    dates = lf.select("Date").unique().collect().get_column("Date").to_list()
+    dates = lf.select(pl.col("Date").rle().struct.field("value")).collect().get_column("Date").to_list()
 
     ranks = [pl.col(c).fill_nan(None).rank(method="average").alias(c) for c in factor_columns]
 
