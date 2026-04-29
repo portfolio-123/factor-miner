@@ -35,7 +35,7 @@ When configuring a new analysis, you can adjust the following parameters:
 | **High Quantile (%)** | 10.0 | Percentage of top-ranked stocks to include in the high quantile portfolio |
 | **Low Quantile (%)** | 10.0 | Percentage of bottom-ranked stocks to include in the low quantile portfolio |
 | **Min/Max Alpha (%)** | 0.5 | Minimum/Maximum alpha threshold - factors with alpha below this are filtered out |
-| **Min IC** | 0.015 | Minimum information coefficient threshold for factor selection |
+| **Min IC** | 0.01 | Minimum information coefficient threshold for factor selection |
 | **Max. Factors** | 10 | Maximum number of factors to select in the final result set |
 | **Max NA (%)** | 40.0 | Maximum percentage of missing values allowed before a factor is excluded |
 | **Correlation Threshold** | 0.5 | Maximum allowed correlation between selected factors to ensure diversification |
