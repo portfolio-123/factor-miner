@@ -49,15 +49,26 @@ def select_best_factors(
         .then(pl.lit("below_rank_metric"))
     ).sort(sort_by, descending=is_desc)
 
+    classifications = dict(zip(processed_metrics["column"], processed_metrics["status"]))
+
     candidate_df = processed_metrics.filter(pl.col("status").is_null())
 
     candidates = candidate_df["column"].to_list()
+    if not candidates:
+        return [], classifications, pl.DataFrame()
+
+    if len(candidates) == 1:
+        feature = candidates[0]
+
+        classifications[feature] = "best"
+        corr_matrix = pl.DataFrame({"factor": [feature], feature: [1.0]})
+        return [feature], classifications, corr_matrix
+
     corr_matrix = calculate_correlation_matrix(dataset_lf, candidates)
     corr_arr = corr_matrix.select(pl.exclude("factor")).to_numpy()
 
     selected_features: list[str] = []
     selected_indices: list[int] = []
-    classifications = dict(zip(processed_metrics["column"], processed_metrics["status"]))
 
     for i, feature in enumerate(candidates):
         if len(selected_features) >= (params.n_factors if params.n_factors is not None else float("inf")):

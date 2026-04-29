@@ -238,7 +238,7 @@ def analyze_factors(
 
 
 def _calc_workers(n_factors: int, n_rows: int) -> int:
-    if n_factors * n_rows < 1_000_000:
+    if n_factors == 1 or (n_factors * n_rows < 1_000_000):
         return 1
     max_cpus = min(16, cpu_count() or 4)
     return max(1, min(n_factors // 2, n_rows // 10_000, max_cpus))
