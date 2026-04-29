@@ -9,7 +9,7 @@ def calculate_correlation_matrix(lf: pl.LazyFrame, factor_columns: list[str]):
     corr_sum = np.zeros((length, length), dtype=np.float64)
     corr_count = np.zeros((length, length), dtype=np.int32)
 
-    dates = lf.select(pl.col("Date").rle().struct.field("value")).collect().get_column("Date").to_list()
+    dates = lf.select(pl.col("Date").rle().struct.field("value").alias("Date")).collect().get_column("Date").to_list()
 
     ranks = [pl.col(c).fill_nan(None).rank(method="average").alias(c) for c in factor_columns]
 
@@ -31,47 +31,42 @@ def calculate_correlation_matrix(lf: pl.LazyFrame, factor_columns: list[str]):
     return pl.DataFrame({"factor": factor_columns, **{factor_columns[j]: avg_corr[:, j].tolist() for j in range(length)}})
 
 
-def select_best_factors(metrics_df: pl.DataFrame, corr_matrix: pl.DataFrame, params: AnalysisParams) -> tuple[list[str], dict[str, str]]:
-    # iterate all factors from strongest to weakest (based on rank_by metric). adds a classification to every factor, indicating why it was excluded or "best" if it passed all the filters
-
-    # assign an index to each factor to later look up its correlation pairs as corr_arr[idx, idx_pair]
-    corr_arr = corr_matrix.select(pl.exclude("factor")).to_numpy()
-    col_to_idx = {c: i for i, c in enumerate(corr_matrix["factor"].to_list())}
+def select_best_factors(
+    dataset_lf: pl.LazyFrame, metrics_df: pl.DataFrame, params: AnalysisParams
+) -> tuple[list[str], dict[str, str], pl.DataFrame]:
 
     rank_config = RANK_CONFIG[params.rank_by]
-
     sort_by, is_desc = rank_config.get_sorting(params.high_quantile)
 
-    # sort factors by rank_by metric, best first
-    sorted_metrics = metrics_df.sort(sort_by, descending=is_desc)
-    # array containing all factor names
-    factors: list[str] = sorted_metrics["column"].to_list()
-    factor_idx = np.array([col_to_idx[f] for f in factors])
+    processed_metrics = metrics_df.with_columns(
+        status=pl.when(pl.col("na_pct") > params.max_na_pct)
+        .then(pl.lit("high_na"))
+        .when(
+            (pl.col(params.rank_by) > params.min_rank_metric)
+            if params.high_quantile == 0
+            else (pl.col(params.rank_by) < params.min_rank_metric)
+        )
+        .then(pl.lit("below_rank_metric"))
+    ).sort(sort_by, descending=is_desc)
 
-    data = sorted_metrics[params.rank_by].to_numpy()
-    valid_rank_by = (data <= params.min_rank_metric) if params.high_quantile == 0 else (data >= params.min_rank_metric)
+    candidate_df = processed_metrics.filter(pl.col("status").is_null())
 
-    valid_na = sorted_metrics["na_pct"].to_numpy() <= params.max_na_pct
+    candidates = candidate_df["column"].to_list()
+    corr_matrix = calculate_correlation_matrix(dataset_lf, candidates)
+    corr_arr = corr_matrix.select(pl.exclude("factor")).to_numpy()
 
-    classifications: dict[str, str] = {}
     selected_features: list[str] = []
     selected_indices: list[int] = []
+    classifications = dict(zip(processed_metrics["column"], processed_metrics["status"]))
 
-    # go through each factor, check filters 1 by 1. if all filters pass, classify as best factor
-    for i, feature in enumerate(factors):
-        if not valid_na[i]:
-            label = "high_na"
-        elif not valid_rank_by[i]:
-            label = f"below_rank_metric"
-        elif len(selected_indices) >= (params.n_factors if params.n_factors is not None else float("inf")):
-            label = "n_limit"
-        elif selected_indices and np.any(np.abs(corr_arr[factor_idx[i], selected_indices]) >= params.correlation_threshold):
-            label = "correlation_conflict"
+    for i, feature in enumerate(candidates):
+        if len(selected_features) >= (params.n_factors if params.n_factors is not None else float("inf")):
+            classifications[feature] = "n_limit"
+        elif selected_indices and np.any(np.abs(corr_arr[i, selected_indices]) >= params.correlation_threshold):
+            classifications[feature] = "correlation_conflict"
         else:
             selected_features.append(feature)
-            selected_indices.append(factor_idx[i])
-            label = "best"
+            selected_indices.append(i)
+            classifications[feature] = "best"
 
-        classifications[feature] = label
-
-    return selected_features, classifications
+    return selected_features, classifications, corr_matrix

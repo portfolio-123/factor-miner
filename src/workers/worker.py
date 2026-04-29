@@ -112,9 +112,7 @@ def run_analysis(
 
     logger.info("Calculating correlation matrix...")
 
-    corr_matrix = calculate_correlation_matrix(dataset_lf, factor_columns)
-
-    best_factors, factor_classifications = select_best_factors(metrics_df, corr_matrix, params)
+    best_factors, factor_classifications, corr_matrix = select_best_factors(dataset_lf, metrics_df, params)
     logger.info(f"Best factors: {len(best_factors)}/{len(metrics_df)}")
 
     logger.info("Analysis complete")
