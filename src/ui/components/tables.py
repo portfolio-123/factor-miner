@@ -168,7 +168,7 @@ def render_results_table(
     copy_download_buttons(
         render_csv_copy=render_csv_copy,
         render_csv_download=render_csv_download,
-        file_name=f"{fl_id}_factors.csv",
+        file_name=f"{fl_id}_{key}.csv",
         key_prefix=key,
         toast_msg="Factors copied to clipboard",
     )
