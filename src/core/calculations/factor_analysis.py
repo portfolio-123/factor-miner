@@ -153,7 +153,7 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     else:
         ic = math.nan
 
-    quantile_perf_per_date = np.empty((num_dates, 2), dtype=np.float32)
+    quantile_perf_per_date = np.full((num_dates, 2), np.nan, dtype=np.float32)
     for i, factor_valid, perf_valid in masked:
         quantile_perf_per_date[i, :] = _process_factor_per_date(
             factor_valid, perf_valid, params.high_quantile, params.low_quantile, ascending
