@@ -153,6 +153,10 @@ def results() -> None:
         )
 
     with correlations_tab:
+        if not best_feature_names:
+            st.info("No Best Factors were found.")
+            return
+
         best_corr_matrix = (
             corr_matrix_df.lazy()
             .filter(pl.col("factor").is_in(best_feature_names))
