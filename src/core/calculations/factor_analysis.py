@@ -259,11 +259,17 @@ def _log_first_factor(
     lines = []
     for i, date in enumerate(unique_dates):
         start, end = offsets[i]
-        if start is not None and end is not None:
-            f_mean = f"{np.nanmean(first_factor_data[start:end]):8.2f}"
-            p_mean = f"{np.nanmean(perf_arr[start:end]) * 100:6.2f}%"
+        f_slice = first_factor_data[start:end]
+        p_slice = perf_arr[start:end]
+
+        if f_slice.size > 0 and not np.all(np.isnan(f_slice)):
+            f_mean = f"{np.nanmean(f_slice):8.2f}"
         else:
             f_mean = f"{'NaN':>8}"
+
+        if p_slice.size > 0 and not np.all(np.isnan(p_slice)):
+            p_mean = f"{np.nanmean(p_slice) * 100:6.2f}%"
+        else:
             p_mean = f"{'NaN':>7}"
 
         lines.append(
