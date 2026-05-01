@@ -46,44 +46,40 @@ def run_analysis(
         dataset_lf = dataset_svc.scan()
         factor_columns = list(column_names - SPECIAL_COLUMNS)
 
-        def invalid_factor(col: str) -> pl.Expr:
-            return pl.col(col).drop_nulls().n_unique() < 2
+        per_date_valid = dataset_lf.group_by("Date").agg([(pl.col(f).drop_nulls().n_unique() >= 2).alias(f) for f in factor_columns])
+        factor_first_valid = per_date_valid.select(
+            [pl.col("Date").min().alias("first_date")] + [pl.col("Date").filter(pl.col(f)).min().alias(f) for f in factor_columns]
+        ).collect()
 
-        global_stats = dataset_lf.select([invalid_factor(f).alias(f) for f in factor_columns]).collect()
-        factor_columns = [f for f in factor_columns if not global_stats.get_column(f)[0]]
+        first_date = factor_first_valid.item(0, "first_date")
+        per_factor_dates = {f: factor_first_valid.item(0, f) for f in factor_columns}
 
+        # if all dates for a factor are invalid, drop it
+        factor_columns = [f for f, dates in per_factor_dates.items() if dates is not None]
         if not factor_columns:
-            raise AnalysisError("No valid factors remaining")
-
-        invalid_factors = [invalid_factor(f) for f in factor_columns]
-        quality_check = pl.any_horizontal(invalid_factors) if len(invalid_factors) > 1 else invalid_factors[0]
-
-        date_df = (
-            dataset_lf.group_by("Date", maintain_order=True)
-            .agg(quality_check.alias("invalid_date"))
-            .select(
-                pl.col("Date").min().alias("first_date"),
-                pl.col("Date").filter(pl.col("invalid_date") == False).min().alias("first_valid_date"),
-            )
-            .collect()
-        )
-        first_valid_date = date_df.item(0, "first_valid_date")
-        if first_valid_date is None:
             raise AnalysisError("No valid rebalancing dates found.")
-        date_was_moved = first_valid_date != date_df.item(0, "first_date")
+
+        # dataset starts from the first valid date of the latest valid factor
+        first_valid_date = max(per_factor_dates[f] for f in factor_columns)
+        date_was_moved = first_valid_date != first_date
         if date_was_moved:
-            logger.info("Start date moved to %s", first_valid_date)
+            logger.info("Start date moved to %s (latest per-factor first valid date)", first_valid_date)
             dataset_lf = dataset_lf.filter(pl.col("Date") >= first_valid_date)
+
+        factor_first_valid_dates = (
+            factor_first_valid.select(factor_columns)
+            .unpivot(variable_name="column", value_name="first_valid_date")
+            .with_columns(pl.col("first_valid_date").cast(pl.Utf8))
+        )
 
         core_df = (
             dataset_lf.select(REQUIRED_COLUMNS)
-            .with_columns(pl.col("Date").str.strptime(pl.Date), (pl.col(FUTURE_PERF_COLUMN) / 100))
+            .with_columns(pl.col("Date").str.strptime(pl.Date), pl.col(FUTURE_PERF_COLUMN) / 100)
             .collect()
         )
         if not core_df.get_column("Date").is_sorted():
             raise ValueError("DataFrame must be sorted by 'Date' ascending.")
 
-        factor_columns = list(column_names - SPECIAL_COLUMNS)
         dataset_info = dataset_svc.get_metadata()
 
     periods_per_year = dataset_info.frequency.periods_per_year
@@ -139,7 +135,9 @@ def run_analysis(
         data["column"] = factor  # type: ignore
         results.append(data)  # type: ignore
 
-    metrics_df = pl.DataFrame(results, schema=[("column", pl.Utf8), *((col, pl.Float32) for col in process_factor_result_scalars)])
+    metrics_df = pl.DataFrame(results, schema=[("column", pl.Utf8), *((col, pl.Float32) for col in process_factor_result_scalars)]).join(
+        factor_first_valid_dates, on="column", how="left"
+    )
 
     logger.info("Calculating correlation matrix...")
 
