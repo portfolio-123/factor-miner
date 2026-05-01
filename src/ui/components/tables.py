@@ -10,6 +10,7 @@ from src.ui.components.common import copy_download_buttons
 from src.ui.components.table_builder import render_table
 
 COLUMN_RENAMES = {
+    "first_valid_date": "Date Start",
     "column": "Factor",
     "asc": "Asc",
     "tag": "Tag",
@@ -24,6 +25,7 @@ COLUMN_RENAMES = {
 DISPLAY_COLUMNS = [
     "rank",
     "column",
+    "first_valid_date",
     "asc",
     "tag",
     "annualized_alpha_pct",
@@ -132,6 +134,11 @@ def render_results_table(
     tag_mapping = formulas_data.lazy().unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
 
     display = metrics.join(tag_mapping, on="column", how="left")
+
+    # backwards compatibility, add new columns as empty if the original analysis didn't include them
+    missing_cols = [col for col in DISPLAY_COLUMNS if col not in display.collect_schema().names()]
+    if missing_cols:
+        display = display.with_columns([pl.lit("").alias(col) for col in missing_cols])
 
     display = display.with_columns([pl.col("asc").replace_strict([False, True], ["", "X"])])
 
