@@ -1,4 +1,4 @@
-from typing import Callable
+from collections.abc import Callable
 
 import streamlit as st
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
@@ -14,6 +14,10 @@ def copy_download_buttons(
     toast_msg="Copied to clipboard",
 ):
     """Render copy-to-clipboard and download CSV buttons."""
+
+    def sanitize(text: str) -> str:
+        return text.replace("−", "-")
+
     _, col1, col2 = st.columns([3, 1, 1])
     with col1:
         if st.button(type="primary", label="Copy to Clipboard", width="stretch", key=f"{key_prefix}_copy"):
@@ -22,10 +26,12 @@ def copy_download_buttons(
             copy_to_clipboard(csv_copy)
             st.toast(toast_msg)
     with col2:
+        csv_data = sanitize(render_csv_download())
+
         st.download_button(
             type="primary",
             label="Download CSV",
-            data=render_csv_download,
+            data=csv_data,
             file_name=file_name,
             mime="text/csv",
             width="stretch",
