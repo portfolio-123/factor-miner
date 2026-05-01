@@ -167,11 +167,14 @@ def results() -> None:
 
         render_correlation_matrix(corr_matrix_df=best_corr_matrix, title="Correlation Matrix (Best Factors)", file_prefix=fl_id)
 
-        st.subheader("Correlation Conflicts")
+        conflicting_factors = [f for f, label in factor_classifications.items() if label == "correlation_conflict"]
 
-        render_conflict_explorer(
-            corr_matrix_df=corr_matrix_df,
-            conflicting_factors=[f for f, label in factor_classifications.items() if label == "correlation_conflict"],
-            best_factors=best_feature_names,
-            threshold=p.correlation_threshold,
-        )
+        if conflicting_factors:
+            st.subheader("Correlation Conflicts")
+
+            render_conflict_explorer(
+                corr_matrix_df=corr_matrix_df,
+                conflicting_factors=conflicting_factors,
+                best_factors=best_feature_names,
+                threshold=p.correlation_threshold,
+            )
