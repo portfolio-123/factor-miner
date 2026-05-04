@@ -48,28 +48,32 @@ def run_analysis(
 
         per_date_valid = dataset_lf.group_by("Date").agg([(pl.col(f).drop_nulls().n_unique() >= 2).alias(f) for f in factor_columns])
         factor_first_valid = per_date_valid.select(
-            [pl.col("Date").min().alias("first_date")] + [pl.col("Date").filter(pl.col(f)).min().alias(f) for f in factor_columns]
+            [pl.col("Date").min().alias("_first_date")] + [pl.col("Date").filter(pl.col(f)).min().alias(f) for f in factor_columns]
         ).collect()
 
-        first_date = factor_first_valid.item(0, "first_date")
-        per_factor_dates = {f: factor_first_valid.item(0, f) for f in factor_columns}
+        row = factor_first_valid.row(0, named=True)
+        first_date = row.pop("_first_date")
+        per_factor_dates = {f: dates for f, dates in row.items() if dates is not None}
 
-        # if all dates for a factor are invalid, drop it
-        factor_columns = [f for f, dates in per_factor_dates.items() if dates is not None]
-        if not factor_columns:
+        dropped_factors = [f for f, d in row.items() if d is None]
+        if dropped_factors:
+            logger.warning("Dropped invalid factors: %s", dropped_factors)
+
+        if not per_factor_dates:
             raise AnalysisError("No valid rebalancing dates found.")
 
+        factor_columns = list(per_factor_dates)
+
         # dataset starts from the first valid date of the latest valid factor
-        first_valid_date = max(per_factor_dates[f] for f in factor_columns)
+        first_valid_date = max(per_factor_dates.values())
+
         date_was_moved = first_valid_date != first_date
         if date_was_moved:
             logger.info("Start date moved to %s (latest per-factor first valid date)", first_valid_date)
             dataset_lf = dataset_lf.filter(pl.col("Date") >= first_valid_date)
 
-        factor_first_valid_dates = (
-            factor_first_valid.select(factor_columns)
-            .unpivot(variable_name="column", value_name="first_valid_date")
-            .with_columns(pl.col("first_valid_date").cast(pl.Utf8))
+        factor_first_valid_dates = pl.DataFrame(
+            {"column": factor_columns, "first_valid_date": [str(per_factor_dates[f]) for f in factor_columns]}
         )
 
         core_df = (
