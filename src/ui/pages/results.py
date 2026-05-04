@@ -103,6 +103,7 @@ def results() -> None:
             settings = [
                 ("Rank By", metric_label),
                 ("Max. Factors", p.n_factors),
+                ("Factor Sort", "Automatic" if p.auto_detect_direction else "Manual"),
                 (("Max. " if analysis.params.high_quantile == 0 else "Min. ") + metric_label, rank_config.format_filter(p.min_rank_metric)),
                 ("Max. Correlation", p.correlation_threshold),
                 ("Max. NA", f"{p.max_na_pct}%"),
