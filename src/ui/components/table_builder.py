@@ -73,6 +73,13 @@ TABLE_STYLES = """
     .html-table--sortable th.sort-desc .sort-indicator {
         opacity: 1;
     }
+    .html-table .truncate {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
 </style>
 """
 
@@ -140,6 +147,7 @@ def render_table(
     format_spec: dict[str, str] | None = None,
     column_widths: dict[str, str] | None = None,
     max_height=400,
+    truncate_cols: set[str] | None = None,
     zebra=False,
     small_headers=False,
     sortable=False,
@@ -213,7 +221,13 @@ def render_table(
 
             sort_attr = f' data-sort-value="{sort_value}"' if sortable and sort_value else ""
 
-            cell_content = f'<a href="{escape_html_attr(link)}">{cell_value}</a>' if link else cell_value
+            cell_content = cell_value
+            if truncate_cols and col in truncate_cols:
+                width = (column_widths or {}).get(col, "200px")
+                title_attr = f' title="{escape_html_attr(value)}"' if value else ""
+                cell_content = f'<span class="truncate" style="width: {width}"{title_attr}>' f"{cell_content}</span>"
+            if link:
+                cell_content = f'<a href="{escape_html_attr(link)}">{cell_content}</a>'
             html += f"<td{td_style_attr}{sort_attr}>{cell_content}</td>"
 
         html += "</tr>"
@@ -222,6 +236,8 @@ def render_table(
 
     if sortable:
         html += SORT_SCRIPT.replace("__TABLE_ID__", table_id)
-        components.html(html, height=max_height + 50, scrolling=True)
+
+        content_h = 68 + len(df) * 29  # +60 for padding, header, x scroll and etc. then 29px per row
+        components.html(html, height=min(max_height + 20, content_h), scrolling=True)
     else:
         st.html(html)

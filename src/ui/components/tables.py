@@ -14,12 +14,12 @@ COLUMN_RENAMES = {
     "column": "Factor",
     "asc": "Asc",
     "tag": "Tag",
-    "na_pct": "NA %",
+    "na_pct": "NA",
     "rank": "Rank",
     "ic": "Tail-Weighted IC",
     "ic_t_stat": "IC t-stat",
-    "annualized_high_quantile_pct": "Ann. High Qtl %",
-    "annualized_low_quantile_pct": "Ann. Low Qtl %",
+    "annualized_high_quantile_pct": "Ann. High Qtl",
+    "annualized_low_quantile_pct": "Ann. Low Qtl",
 }
 
 DISPLAY_COLUMNS = [
@@ -77,6 +77,7 @@ def render_correlation_matrix(corr_matrix_df: pl.DataFrame, title: str, file_pre
         small_headers=True,
         column_widths={"": "180px"},
         format_spec={col: ".4f" for col in corr_matrix_df.columns[1:]},
+        sortable=True,
     )
 
     copy_download_buttons(
@@ -161,7 +162,8 @@ def render_results_table(
         max_height=500,
         zebra=True,
         sortable=sortable,
-        column_widths={"Tail-Weighted IC": "50px"},
+        column_widths={"Tail-Weighted IC": "50px", "Factor": "120px", "Tag": "60px", "NA": "50px"},
+        truncate_cols={"Factor", "Tag"},
     )
 
     def render_csv_copy():
@@ -193,13 +195,14 @@ def _build_row(a: AnalysisSummary, ds: DatasetConfig) -> dict[str, str]:
         "max.ret": f"{int(p.max_return_pct)}%",
         "auto-detect": p.auto_detect_direction,
     }
+
     return {
         "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M UTC"),
         "Run Time": format_runtime(a.started_at, a.finished_at),
         "Universe": ds.universeName,
         "Best Factors": f"{a.best_factors_count or 0}/{len(ds.formulas)}",
         "Rows": f"{ds.numRows:,}",
-        "Avg α": f"{(a.avg_alpha or 0):.2f}%",
+        f"Avg H−L α": f"{(a.avg_alpha or 0):.2f}%",
         "Period": f"{format_date(ds.startDt)} – {format_date(ds.endDt)}",
         "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M UTC") + active_marker,
         "Parameters": str(params_dict),
@@ -238,8 +241,16 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         df,
         row_colors=row_colors,
         row_links=row_links,
-        max_height=450,
-        column_widths={"Rows": "50px", "Dataset Created": "135px", "Status": "55px"},
+        max_height=550,
+        column_widths={
+            "Rows": "50px",
+            "Dataset Created": "135px",
+            "Status": "55px",
+            "Parameters": "300px",
+            "Universe": "100px",
+            "Period": "80px",
+        },
+        truncate_cols={"Parameters", "Universe"},
     )
 
 
@@ -252,4 +263,6 @@ def render_conflict_explorer(corr_matrix_df: pl.DataFrame, conflicting_factors: 
         .sort("Correlation", descending=True)
     )
 
-    render_table(long_conflicts.rename({"factor": "Excluded Factor"}).collect(), zebra=True, format_spec={"Correlation": ".4f"})
+    render_table(
+        long_conflicts.rename({"factor": "Excluded Factor"}).collect(), zebra=True, format_spec={"Correlation": ".4f"}, sortable=True
+    )
