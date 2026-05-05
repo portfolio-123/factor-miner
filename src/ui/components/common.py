@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import unicodedata
 
 import streamlit as st
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
@@ -15,8 +16,8 @@ def copy_download_buttons(
 ):
     """Render copy-to-clipboard and download CSV buttons."""
 
-    def sanitize(text: str) -> str:
-        return text.replace("−", "-")
+    def download_csv():
+        return unicodedata.normalize("NFKD", render_csv_download())
 
     _, col1, col2 = st.columns([3, 1, 1])
     with col1:
@@ -26,12 +27,10 @@ def copy_download_buttons(
             copy_to_clipboard(csv_copy)
             st.toast(toast_msg)
     with col2:
-        csv_data = sanitize(render_csv_download())
-
         st.download_button(
             type="primary",
             label="Download CSV",
-            data=csv_data,
+            data=download_csv,
             file_name=file_name,
             mime="text/csv",
             width="stretch",

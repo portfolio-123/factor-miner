@@ -25,7 +25,7 @@ from src.workers.analysis_service import AnalysisService
 from src.services.dataset_service import DatasetService
 from src.core.calculations.forward_returns import calculate_benchmark_returns
 from src.core.calculations.factor_analysis import analyze_factors
-from src.core.calculations.feature_selection import calculate_correlation_matrix, select_best_factors
+from src.core.calculations.feature_selection import select_best_factors
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", stream=sys.stderr)
 stderr_logger = logging.getLogger("worker")
@@ -46,14 +46,14 @@ def run_analysis(
         dataset_lf = dataset_svc.scan()
         factor_columns = list(column_names - SPECIAL_COLUMNS)
 
-        per_date_valid = dataset_lf.group_by("Date").agg([(pl.col(f).drop_nulls().n_unique() >= 2).alias(f) for f in factor_columns])
+        per_date_valid = dataset_lf.group_by("Date").agg((pl.col(f).drop_nulls().rle_id().last() > 0).alias(f) for f in factor_columns)
         factor_first_valid = per_date_valid.select(
-            [pl.col("Date").min().alias("_first_date")] + [pl.col("Date").filter(pl.col(f)).min().alias(f) for f in factor_columns]
+            pl.col("Date").first().alias("_first_date"), (pl.col("Date").filter(pl.col(f)).first().alias(f) for f in factor_columns)
         ).collect()
 
         row = factor_first_valid.row(0, named=True)
         first_date = row.pop("_first_date")
-        per_factor_dates = {f: dates for f, dates in row.items() if dates is not None}
+        per_factor_dates: dict[str, str] = {f: dates for f, dates in row.items() if dates is not None}
 
         dropped_factors = [f for f, d in row.items() if d is None]
         if dropped_factors:
@@ -73,7 +73,7 @@ def run_analysis(
             dataset_lf = dataset_lf.filter(pl.col("Date") >= first_valid_date)
 
         factor_first_valid_dates = pl.DataFrame(
-            {"column": factor_columns, "first_valid_date": [str(per_factor_dates[f]) for f in factor_columns]}
+            {"column": factor_columns, "first_valid_date": [per_factor_dates[f] for f in factor_columns]}
         )
 
         core_df = (

@@ -138,9 +138,9 @@ def render_results_table(
     # backwards compatibility, add new columns as empty if the original analysis didn't include them
     missing_cols = [col for col in DISPLAY_COLUMNS if col not in display.collect_schema().names()]
     if missing_cols:
-        display = display.with_columns([pl.lit("").alias(col) for col in missing_cols])
+        display = display.with_columns(pl.lit("").alias(col) for col in missing_cols)
 
-    display = display.with_columns([pl.col("asc").replace_strict([False, True], ["", "X"])])
+    display = display.with_columns(pl.col("asc").replace_strict([False, True], ["", "X"]))
 
     current_renames = {**COLUMN_RENAMES, **quantile_renames}
     ui_column_labels = [current_renames.get(c, c) for c in DISPLAY_COLUMNS]
