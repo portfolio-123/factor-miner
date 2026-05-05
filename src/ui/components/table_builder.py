@@ -167,11 +167,11 @@ def render_table(
 
     table_id = f"table-{id(df)}"
 
-    html = TABLE_STYLES
-    html += f'<div class="html-table-container" style="max-height: {max_height}px;">'
-    html += f'<table class="{table_class}" id="{table_id}">'
+    html = [
+        TABLE_STYLES,
+        f'<div class="html-table-container" style="max-height: {max_height}px;"><table class="{table_class}" id="{table_id}"><thead><tr>',
+    ]
 
-    html += "<thead><tr>"
     for col in headers:
         styles = []
         if small_headers:
@@ -180,15 +180,13 @@ def render_table(
             styles.append(f"width: {column_widths[col]}")
         style_attr = f' style="{"; ".join(styles)}"' if styles else ""
         sort_indicator = '<span class="sort-indicator">▲</span>' if sortable else ""
-        html += f"<th{style_attr}>{escape_html(str(col))}{sort_indicator}</th>"
-    html += "</tr></thead>"
-
-    html += "<tbody>"
+        html.append(f"<th{style_attr}>{escape_html(str(col))}{sort_indicator}</th>")
+    html.append("</tr></thead><tbody>")
     for i, row in enumerate(df.iter_rows(named=True)):
         bg_color = row_colors[i] if row_colors and i < len(row_colors) else "#ffffff"
         link = row_links[i] if row_links and i < len(row_links) else None
 
-        html += f'<tr style="background: {bg_color}" data-original-bg="{bg_color}">'
+        html.append(f'<tr style="background: {bg_color}" data-original-bg="{bg_color}">')
         for j, col in enumerate(headers):
             value = row[col]
 
@@ -223,21 +221,21 @@ def render_table(
 
             cell_content = cell_value
             if truncate_cols and col in truncate_cols:
-                width = (column_widths or {}).get(col, "200px")
+                width = column_widths and column_widths.get(col, "200px")
                 title_attr = f' title="{escape_html_attr(value)}"' if value else ""
-                cell_content = f'<span class="truncate" style="width: {width}"{title_attr}>' f"{cell_content}</span>"
+                cell_content = f'<span class="truncate" style="width: {width}"{title_attr}>{cell_content}</span>'
             if link:
                 cell_content = f'<a href="{escape_html_attr(link)}">{cell_content}</a>'
-            html += f"<td{td_style_attr}{sort_attr}>{cell_content}</td>"
+            html.append(f"<td{td_style_attr}{sort_attr}>{cell_content}</td>")
 
-        html += "</tr>"
+        html.append("</tr>")
 
-    html += "</tbody></table></div>"
+    html.append("</tbody></table></div>")
 
     if sortable:
-        html += SORT_SCRIPT.replace("__TABLE_ID__", table_id)
+        html.append(SORT_SCRIPT.replace("__TABLE_ID__", table_id))
 
         content_h = 68 + len(df) * 29  # +60 for padding, header, x scroll and etc. then 29px per row
-        components.html(html, height=min(max_height + 20, content_h), scrolling=True)
+        components.html("".join(html), height=min(max_height + 20, content_h), scrolling=True)
     else:
-        st.html(html)
+        st.html("".join(html))
