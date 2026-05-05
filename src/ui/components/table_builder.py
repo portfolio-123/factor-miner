@@ -85,13 +85,13 @@ TABLE_STYLES = """
 
 SORT_SCRIPT = """
 <script>
-(function() {
+(() => {
     const tableId = '__TABLE_ID__';
     const table = document.getElementById(tableId);
     if (!table) return;
 
     const headers = table.querySelectorAll('th');
-    let currentSort = { col: -1, asc: true };
+    let currentSort = {col: -1, asc: true};
 
     headers.forEach((th, colIdx) => {
         th.addEventListener('click', () => sortTable(colIdx));
@@ -101,38 +101,40 @@ SORT_SCRIPT = """
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
 
-        const asc = currentSort.col === colIdx ? !currentSort.asc : true;
-        currentSort = { col: colIdx, asc };
-
-        rows.sort((a, b) => {
-            const aCell = a.children[colIdx];
-            const bCell = b.children[colIdx];
-            const aVal = aCell.dataset.sortValue !== undefined ? aCell.dataset.sortValue : aCell.textContent.trim();
-            const bVal = bCell.dataset.sortValue !== undefined ? bCell.dataset.sortValue : bCell.textContent.trim();
-
-            const aNum = parseFloat(aVal);
-            const bNum = parseFloat(bVal);
-
-            let cmp;
-            if (!isNaN(aNum) && !isNaN(bNum)) {
-                cmp = aNum - bNum;
-            } else {
-                cmp = aVal.localeCompare(bVal);
+        const oldTh = headers.item(currentSort.col),
+             newTh = headers.item(colIdx);
+        let asc;
+        if (currentSort.col !== colIdx) {
+            if (oldTh && !currentSort.asc) {
+                oldTh.querySelector('.sort-indicator').textContent = '▲';
             }
-            return asc ? cmp : -cmp;
+            asc = true;
+        } else {
+            asc = !currentSort.asc;
+        }
+        oldTh?.classList.remove('sort-asc', 'sort-desc');
+        newTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
+        newTh.querySelector('.sort-indicator').textContent = asc ? '▲' : '▼';
+        currentSort = {col: colIdx, asc};
+
+        let vals = new Map(rows.map(row => {
+            const cell = row.children[colIdx],
+                val = (cell.getAttribute("data-sort-value") ?? cell.textContent).trim(),
+                num = parseFloat(val);
+            return [row, [val, num, !isNaN(num)]];
+        }));
+        rows.sort((a, b) => {
+            const [aVal, aNum, aIsNum] = vals.get(a),
+                [bVal, bNum, bIsNum] = vals.get(b);
+
+            if (aIsNum && bIsNum) {
+                return asc ? aNum - bNum : bNum - aNum;
+            }
+
+            return asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
         });
 
         rows.forEach(row => tbody.appendChild(row));
-
-        headers.forEach((th, idx) => {
-            th.classList.remove('sort-asc', 'sort-desc');
-            if (idx === colIdx) {
-                th.classList.add(asc ? 'sort-asc' : 'sort-desc');
-                th.querySelector('.sort-indicator').textContent = asc ? '▲' : '▼';
-            } else {
-                th.querySelector('.sort-indicator').textContent = '▲';
-            }
-        });
     }
 })();
 </script>
@@ -182,44 +184,37 @@ def render_table(
         sort_indicator = '<span class="sort-indicator">▲</span>' if sortable else ""
         html.append(f"<th{style_attr}>{escape_html(str(col))}{sort_indicator}</th>")
     html.append("</tr></thead><tbody>")
-    for i, row in enumerate(df.iter_rows(named=True)):
+    for i, row in enumerate(df.iter_rows()):
         bg_color = row_colors[i] if row_colors and i < len(row_colors) else "#ffffff"
         link = row_links[i] if row_links and i < len(row_links) else None
 
-        html.append(f'<tr style="background: {bg_color}" data-original-bg="{bg_color}">')
+        html.append(f'<tr style="background: {bg_color}">')
         for j, col in enumerate(headers):
-            value = row[col]
+            value = row[j]
 
+            sort_attr = ""
             if value is None:
-                cell_value = ""
-                sort_value = ""
-            elif isinstance(value, float) and math.isnan(value):
-                cell_value = "-"
-                sort_value = ""
-            elif format_spec and col in format_spec:
-                fmt = format_spec[col]
-                sort_value = str(value) if isinstance(value, (int, float)) else ""
-                if fmt.endswith("%"):
-                    cell_value = escape_html(f"{value:{fmt[:-1]}}%")
-                else:
-                    cell_value = escape_html(f"{value:{fmt}}")
+                cell_content = ""
             elif isinstance(value, (int, float)):
-                cell_value = value
-                sort_value = str(value)
+                if math.isnan(value):
+                    cell_content = "-"
+                else:
+                    fmt = format_spec.get(col) if format_spec else None
+                    if fmt:
+                        sort_attr = f' data-sort-value="{value}"'
+                        cell_content = escape_html(f"{value:{fmt[:-1]}}%" if fmt.endswith("%") else f"{value:{fmt}}")
+                    else:
+                        cell_content = value
             else:
-                cell_value = escape_html(value)
-                sort_value = ""
+                cell_content = escape_html(value)
 
             td_styles = []
             if j == 0 and small_headers:
-                td_styles.extend(["font-size: 10px", "font-weight: 600"])
-            if column_widths and col in column_widths and column_widths[col].endswith("px"):
+                td_styles.append("font-size: 10px; font-weight: 600")
+            if column_widths and column_widths.get(col, "").endswith("px"):
                 td_styles.append("white-space: nowrap")
             td_style_attr = f' style="{"; ".join(td_styles)}"' if td_styles else ""
 
-            sort_attr = f' data-sort-value="{sort_value}"' if sortable and sort_value else ""
-
-            cell_content = cell_value
             if truncate_cols and col in truncate_cols:
                 width = column_widths and column_widths.get(col, "200px")
                 title_attr = f' title="{escape_html_attr(value)}"' if value else ""
