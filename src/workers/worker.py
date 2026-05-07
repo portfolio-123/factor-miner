@@ -47,34 +47,28 @@ def run_analysis(
         factor_columns = list(column_names - SPECIAL_COLUMNS)
 
         per_date_valid = dataset_lf.group_by("Date").agg((pl.col(f).drop_nulls().rle_id().last() > 0).alias(f) for f in factor_columns)
-        factor_first_valid = per_date_valid.select(
-            pl.col("Date").first().alias("_first_date"), (pl.col("Date").filter(pl.col(f)).first().alias(f) for f in factor_columns)
+        factor_first_valid = (
+            per_date_valid.select([pl.when(pl.col(f)).then(pl.col("Date")).min().alias(f) for f in factor_columns])
+            .unpivot(variable_name="column", value_name="first_valid_date")
+            .with_columns([pl.col("first_valid_date").is_not_null().alias("is_valid")])
         ).collect()
 
-        row = factor_first_valid.row(0, named=True)
-        first_date = row.pop("_first_date")
-        per_factor_dates: dict[str, str] = {f: dates for f, dates in row.items() if dates is not None}
+        global_valid_start = factor_first_valid.select(pl.col("first_valid_date").max().alias("first_valid_date")).item()
 
-        dropped_factors = [f for f, d in row.items() if d is None]
+        factor_first_valid_dates = factor_first_valid.filter(pl.col("is_valid")).select(["column", "first_valid_date"])
+
+        dropped_factors = factor_first_valid.filter(~pl.col("is_valid")).select("column").to_series().to_list()
+
         if dropped_factors:
             logger.warning("Dropped invalid factors: %s", dropped_factors)
 
-        if not per_factor_dates:
-            raise AnalysisError("No valid rebalancing dates found.")
+        global_start = dataset_lf.select("Date").first().collect().item()
 
-        factor_columns = list(per_factor_dates)
+        date_was_moved = global_valid_start != global_start
 
-        # dataset starts from the first valid date of the latest valid factor
-        first_valid_date = max(per_factor_dates.values())
-
-        date_was_moved = first_valid_date != first_date
         if date_was_moved:
-            logger.info("Start date moved to %s (latest per-factor first valid date)", first_valid_date)
-            dataset_lf = dataset_lf.filter(pl.col("Date") >= first_valid_date)
-
-        factor_first_valid_dates = pl.DataFrame(
-            {"column": factor_columns, "first_valid_date": [per_factor_dates[f] for f in factor_columns]}
-        )
+            logger.info("Start date moved to %s (latest per-factor first valid date)", global_valid_start)
+            dataset_lf = dataset_lf.filter(pl.col("Date") >= global_valid_start)
 
         core_df = (
             dataset_lf.select(REQUIRED_COLUMNS)
@@ -157,7 +151,7 @@ def run_analysis(
         factor_classifications=factor_classifications,
         avg_alpha=float(np.nanmean(metrics_df.get_column("annualized_alpha_pct"))),  # type: ignore[arg-type]
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
-        first_valid_date=first_valid_date if date_was_moved else None,
+        first_valid_date=global_valid_start if date_was_moved else None,
     )
 
 
