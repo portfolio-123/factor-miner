@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 import streamlit as st
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
-
+from unidecode import unidecode
 from src.core.utils.common import escape_html
 
 
@@ -15,8 +15,8 @@ def copy_download_buttons(
 ):
     """Render copy-to-clipboard and download CSV buttons."""
 
-    def sanitize(text: str) -> str:
-        return text.replace("−", "-")
+    def csv_data():
+        return unidecode(render_csv_download())
 
     _, col1, col2 = st.columns([3, 1, 1])
     with col1:
@@ -26,8 +26,6 @@ def copy_download_buttons(
             copy_to_clipboard(csv_copy)
             st.toast(toast_msg)
     with col2:
-        csv_data = sanitize(render_csv_download())
-
         st.download_button(
             type="primary",
             label="Download CSV",
