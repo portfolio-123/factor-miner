@@ -16,7 +16,7 @@ def copy_download_buttons(
     """Render copy-to-clipboard and download CSV buttons."""
 
     def csv_data():
-        return unidecode(render_csv_download())
+        return render_csv_download().translate(str.maketrans({"−": "-", "α": "a"}))
 
     _, col1, col2 = st.columns([3, 1, 1])
     with col1:
