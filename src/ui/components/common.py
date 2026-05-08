@@ -1,27 +1,26 @@
 from collections.abc import Callable
 
+import polars as pl
 import streamlit as st
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
-from unidecode import unidecode
 from src.core.utils.common import escape_html
 
 
-def copy_download_buttons(
-    render_csv_copy: Callable[[], str],
-    render_csv_download: Callable[[], str],
-    file_name: str,
-    key_prefix: str,
-    toast_msg="Copied to clipboard",
-):
+def copy_download_buttons(df: pl.DataFrame | Callable[[], pl.DataFrame], file_name: str, key_prefix: str, toast_msg="Copied to clipboard"):
     """Render copy-to-clipboard and download CSV buttons."""
 
-    def csv_data():
-        return render_csv_download().translate(str.maketrans({"−": "-", "α": "a"}))
+    def prepare_csv_for_download():
+        nonlocal df
+        if not isinstance(df, pl.DataFrame):
+            df = df()
+        return df.write_csv().translate({ord("−"): "-", ord("α"): "a"})
 
     _, col1, col2 = st.columns([3, 1, 1])
     with col1:
         if st.button(type="primary", label="Copy to Clipboard", width="stretch", key=f"{key_prefix}_copy"):
-            csv_copy = render_csv_copy()
+            if not isinstance(df, pl.DataFrame):
+                df = df()
+            csv_copy = df.write_csv(separator="\t")
             copy_to_clipboard_unsecured(csv_copy)
             copy_to_clipboard(csv_copy)
             st.toast(toast_msg)
@@ -29,7 +28,7 @@ def copy_download_buttons(
         st.download_button(
             type="primary",
             label="Download CSV",
-            data=csv_data,
+            data=prepare_csv_for_download,
             file_name=file_name,
             mime="text/csv",
             width="stretch",
