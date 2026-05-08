@@ -158,7 +158,7 @@ def run_analysis(
         all_corr_matrix=serialize_dataframe(corr_matrix),
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
-        avg_alpha=float(np.nanmean(metrics_df.filter(pl.col("column").is_in(best_factors)).get_column("annualized_alpha_pct"))),  # type: ignore[arg-type]
+        avg_alpha=float(np.nanmean(metrics_df.filter(pl.col("factor").is_in(best_factors)).get_column("annualized_alpha_pct"))),  # type: ignore[arg-type]
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
         first_valid_date=global_valid_start if date_was_moved else None,
     )
