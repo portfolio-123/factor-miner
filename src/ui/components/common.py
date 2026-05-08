@@ -3,7 +3,7 @@ import unicodedata
 
 import streamlit as st
 from st_clipboard import copy_to_clipboard, copy_to_clipboard_unsecured
-
+from unidecode import unidecode
 from src.core.utils.common import escape_html
 
 
