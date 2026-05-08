@@ -176,11 +176,11 @@ class RankConfig(ABC):
 
     def get_renames(self, low_q: float, high_q: float) -> dict[str, str]:
         if low_q == 0:
-            return {"annualized_alpha_pct": "H Ann. Alpha %", "beta": "H Beta", "t_stat": "H T-Stat"}
+            return {"annualized_alpha_pct": "H α", "beta": "H Beta", "t_stat": "H T-Stat"}
         elif high_q == 0:
-            return {"annualized_alpha_pct": "L Ann. Alpha %", "beta": "L Beta", "t_stat": "L T-Stat"}
+            return {"annualized_alpha_pct": "L α", "beta": "L Beta", "t_stat": "L T-Stat"}
         else:
-            return {"annualized_alpha_pct": "H−L Alpha %", "beta": "H−L Beta", "t_stat": "H−L T-Stat"}
+            return {"annualized_alpha_pct": "H−L α", "beta": "H−L Beta", "t_stat": "H−L T-Stat"}
 
     @abstractmethod
     def format_filter(self, v: float) -> str | float:
@@ -228,7 +228,7 @@ class AnalysisParams(BaseModel):
     min_rank_metric: float = 0.5
     n_factors: int = 10
     max_na_pct: float = 40.0
-    correlation_threshold: float = 0.5
+    correlation_threshold: float = 0.7
     max_return_pct: float = 200.0
     asc_factors: list[str] = []
     auto_detect_direction: bool = True

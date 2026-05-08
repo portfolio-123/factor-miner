@@ -120,6 +120,10 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     params = worker_ctx.params
     num_dates = len(offsets)
 
+    na_pct = round(calculate_na_pct(factor_arr), 2)
+    if factor_arr.size > perf_arr.size:
+        factor_arr = factor_arr[-perf_arr.size :]
+
     ic_valid = np.empty(num_dates, dtype=np.float32)
     ic_valid_count = 0
 
@@ -175,7 +179,7 @@ def _process_factor(factor: str, ascending: bool) -> tuple[ProcessFactorResult, 
     ic_t_stat = float(ttest_1samp(ic_valid[:ic_valid_count], popmean=0)[0]) if ic_valid_count > 0 else math.nan
 
     result: ProcessFactorResult = {
-        "na_pct": round(calculate_na_pct(factor_arr), 2),
+        "na_pct": na_pct,
         "ic": ic,
         "ic_t_stat": ic_t_stat,
         "annualized_high_quantile_pct": annualize_return(high_quantile_rets, worker_ctx.periods_per_year) * 100,
