@@ -57,11 +57,11 @@ def select_best_factors(
         .collect()
     )
 
-    classifications = dict(zip(processed_metrics.get_column("column"), processed_metrics.get_column("status")))
+    classifications = dict(zip(processed_metrics.get_column("factor"), processed_metrics.get_column("status")))
 
     candidate_df = processed_metrics.filter(pl.col("status").is_null())
 
-    candidates = candidate_df.get_column("column").to_list()
+    candidates = candidate_df.get_column("factor").to_list()
     if not candidates:
         return [], classifications, pl.DataFrame()
 

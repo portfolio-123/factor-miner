@@ -72,7 +72,7 @@ class ParquetDataReader(AbstractContextManager["ParquetDataReader"]):
         return {
             "data": pl.concat([first_rows, last_rows]),
             "num_rows": total_rows,
-            "num_dates": self.scan().select(pl.col("Date").rle_id().last() + 1).collect().item(),
+            "num_dates": self.scan().select(pl.col("Date").n_unique()).collect().item(),
         }
 
     def get_dataset_info(self) -> DatasetConfig:

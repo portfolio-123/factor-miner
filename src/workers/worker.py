@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import logging
+from typing import Any
 import polars as pl
 import sys
 import traceback
@@ -44,25 +45,35 @@ def run_analysis(
             raise AnalysisError(f"Dataset is missing required columns: {missing}", error_type="missing-column")
 
         dataset_lf = dataset_svc.scan()
+        all_dates = dataset_lf.select("Date").collect().to_series()
+        if not all_dates.is_sorted():
+            raise ValueError("DataFrame must be sorted by 'Date' ascending.")
+
+        dataset_lf = dataset_lf.set_sorted("Date")
+
         factor_columns = list(column_names - SPECIAL_COLUMNS)
 
-        per_date_valid = dataset_lf.group_by("Date").agg((pl.col(f).drop_nulls().rle_id().last() > 0).alias(f) for f in factor_columns)
         factor_first_valid = (
-            per_date_valid.select([pl.when(pl.col(f)).then(pl.col("Date")).min().alias(f) for f in factor_columns])
-            .unpivot(variable_name="column", value_name="first_valid_date")
-            .with_columns([pl.col("first_valid_date").is_not_null().alias("is_valid")])
-        ).collect()
+            dataset_lf.group_by("Date")
+            .agg((pl.col(f).min() != pl.col(f).max()).alias(f) for f in factor_columns)
+            .select(pl.when(pl.col(f)).then(pl.col("Date")).first().alias(f) for f in factor_columns)
+            .unpivot(variable_name="factor", value_name="first_valid_date")
+            .collect()
+            .lazy()
+        )
 
-        global_valid_start = factor_first_valid.select(pl.col("first_valid_date").max().alias("first_valid_date")).item()
+        factor_first_valid_dates = (
+            factor_first_valid.filter(pl.col("first_valid_date").is_not_null()).select("factor", "first_valid_date").collect()
+        )
 
-        factor_first_valid_dates = factor_first_valid.filter(pl.col("is_valid")).select(["column", "first_valid_date"])
+        global_valid_start: Any = factor_first_valid_dates.get_column("first_valid_date").max()
 
-        dropped_factors = factor_first_valid.filter(~pl.col("is_valid")).select("column").to_series().to_list()
+        dropped_factors = factor_first_valid.filter(pl.col("first_valid_date").is_null()).select("factor").collect()
 
-        if dropped_factors:
-            logger.warning("Dropped invalid factors: %s", dropped_factors)
+        if not dropped_factors.is_empty():
+            logger.warning("Dropped invalid factors: %s", dropped_factors.to_series().to_list())
 
-        global_start = dataset_lf.select("Date").first().collect().item()
+        global_start = all_dates.item(0)
 
         date_was_moved = global_valid_start != global_start
 
@@ -75,8 +86,6 @@ def run_analysis(
             .with_columns(pl.col("Date").str.strptime(pl.Date), pl.col(FUTURE_PERF_COLUMN) / 100)
             .collect()
         )
-        if not core_df.get_column("Date").is_sorted():
-            raise ValueError("DataFrame must be sorted by 'Date' ascending.")
 
         dataset_info = dataset_svc.get_metadata()
 
@@ -110,7 +119,7 @@ def run_analysis(
     logger.info("Benchmark: cumulative %+.2f%%, annualized %+.2f%%", total_benchmark_return, annualized_benchmark_return)
 
     # log all the benchmark prices by date
-    lines = "\n".join(f"{date}  {'N/A' if ret is None else f'{ret * 100:+.2f}%'}" for date, ret in benchmark_df.iter_rows())
+    lines = "\n".join(f"{date}  {f'{ret * 100:+.2f}%' if ret is not None else 'N/A'}" for date, ret in benchmark_df.iter_rows())
     logger.info("Benchmark returns by period:\n%s", lines)
 
     logger.info("Analyzing factors...")
@@ -130,11 +139,11 @@ def run_analysis(
     logger.info("Calculating factor metrics...")
     results: list[dict[str, str | float]] = []
     for factor, data in factor_stats.items():
-        data["column"] = factor  # type: ignore
+        data["factor"] = factor  # type: ignore
         results.append(data)  # type: ignore
 
-    metrics_df = pl.DataFrame(results, schema=[("column", pl.Utf8), *((col, pl.Float32) for col in process_factor_result_scalars)]).join(
-        factor_first_valid_dates, on="column", how="left"
+    metrics_df = pl.DataFrame(results, schema=[("factor", pl.String), *((col, pl.Float32) for col in process_factor_result_scalars)]).join(
+        factor_first_valid_dates, on="factor", how="left"
     )
 
     logger.info("Calculating correlation matrix...")

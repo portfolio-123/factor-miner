@@ -11,7 +11,7 @@ from src.ui.components.table_builder import render_table
 
 COLUMN_RENAMES = {
     "first_valid_date": "Date Start",
-    "column": "Factor",
+    "factor": "Factor",
     "asc": "Asc",
     "tag": "Tag",
     "na_pct": "NA %",
@@ -24,7 +24,7 @@ COLUMN_RENAMES = {
 
 DISPLAY_COLUMNS = [
     "rank",
-    "column",
+    "factor",
     "first_valid_date",
     "asc",
     "tag",
@@ -131,9 +131,9 @@ def render_results_table(
     formulas_data = st.session_state.get("formulas_data")
     assert isinstance(formulas_data, pl.DataFrame)
 
-    tag_mapping = formulas_data.lazy().unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
+    tag_mapping = formulas_data.lazy().unique(subset=["name"]).select([pl.col("name").alias("factor"), "tag"])
 
-    display = metrics.join(tag_mapping, on="column", how="left")
+    display = metrics.join(tag_mapping, on="factor", how="left")
 
     # backwards compatibility, add new columns as empty if the original analysis didn't include them
     missing_cols = [col for col in DISPLAY_COLUMNS if col not in display.collect_schema().names()]

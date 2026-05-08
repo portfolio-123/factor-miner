@@ -125,7 +125,7 @@ def results() -> None:
                 render_benchmark_badges(analysis.results.benchmark)
 
             render_results_table(
-                all_metrics_df.lazy().filter(pl.col("column").is_in(best_feature_names)),
+                all_metrics_df.lazy().filter(pl.col("factor").is_in(best_feature_names)),
                 quantile_renames=quantile_renames,
                 key="best_factors",
                 sortable=True,
