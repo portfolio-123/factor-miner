@@ -68,6 +68,12 @@ def results() -> None:
         st.error("No results found for this analysis")
         return
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
+    schema_cols = all_metrics_df.collect_schema().names()
+    if "factor" not in schema_cols and "column" in schema_cols:
+        all_metrics_df = all_metrics_df.rename(
+            {"column": "factor"}
+        )  # provisional for backwards compatibility. TODO: replace for versioned models?
+
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 
     p = analysis.params
@@ -174,7 +180,7 @@ def results() -> None:
             st.subheader("Correlation Conflicts")
 
             render_conflict_explorer(
-                corr_matrix_df=corr_matrix_df,
+                corr_matrix_df=corr_matrix_df.join(all_metrics_df.select(["factor", "rank"]), on="factor", how="left"),
                 conflicting_factors=conflicting_factors,
                 best_factors=best_feature_names,
                 threshold=p.correlation_threshold,

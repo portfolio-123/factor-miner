@@ -167,6 +167,7 @@ class RankConfigInputSettings(TypedDict, total=False):
     min_value: float | None
     max_value: float | None
     step: float
+    format: str | None
 
 
 class RankConfig(ABC):
@@ -176,11 +177,11 @@ class RankConfig(ABC):
 
     def get_renames(self, low_q: float, high_q: float) -> dict[str, str]:
         if low_q == 0:
-            return {"annualized_alpha_pct": "H α", "beta": "H Beta", "t_stat": "H T-Stat"}
+            return {"annualized_alpha_pct": "H Alpha", "beta": "H Beta", "t_stat": "H T-Stat"}
         elif high_q == 0:
-            return {"annualized_alpha_pct": "L α", "beta": "L Beta", "t_stat": "L T-Stat"}
+            return {"annualized_alpha_pct": "L Alpha", "beta": "L Beta", "t_stat": "L T-Stat"}
         else:
-            return {"annualized_alpha_pct": "H−L α", "beta": "H−L Beta", "t_stat": "H−L T-Stat"}
+            return {"annualized_alpha_pct": "H−L Alpha", "beta": "H−L Beta", "t_stat": "H−L T-Stat"}
 
     @abstractmethod
     def format_filter(self, v: float) -> str | float:
@@ -208,8 +209,8 @@ class AnnualizedAlphaPctRankConfig(RankConfig):
 
 class IcRankConfig(RankConfig):
     metric_label = "IC"
-    input_settings = {"min_value": 0.0, "max_value": 1.0, "step": 0.005}
-    default = 0.01
+    input_settings = {"min_value": 0.0, "max_value": 1.0, "step": 0.001, "format": "%.3f"}
+    default = 0.010
 
     def format_filter(self, v):
         return v

@@ -25,7 +25,6 @@ COLUMN_RENAMES = {
 DISPLAY_COLUMNS = [
     "rank",
     "factor",
-    "first_valid_date",
     "asc",
     "tag",
     "annualized_alpha_pct",
@@ -36,6 +35,7 @@ DISPLAY_COLUMNS = [
     "annualized_high_quantile_pct",
     "annualized_low_quantile_pct",
     "na_pct",
+    "first_valid_date",
 ]
 
 FORMAT_SPEC = {
@@ -186,7 +186,7 @@ def _build_row(a: AnalysisSummary, ds: DatasetConfig) -> dict[str, str]:
         "Universe": ds.universeName,
         "Best Factors": f"{a.best_factors_count or 0}/{len(ds.formulas)}",
         "Rows": f"{ds.numRows:,}",
-        f"Avg H−L α": f"{(a.avg_alpha or 0):.2f}%",
+        f"Avg Alpha": f"{(a.avg_alpha or 0):.2f}%",
         "Period": f"{format_date(ds.startDt)} – {format_date(ds.endDt)}",
         "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M UTC") + active_marker,
         "Parameters": str(params_dict),
@@ -233,20 +233,24 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
             "Parameters": "300px",
             "Universe": "100px",
             "Period": "80px",
+            "Notes": "120px",
         },
-        truncate_cols={"Parameters", "Universe"},
+        truncate_cols={"Parameters", "Universe", "Notes"},
     )
 
 
 def render_conflict_explorer(corr_matrix_df: pl.DataFrame, conflicting_factors: list[str], best_factors: list[str], threshold: float):
-    conflict_data = corr_matrix_df.lazy().filter(pl.col("factor").is_in(conflicting_factors)).select(["factor"] + best_factors)
+    conflict_data = corr_matrix_df.lazy().filter(pl.col("factor").is_in(conflicting_factors)).select(["rank", "factor"] + best_factors)
 
     long_conflicts = (
-        conflict_data.unpivot(index="factor", variable_name="Blocked By", value_name="Correlation")
+        conflict_data.unpivot(index=["rank", "factor"], variable_name="Blocked By", value_name="Correlation")
         .filter(pl.col("Correlation") >= threshold)
         .sort("Correlation", descending=True)
     )
 
     render_table(
-        long_conflicts.rename({"factor": "Excluded Factor"}).collect(), zebra=True, format_spec={"Correlation": ".4f"}, sortable=True
+        long_conflicts.rename({"rank": "Rank", "factor": "Excluded Factor"}).collect(),
+        zebra=True,
+        format_spec={"Correlation": ".4f"},
+        sortable=True,
     )
