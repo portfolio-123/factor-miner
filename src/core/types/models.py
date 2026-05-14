@@ -264,7 +264,6 @@ class DatasetConfig(BaseModel):
     startDt: str
     endDt: str
     benchName: str
-    precision: int
     normalization: bool = False
     preprocessor: NormalizationConfig | None = None
     formulas: list[FormulasDataFrame]
