@@ -18,7 +18,6 @@ def list_user_datasets(user_uid: str) -> dict[str, str]:
                     results[f.name] = svc.get_metadata().factorListName
             except Exception:
                 results[f.name] = f"Corrupted Dataset ({f.name})"
-                pass
     except (FileNotFoundError, NotADirectoryError):
         return {}
 
