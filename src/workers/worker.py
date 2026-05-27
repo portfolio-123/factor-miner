@@ -68,10 +68,14 @@ def run_analysis(
 
         global_valid_start: Any = factor_first_valid_dates.get_column("first_valid_date").max()
 
-        dropped_factors = factor_first_valid.filter(pl.col("first_valid_date").is_null()).select("factor").collect()
+        valid_factor_names = factor_first_valid_dates.get_column("factor").to_list()
 
-        if not dropped_factors.is_empty():
-            logger.warning("Dropped invalid factors: %s", dropped_factors.to_series().to_list())
+        dropped_factor_names = set(factor_columns) - set(valid_factor_names)
+
+        if dropped_factor_names:
+            logger.warning("Dropped invalid factors: %s", dropped_factor_names)
+
+            factor_columns = valid_factor_names
 
         global_start = all_dates.item(0)
 
