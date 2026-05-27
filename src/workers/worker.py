@@ -51,12 +51,12 @@ def run_analysis(
 
         dataset_lf = dataset_lf.set_sorted("Date")
 
-        factor_columns = list(column_names - SPECIAL_COLUMNS)
+        all_factor_names = column_names - SPECIAL_COLUMNS
 
         factor_first_valid = (
             dataset_lf.group_by("Date")
-            .agg((pl.col(f).min() != pl.col(f).max()).alias(f) for f in factor_columns)
-            .select(pl.when(pl.col(f)).then(pl.col("Date")).first().alias(f) for f in factor_columns)
+            .agg((pl.col(f).min() != pl.col(f).max()).alias(f) for f in all_factor_names)
+            .select(pl.when(pl.col(f)).then(pl.col("Date")).first().alias(f) for f in all_factor_names)
             .unpivot(variable_name="factor", value_name="first_valid_date")
             .collect()
             .lazy()
@@ -70,12 +70,12 @@ def run_analysis(
 
         valid_factor_names = factor_first_valid_dates.get_column("factor").to_list()
 
-        dropped_factor_names = set(factor_columns) - set(valid_factor_names)
+        dropped_factor_names = None
+        if len(valid_factor_names) < len(all_factor_names):
+            dropped_factor_names = all_factor_names.difference(valid_factor_names)
 
         if dropped_factor_names:
             logger.warning("Dropped invalid factors: %s", dropped_factor_names)
-
-            factor_columns = valid_factor_names
 
         global_start = all_dates.item(0)
 
@@ -98,7 +98,7 @@ def run_analysis(
     if dataset_info.type == DatasetType.DATE:
         raise AnalysisError("Single-date datasets are not supported", error_type="single-date")
 
-    update({"progress": AnalysisProgress(completed=0, total=len(factor_columns))})
+    update({"progress": AnalysisProgress(completed=0, total=len(valid_factor_names))})
 
     logger.info("Calculating benchmark returns...")
 
@@ -131,7 +131,7 @@ def run_analysis(
         core_df,
         benchmark_df[INTERNAL_BENCHMARK_COL].to_numpy(),
         dataset_details,
-        factor_columns,
+        valid_factor_names,
         params,
         periods_per_year,
         on_progress=lambda completed, total: update({"progress": AnalysisProgress(completed=completed, total=total)}),
