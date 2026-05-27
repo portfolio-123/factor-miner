@@ -70,12 +70,8 @@ def run_analysis(
 
         valid_factor_names = factor_first_valid_dates.get_column("factor").to_list()
 
-        dropped_factor_names = None
         if len(valid_factor_names) < len(all_factor_names):
-            dropped_factor_names = all_factor_names.difference(valid_factor_names)
-
-        if dropped_factor_names:
-            logger.warning("Dropped invalid factors: %s", dropped_factor_names)
+            logger.warning("Dropped invalid factors: %s", all_factor_names.difference(valid_factor_names))
 
         global_start = all_dates.item(0)
 
