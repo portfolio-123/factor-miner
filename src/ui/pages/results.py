@@ -92,7 +92,7 @@ def results() -> None:
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
         f"Found **{len(best_feature_names)}** of **{p.n_factors}** requested Best Factors. "
-        f"Number of factors excluded by NAs: {na_excluded_count}."
+        f"Number of non-empty factors excluded by NAs: {na_excluded_count}."
     )
     if analysis.results.first_valid_date:
         st.warning(
