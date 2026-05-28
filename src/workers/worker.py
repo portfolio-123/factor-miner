@@ -56,7 +56,7 @@ def run_analysis(
         factor_first_valid = (
             dataset_lf.group_by("Date")
             .agg((pl.col(f).min() != pl.col(f).max()).alias(f) for f in all_factor_names)
-            .select(pl.when(pl.col(f)).then(pl.col("Date")).first().alias(f) for f in all_factor_names)
+            .select(pl.when(pl.col(f)).then(pl.col("Date")).drop_nulls().first().alias(f) for f in all_factor_names)
             .unpivot(variable_name="factor", value_name="first_valid_date")
             .collect()
             .lazy()
@@ -70,8 +70,10 @@ def run_analysis(
 
         valid_factor_names = factor_first_valid_dates.get_column("factor").to_list()
 
+        dropped_factors_names = None
         if len(valid_factor_names) < len(all_factor_names):
-            logger.warning("Dropped invalid factors: %s", all_factor_names.difference(valid_factor_names))
+            dropped_factors_names = all_factor_names.difference(valid_factor_names)
+            logger.warning("Dropped invalid factors: %s", dropped_factors_names)
 
         global_start = all_dates.item(0)
 
@@ -158,9 +160,10 @@ def run_analysis(
         all_corr_matrix=serialize_dataframe(corr_matrix),
         best_feature_names=best_factors,
         factor_classifications=factor_classifications,
-        avg_alpha=float(np.nanmean(metrics_df.filter(pl.col("factor").is_in(best_factors)).get_column("annualized_alpha_pct"))),  # type: ignore[arg-type]
+        avg_alpha=float(np.nanmean(metrics_df.filter(pl.col("factor").is_in(best_factors)).get_column("annualized_alpha_pct"))) if best_factors else 0,  # type: ignore[arg-type]
         benchmark={"total_benchmark_return": float(total_benchmark_return), "annualized_benchmark_return": annualized_benchmark_return},
         first_valid_date=global_valid_start if date_was_moved else None,
+        dropped_factors=dropped_factors_names,
     )
 
 

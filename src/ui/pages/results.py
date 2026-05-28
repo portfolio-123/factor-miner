@@ -92,8 +92,18 @@ def results() -> None:
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
         f"Found **{len(best_feature_names)}** of **{p.n_factors}** requested Best Factors. "
-        f"Number of non-empty factors excluded by NAs: {na_excluded_count}."
+        f"Valid factors excluded by NA%: {na_excluded_count}"
     )
+
+    dropped_factors = analysis.results.dropped_factors
+
+    if dropped_factors:
+        with st.expander(f"**Factors dropped before analysis: {len(dropped_factors)}**"):
+            st.write(
+                "Dropped factors either had the same value for every stock on each date, or were completely empty. They are not included in the analysis below."
+            )
+            st.markdown(" ".join(f":blue-badge[{name}]" for name in dropped_factors))
+
     if analysis.results.first_valid_date:
         st.warning(
             f"Due to invalid factor data on certain dates, the dataset was analyzed starting from **{analysis.results.first_valid_date}**"

@@ -99,6 +99,7 @@ class AnalysisResults(BaseModel):
     avg_alpha: float = 0.0
     benchmark: BenchmarkDisplayResults
     first_valid_date: str | None = None
+    dropped_factors: set[str] | None = None
 
 
 class TokenPayload(BaseModel):
