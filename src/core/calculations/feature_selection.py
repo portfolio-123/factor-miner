@@ -1,6 +1,8 @@
 import numpy as np
 import polars as pl
 
+import math
+
 from src.core.types.models import RANK_CONFIG, AnalysisParams
 
 
@@ -9,7 +11,7 @@ def calculate_correlation_matrix(lf: pl.LazyFrame, factor_columns: list[str]):
     corr_sum = np.zeros((length, length), dtype=np.float64)
     corr_count = np.zeros((length, length), dtype=np.int32)
 
-    dates = lf.select(pl.col("Date").rle().struct.field("value").alias("Date")).collect().get_column("Date").to_list()
+    dates = lf.select(pl.col("Date").rle().struct.field("value").alias("Date")).collect().to_series().to_list()
 
     ranks = [pl.col(c).fill_nan(None).rank(method="average").alias(c) for c in factor_columns]
 
@@ -38,22 +40,28 @@ def select_best_factors(
     rank_config = RANK_CONFIG[params.rank_by]
     sort_by, is_desc = rank_config.get_sorting(params.high_quantile)
 
-    processed_metrics = metrics_df.with_columns(
-        status=pl.when(pl.col("na_pct") > params.max_na_pct)
-        .then(pl.lit("high_na"))
-        .when(
-            (pl.col(params.rank_by) > params.min_rank_metric)
-            if params.high_quantile == 0
-            else (pl.col(params.rank_by) < params.min_rank_metric)
+    processed_metrics = (
+        metrics_df.lazy()
+        .sort(sort_by, descending=is_desc)
+        .with_columns(
+            pl.when(pl.col("na_pct") > params.max_na_pct)
+            .then(pl.lit("high_na"))
+            .when(
+                (pl.col(params.rank_by) > params.min_rank_metric)
+                if params.high_quantile == 0
+                else (pl.col(params.rank_by) < params.min_rank_metric)
+            )
+            .then(pl.lit("below_rank_metric"))
+            .alias("status")
         )
-        .then(pl.lit("below_rank_metric"))
-    ).sort(sort_by, descending=is_desc)
+        .collect()
+    )
 
-    classifications = dict(zip(processed_metrics["column"], processed_metrics["status"]))
+    classifications = dict(zip(processed_metrics.get_column("factor"), processed_metrics.get_column("status")))
 
     candidate_df = processed_metrics.filter(pl.col("status").is_null())
 
-    candidates = candidate_df["column"].to_list()
+    candidates = candidate_df.get_column("factor").to_list()
     if not candidates:
         return [], classifications, pl.DataFrame()
 
@@ -71,7 +79,7 @@ def select_best_factors(
     selected_indices: list[int] = []
 
     for i, feature in enumerate(candidates):
-        if len(selected_features) >= (params.n_factors if params.n_factors is not None else float("inf")):
+        if len(selected_features) >= (params.n_factors if params.n_factors is not None else math.inf):
             classifications[feature] = "n_limit"
         elif selected_indices and np.any(np.abs(corr_arr[i, selected_indices]) >= params.correlation_threshold):
             classifications[feature] = "correlation_conflict"

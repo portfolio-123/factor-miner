@@ -20,7 +20,7 @@ def fetch_benchmark_data(benchmark_ticker: str, api_credentials: APICredentials,
         client = p123api.Client(**api_credentials, endpoint=API_BASE_URL)
         data = client.data_prices(benchmark_ticker, start_date, end_date)
 
-        return pl.DataFrame(data["prices"], schema_overrides={"dt": pl.Utf8, "close": pl.Float64}).select(
+        return pl.DataFrame(data["prices"], schema_overrides={"dt": pl.String, "close": pl.Float64}).select(
             [pl.col("dt").str.strptime(pl.Date).alias("Date"), pl.col("close").alias("Close")]
         )
     except Exception as e:

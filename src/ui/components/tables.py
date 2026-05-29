@@ -10,20 +10,21 @@ from src.ui.components.common import copy_download_buttons
 from src.ui.components.table_builder import render_table
 
 COLUMN_RENAMES = {
-    "column": "Factor",
+    "first_valid_date": "Date Start",
+    "factor": "Factor",
     "asc": "Asc",
     "tag": "Tag",
-    "na_pct": "NA %",
+    "na_pct": "NA",
     "rank": "Rank",
     "ic": "Tail-Weighted IC",
     "ic_t_stat": "IC t-stat",
-    "annualized_high_quantile_pct": "Ann. High Qtl %",
-    "annualized_low_quantile_pct": "Ann. Low Qtl %",
+    "annualized_high_quantile_pct": "Ann. High Qtl",
+    "annualized_low_quantile_pct": "Ann. Low Qtl",
 }
 
 DISPLAY_COLUMNS = [
     "rank",
-    "column",
+    "factor",
     "asc",
     "tag",
     "annualized_alpha_pct",
@@ -34,6 +35,7 @@ DISPLAY_COLUMNS = [
     "annualized_high_quantile_pct",
     "annualized_low_quantile_pct",
     "na_pct",
+    "first_valid_date",
 ]
 
 FORMAT_SPEC = {
@@ -75,11 +77,11 @@ def render_correlation_matrix(corr_matrix_df: pl.DataFrame, title: str, file_pre
         small_headers=True,
         column_widths={"": "180px"},
         format_spec={col: ".4f" for col in corr_matrix_df.columns[1:]},
+        sortable=True,
     )
 
     copy_download_buttons(
-        render_csv_copy=lambda: corr_matrix_df.write_csv(separator="\t"),
-        render_csv_download=lambda: corr_matrix_df.write_csv(),
+        df=corr_matrix_df,
         file_name=(f"{file_prefix}_correlation_matrix.csv" if file_prefix else "correlation_matrix.csv"),
         key_prefix=f"corr_matrix{key_suffix}",
         toast_msg="Correlation matrix copied to clipboard",
@@ -108,13 +110,7 @@ def show_formulas_modal(formulas_df: pl.DataFrame) -> None:
 
     render_table(subset, max_height=400, zebra=True, column_widths={"formula": "45%", "name": "35%", "tag": "20%"})
 
-    copy_download_buttons(
-        render_csv_copy=lambda: subset.write_csv(separator="\t"),
-        render_csv_download=lambda: subset.write_csv(),
-        file_name="dataset_factors.csv",
-        key_prefix="factors_modal",
-        toast_msg="Factors copied to clipboard",
-    )
+    copy_download_buttons(df=subset, file_name="dataset_factors.csv", key_prefix="factors_modal", toast_msg="Factors copied to clipboard")
 
 
 def render_results_table(
@@ -129,11 +125,16 @@ def render_results_table(
     formulas_data = st.session_state.get("formulas_data")
     assert isinstance(formulas_data, pl.DataFrame)
 
-    tag_mapping = formulas_data.lazy().unique(subset=["name"]).select([pl.col("name").alias("column"), "tag"])
+    tag_mapping = formulas_data.lazy().unique(subset=["name"]).select([pl.col("name").alias("factor"), "tag"])
 
-    display = metrics.join(tag_mapping, on="column", how="left")
+    display = metrics.join(tag_mapping, on="factor", how="left")
 
-    display = display.with_columns([pl.col("asc").replace_strict([False, True], ["", "X"])])
+    # backwards compatibility, add new columns as empty if the original analysis didn't include them
+    missing_cols = [col for col in DISPLAY_COLUMNS if col not in display.collect_schema().names()]
+    if missing_cols:
+        display = display.with_columns(pl.lit("").alias(col) for col in missing_cols)
+
+    display = display.with_columns(pl.col("asc").replace_strict([False, True], ["", "X"]))
 
     current_renames = {**COLUMN_RENAMES, **quantile_renames}
     ui_column_labels = [current_renames.get(c, c) for c in DISPLAY_COLUMNS]
@@ -154,20 +155,12 @@ def render_results_table(
         max_height=500,
         zebra=True,
         sortable=sortable,
-        column_widths={"Tail-Weighted IC": "50px"},
+        column_widths={"Tail-Weighted IC": "50px", "Factor": "120px", "Tag": "60px", "NA": "50px"},
+        truncate_cols={"Factor", "Tag"},
     )
 
-    def render_csv_copy():
-        enriched_df = add_formula_column(ui_display, formulas_data)
-        return enriched_df.write_csv(separator="\t")
-
-    def render_csv_download():
-        enriched_df = add_formula_column(ui_display, formulas_data)
-        return enriched_df.write_csv()
-
     copy_download_buttons(
-        render_csv_copy=render_csv_copy,
-        render_csv_download=render_csv_download,
+        df=lambda: add_formula_column(ui_display, formulas_data),
         file_name=f"{fl_id}_{key}.csv",
         key_prefix=key,
         toast_msg="Factors copied to clipboard",
@@ -186,13 +179,14 @@ def _build_row(a: AnalysisSummary, ds: DatasetConfig) -> dict[str, str]:
         "max.ret": f"{int(p.max_return_pct)}%",
         "auto-detect": p.auto_detect_direction,
     }
+
     return {
         "Analysis Date": format_timestamp(a.created_at, "%Y-%m-%d %H:%M UTC"),
         "Run Time": format_runtime(a.started_at, a.finished_at),
         "Universe": ds.universeName,
         "Best Factors": f"{a.best_factors_count or 0}/{len(ds.formulas)}",
         "Rows": f"{ds.numRows:,}",
-        "Avg α": f"{(a.avg_alpha or 0):.2f}%",
+        f"Avg Alpha": f"{(a.avg_alpha or 0):.2f}%",
         "Period": f"{format_date(ds.startDt)} – {format_date(ds.endDt)}",
         "Dataset Created": format_timestamp(a.dataset_version, "%Y-%m-%d %H:%M UTC") + active_marker,
         "Parameters": str(params_dict),
@@ -231,18 +225,32 @@ def render_history_table(analyses: list[AnalysisSummary]) -> None:
         df,
         row_colors=row_colors,
         row_links=row_links,
-        max_height=450,
-        column_widths={"Rows": "50px", "Dataset Created": "135px", "Status": "55px"},
+        max_height=550,
+        column_widths={
+            "Rows": "50px",
+            "Dataset Created": "135px",
+            "Status": "55px",
+            "Parameters": "300px",
+            "Universe": "100px",
+            "Period": "80px",
+            "Notes": "120px",
+        },
+        truncate_cols={"Parameters", "Universe", "Notes"},
     )
 
 
 def render_conflict_explorer(corr_matrix_df: pl.DataFrame, conflicting_factors: list[str], best_factors: list[str], threshold: float):
-    conflict_data = corr_matrix_df.lazy().filter(pl.col("factor").is_in(conflicting_factors)).select(["factor"] + best_factors)
+    conflict_data = corr_matrix_df.lazy().filter(pl.col("factor").is_in(conflicting_factors)).select(["rank", "factor"] + best_factors)
 
     long_conflicts = (
-        conflict_data.unpivot(index="factor", variable_name="Blocked By", value_name="Correlation")
+        conflict_data.unpivot(index=["rank", "factor"], variable_name="Blocked By", value_name="Correlation")
         .filter(pl.col("Correlation") >= threshold)
         .sort("Correlation", descending=True)
     )
 
-    render_table(long_conflicts.rename({"factor": "Excluded Factor"}).collect(), zebra=True, format_spec={"Correlation": ".4f"})
+    render_table(
+        long_conflicts.rename({"rank": "Rank", "factor": "Excluded Factor"}).collect(),
+        zebra=True,
+        format_spec={"Correlation": ".4f"},
+        sortable=True,
+    )

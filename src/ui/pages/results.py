@@ -68,6 +68,12 @@ def results() -> None:
         st.error("No results found for this analysis")
         return
     all_metrics_df = deserialize_dataframe(analysis.results.all_metrics)
+    schema_cols = all_metrics_df.collect_schema().names()
+    if "factor" not in schema_cols and "column" in schema_cols:
+        all_metrics_df = all_metrics_df.rename(
+            {"column": "factor"}
+        )  # provisional for backwards compatibility. TODO: replace for versioned models?
+
     corr_matrix_df = deserialize_dataframe(analysis.results.all_corr_matrix)
 
     p = analysis.params
@@ -86,8 +92,18 @@ def results() -> None:
     st.success(
         f"Analysis completed in {format_runtime(analysis.started_at, analysis.finished_at)}. "
         f"Found **{len(best_feature_names)}** of **{p.n_factors}** requested Best Factors. "
-        f"Number of factors excluded by NAs: {na_excluded_count}."
+        f"Valid factors excluded by NA%: {na_excluded_count}"
     )
+
+    dropped_factors = analysis.results.dropped_factors
+
+    if dropped_factors:
+        with st.expander(f"**Factors dropped before analysis: {len(dropped_factors)}**"):
+            st.write(
+                "Dropped factors either had the same value for every stock on each date, or were completely empty. They are not included in the analysis below."
+            )
+            st.markdown(" ".join(f":blue-badge[{name}]" for name in dropped_factors))
+
     if analysis.results.first_valid_date:
         st.warning(
             f"Due to invalid factor data on certain dates, the dataset was analyzed starting from **{analysis.results.first_valid_date}**"
@@ -103,6 +119,7 @@ def results() -> None:
             settings = [
                 ("Rank By", metric_label),
                 ("Max. Factors", p.n_factors),
+                ("Factor Sort", "Automatic" if p.auto_detect_direction else "Manual"),
                 (("Max. " if analysis.params.high_quantile == 0 else "Min. ") + metric_label, rank_config.format_filter(p.min_rank_metric)),
                 ("Max. Correlation", p.correlation_threshold),
                 ("Max. NA", f"{p.max_na_pct}%"),
@@ -125,7 +142,7 @@ def results() -> None:
                 render_benchmark_badges(analysis.results.benchmark)
 
             render_results_table(
-                all_metrics_df.lazy().filter(pl.col("column").is_in(best_feature_names)),
+                all_metrics_df.lazy().filter(pl.col("factor").is_in(best_feature_names)),
                 quantile_renames=quantile_renames,
                 key="best_factors",
                 sortable=True,
@@ -167,11 +184,14 @@ def results() -> None:
 
         render_correlation_matrix(corr_matrix_df=best_corr_matrix, title="Correlation Matrix (Best Factors)", file_prefix=fl_id)
 
-        st.subheader("Correlation Conflicts")
+        conflicting_factors = [f for f, label in factor_classifications.items() if label == "correlation_conflict"]
 
-        render_conflict_explorer(
-            corr_matrix_df=corr_matrix_df,
-            conflicting_factors=[f for f, label in factor_classifications.items() if label == "correlation_conflict"],
-            best_factors=best_feature_names,
-            threshold=p.correlation_threshold,
-        )
+        if conflicting_factors:
+            st.subheader("Correlation Conflicts")
+
+            render_conflict_explorer(
+                corr_matrix_df=corr_matrix_df.join(all_metrics_df.select(["factor", "rank"]), on="factor", how="left"),
+                conflicting_factors=conflicting_factors,
+                best_factors=best_feature_names,
+                threshold=p.correlation_threshold,
+            )

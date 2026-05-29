@@ -32,13 +32,9 @@ def factor_sorting_dialog(factors_df: pl.DataFrame, asc_factors: list[str]):
             st.rerun()
 
 
-def _load_last_analysis_params(fl_id: str) -> None:
-    analyses = AnalysisService(st.session_state.get("user_uid") if INTERNAL_MODE else None).list_all(fl_id)
-    if not analyses:
-        st.toast("No previous analyses found for this dataset")
-        return
-
-    for key, value in analyses[0].params.model_dump().items():
+def _load_default_params():
+    defaults = AnalysisParams()
+    for key, value in defaults.model_dump().items():
         st.session_state[key] = value
 
 
@@ -63,7 +59,6 @@ def _submit_analysis(fl_id: str) -> None:
 
 
 def create_form() -> None:
-
     fl_id = st.query_params.get("fl_id")
     if not fl_id:
         st.warning("No Factor List selected. Please select a Factor List to view analysis history.")
@@ -89,20 +84,24 @@ def create_form() -> None:
 
     st.title("Create Analysis")
     render_dataset_card(active_dataset_metadata)
-    _render_settings()
+    _render_settings(fl_id)
 
     _, col_last_settings, col_run = st.columns([3, 1, 1])
     with col_last_settings:
-        st.button("Use Last Settings", type="secondary", on_click=_load_last_analysis_params, args=(fl_id,), width="stretch")
+        st.button("Use Default Settings", type="secondary", on_click=_load_default_params, width="stretch")
     with col_run:
         st.button("Run Analysis", type="primary", on_click=_submit_analysis, args=(fl_id,), width="stretch")
 
 
-def _render_settings() -> None:
-    defaults = AnalysisParams()
-    for key, value in defaults.model_dump().items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+def _render_settings(fl_id: str) -> None:
+    if "rank_by" not in st.session_state:
+        analyses = AnalysisService(st.session_state.get("user_uid") if INTERNAL_MODE else None).list_all(fl_id)
+
+        if analyses:
+            for key, value in analyses[0].params.model_dump().items():
+                st.session_state[key] = value
+        else:
+            _load_default_params()
 
     section_header("Portfolio Settings")
     col1, col2, col3, col4 = st.columns(4)
@@ -153,17 +152,25 @@ def _render_settings() -> None:
 
     asc_factors = st.session_state.get("asc_factors", [])
 
-    if st.button(
-        f"Factor Sorting ({len(analyzable_factors) - len(asc_factors)} desc, {len(asc_factors)} asc)",
-        disabled=st.session_state.get("auto_detect_direction") == True,
-    ):
-        factor_sorting_dialog(analyzable_factors, asc_factors)
+    col1, col2, _ = st.columns([1, 2, 1], vertical_alignment="bottom")
 
-    st.toggle(
-        "Auto-detect direction",
-        help="Automatically inverts factors with a negative IC. Overrides manual sorting metrics",
-        key="auto_detect_direction",
-    )
+    with col1:
+        st.radio(
+            "Factor Sort",
+            [True, False],
+            horizontal=True,
+            help="**Automatic**: Inverts factors with a negative IC. Overrides manual sorting.  \n"
+            "**Manual**: Turns the selected factors into asc.",
+            key="auto_detect_direction",
+            format_func=lambda x: "Automatic" if x else "Manual",
+        )
+
+    with col2:
+        if st.button(
+            f"Factor Sorting ({len(analyzable_factors) - len(asc_factors)} desc, {len(asc_factors)} asc)",
+            disabled=st.session_state.get("auto_detect_direction") == True,
+        ):
+            factor_sorting_dialog(analyzable_factors, asc_factors)
 
     section_header("Analysis Filters")
     col1, col2, col3, col4 = st.columns(4)
@@ -194,5 +201,5 @@ def _render_settings() -> None:
             max_value=1.0,
             step=0.05,
             key="correlation_threshold",
-            help="Maximum allowed correlation between selected factors",
+            help="Maximum allowed correlation between selected factors. Higher values allow more correlation between the top factors",
         )

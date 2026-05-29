@@ -14,26 +14,20 @@ def list_user_datasets(user_uid: str) -> dict[str, str]:
     try:
         for f in filter(Path.is_file, user_dir.iterdir()):
             try:
-                with DatasetService(
-                    DatasetDetails(fl_id=f.name, user_uid=user_uid)
-                ) as svc:
+                with DatasetService(DatasetDetails(fl_id=f.name, user_uid=user_uid)) as svc:
                     results[f.name] = svc.get_metadata().factorListName
             except Exception:
-                pass
+                results[f.name] = f"Corrupted Dataset ({f.name})"
     except (FileNotFoundError, NotADirectoryError):
         return {}
 
     try:
         for d in factor_miner_dir.iterdir():
             fl_id = d.name
-            if fl_id in results or not any(
-                find_files(d, prefix="dataset_", suffix=".json")
-            ):
+            if fl_id in results or not any(find_files(d, prefix="dataset_", suffix=".json")):
                 continue
             try:
-                latest = BackupDatasetService(
-                    DatasetDetails(fl_id=fl_id, user_uid=user_uid)
-                ).load_latest_version()
+                latest = BackupDatasetService(DatasetDetails(fl_id=fl_id, user_uid=user_uid)).load_latest_version()
                 if latest:
                     results[fl_id] = latest.factorListName
             except Exception:
