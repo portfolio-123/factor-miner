@@ -57,7 +57,7 @@ def run_analysis(
             dataset_lf.group_by("Date")
             .agg((pl.col(f).min() != pl.col(f).max()).alias(f) for f in all_factor_names)
             .sort("Date")
-            .select(pl.when(pl.col(f)).then(pl.col("Date")).first().alias(f) for f in all_factor_names)
+            .select(pl.when(pl.col(f)).then(pl.col("Date")).drop_nulls().first().alias(f) for f in all_factor_names)
             .unpivot(variable_name="factor", value_name="first_valid_date")
             .collect()
             .lazy()
